@@ -156,7 +156,7 @@ const PHYS = {
   YAW_C_AIR:    0.5,     // N·m·s  yaw damping in the air (aerodynamic, spinning body). Assumed
   YAW_C_W:      10,      // N·m·s per m/s  yaw-dæmpning fra vandet, ∝ fart. Antaget
   // Carving: et kantet board med rocker følger sin skrå rail. Kurveradius R = (L²/8h)·CARVE_SLIP / sin(kant).
-  CARVE_SLIP:   2.2,     // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget
+  CARVE_SLIP:   1.91,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 15 % mindre radius ved samme kant (bruger, 25/9-2026)
   CARVE_TAU:    0.25,    // s      hvor hurtigt vandet drejer boardet ind på railens kurve. Antaget
   PIVOT_K:      400,     // N·m/rad  riderens aktive drej af boardet med fødderne ved stor sideslip. Antaget
   PIVOT_TAU_MAX: 180,    // N·m    maks. drejemoment fra fødderne. Antaget
@@ -179,10 +179,6 @@ const PHYS = {
   RAIL_HIP_TAU: 150,     // N·m    roll balance torque from upper body/arms on a rail (hip strategy, as HIP_TAU_MAX); the rest must come from the contact patch. Assumed
   RAIL_LEAN_GAIN: 0.3,   // –      player lean added on top of the automatic balance lean on a rail (45° input → 13.5°). Assumed
   SLIDE_ANGLE:  90,      // °      board angle to the rail in a boardslide (Q/R held on a rail/box). Geometry
-  // --- Line model (selectable): 'spring' = the spring-damper above; 'rigid' = inextensible, tension-only constraint
-  //     (rails report 2 and 18: (L − d)T = 0, T ≥ 0), solved as a velocity constraint with Baumgarte correction.
-  LINE_MODEL:   'spring',
-  LINE_BAUMGARTE: 0.2,   // –      fraction of the length error removed per step (rigid line). Assumed (typical 0.1–0.3)
   ENTRY_LEN:    4.0,     // m      afrundet indkørsel på box/rail/funbox (maks. 45 % af længden). Antaget
   // --- Water surface: wind chop (JONSWAP, fetch-limited) + the board's own wake ---
   WIND_DEFAULT: 4.0,     // m/s    10 m wind speed (adjustable 0–10 in the UI). Assumed light breeze
@@ -257,6 +253,36 @@ const LAYOUT = {
     { id: 'O7', tag: true, name: 'O7 box',  type: 'box',    x: 107.6, y: -36.0, dir: [0.380, 0.925], L: 14.9, W: 3.1, H: 0.45 },  // broad southern part
     { id: 'O7',            name: 'O7 rail/box', type: 'box', x: 110.1, y: -33.3, dir: [0.441, 0.897], L: 21.9, W: 1.1, H: 0.45 },  // full length incl. narrow extension
   ],
+
+  // Surroundings (visual only, no physics). Read from Google Maps satellite (z15–z17, calibrated on the jetty, ±10–20 m) and
+  // Street View from Kraftværksvej 31 (Oct 2024 imagery), 25 Sep 2026. Heights: CopenHill roof 85 m and chimney 124 m
+  // (public figures); all other heights are assumed from the Street View look. Boxes: [x, y, length, width, height, angle°]
+  // with the length along the angle (counter-clockwise from east).
+  surroundings: {
+    // Kraftværksvej with cycle path, on the NW shore behind a grass bank; continues NNE to Amagerværket
+    roads: [{ w: 12, pts: [[-190, -200], [-150, -110], [-90, -30], [-36, 32], [32, 96], [84, 146], [126, 188], [175, 245], [235, 310], [300, 380]] }],
+    // CopenHill / ARC waste-to-energy plant: sloped ski roof from ≈12 m (SW) to 85 m (NE), chimney 124 m at the NE end
+    copenhill: { x: -97, y: 340, L: 198, W: 73, hLo: 12, hHi: 85, ang: 34, chimney: [-22, 392, 124, 5] },
+    // Industrial halls and the ARC yard west/north of the road (heights assumed)
+    buildings: [
+      [-100, 175, 70, 35, 11, 34, 0xd9dcd8],   // white hall at the ARC yard
+      [-140, 120, 110, 40, 12, 40, 0x4a5563],  // hall with solar roof
+      [-60, 150, 45, 30, 8, 34, 0x6c7378],
+      [-185, 70, 60, 30, 9, 40, 0xb8bcb8],
+      // Amagerværket (HOFOR) power station, NNE end of Kraftværksvej
+      [225, 430, 150, 90, 40, 20, 0x8d949a], [330, 560, 120, 80, 55, 20, 0x7b8388], [190, 520, 80, 60, 25, 20, 0x9ea5aa],
+    ],
+    walls: [[[-55, 140], [35, 215], 5, 0xe4e6e2]],  // long white wall of the ARC yard (seen from the road)
+    chimneys: [[265, 470, 100, 3.5], [290, 490, 90, 3], [320, 470, 80, 3]],   // Amagerværket stacks; heights assumed (the old 150 m stack was demolished)
+    // Stone mole on the east side of the lake (Street View: low rubble mound in front of the oil tanks)
+    mole: { w: 14, h: 2.2, pts: [[152, 205], [166, 150], [186, 118], [218, 70], [252, 18], [270, -68], [266, -175]] },
+    // Prøvestenen tank farm (white oil tanks) and gravel/sand piles east of the mole; tanks placed schematically in the area
+    tankArea: [[374, 77], [460, 314], [913, 378], [913, -483], [633, -483]], tankSpacing: 48,
+    piles: [[330, -40, 25, 8], [385, -120, 20, 6], [320, -200, 18, 7], [420, 20, 15, 5]],
+    // Allotment gardens (kolonihaver) SW of the park: small huts and trees, placed schematically
+    gardens: [[-380, -420], [-190, -420], [-190, -70], [-380, -70]],
+    trees: [[-150, -120], [-120, -70], [-95, -45], [-70, -10], [-20, 70], [-14, 78], [-6, 84], [60, 132], [100, 175]],
+  },
 
   // Orange bøjer ~4 m inde fra jettyen (set i videoen). Kun visuelle.
   buoys: [[24.2,-30.4],[44.3,-52.8],[74.1,-67.9],[95.8,-64.0],[120.3,-47.9],[131.1,-33.2]],
@@ -422,7 +448,7 @@ function createSim(opts = {}) {
     legCmdIn: 0.85, legCmd: 0.85, // m, ønsket hoftehøjde (input / rate-begrænset)
     line: { F: 0, stretch: 0, slack: true, attached: true, over: 0 },
     out: { V: 0, Vc: 0, angle: 0, inWater: true, drag: 0, lift: 0, warn: false, tau: 0, fall: '', contact: '', Fc: 0, air: false, lastAir: null },
-    jump: null, lineModel: P.LINE_MODEL,
+    jump: null,
   };
   // Start dock geometry: u along the carpet axis (0 = centre), v across; surface height h(u)
   const DK = { ax: P.DOCK_DIR[0], ay: P.DOCK_DIR[1] };
@@ -463,7 +489,6 @@ function createSim(opts = {}) {
     return c;
   };
   const dockPt = u => [P.DOCK_C[0] + u * DK.ax, P.DOCK_C[1] + u * DK.ay];
-  sim.setLineModel = m => { sim.lineModel = m === 'rigid' ? 'rigid' : 'spring'; };
   sim.setStartMode = m => { sim.startMode = ['slide', 'jump', 'sit'].includes(m) ? m : 'slide'; };
   sim.reset = function () {
     // Start at the start dock, facing along the first leg (A→F). The carrier leaves sheave A; the line tightens after ~2 s.
@@ -482,7 +507,7 @@ function createSim(opts = {}) {
     sim.autoStand = mode === 'sit'; sim.jumpArmed = mode === 'jump'; sim.startShift = mode === 'sit' ? P.SIT_SHIFT : 0;
     sim.out.fall = ''; sim.out.lastAir = null; sim.out.contact = ''; sim.out.startEvent = ''; sim.jump = null; sim.t = 0; sim.leanCmd = 0;
     sim.trail = []; sim._trailT = -1; sim.windup = 0; sim.windDir = 0; sim.switchStance = false; sim.grab = { type: 0, reach: 0 }; sim.out.lastTrick = null; sim._IzzPrev = null;
-    sim._aNL = null; sim._aTow = null; sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
+    sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
     sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + (mode === 'sit' ? P.STROKE_SIT : P.STROKE_STAND); sim._onDock = mode !== 'sit';
     for (const ob of sim.obs) ob.inContact = false;
     placeCarrier();
@@ -602,7 +627,7 @@ function createSim(opts = {}) {
     // 1b) Trækpunkt: carrierens ophæng følger kablet med 2.-ordens eftergivelighed (ingen uendelig skarpe retningsskift)
     { const T = sim.tow, w = 2 * Math.PI * P.HANGER_F, z = P.HANGER_ZETA;
       const ax = w * w * (C.x - T.x) + 2 * z * w * (C.vx - T.vx), ay = w * w * (C.y - T.y) + 2 * z * w * (C.vy - T.vy);
-      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; sim._aTow = [ax, ay]; }
+      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; }
     // 2) Ønsket læn: rate-begrænset
     const maxd = P.LEAN_RATE_DEG * D2R * dt, lim = P.LEAN_MAX_DEG * D2R;
     const want = Math.max(-lim, Math.min(lim, sim.leanCmdIn * (sim.switchStance ? -1 : 1)));   // riding switch: the board frame is reversed
@@ -629,16 +654,7 @@ function createSim(opts = {}) {
     let e = dist - P.LINE_LENGTH - R.arm;                                      // the arms extend the hands towards the carrier
     const vh = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];   // håndtagets hastighed
     let edot = (TW.vx - vh[0]) * d[0] + (TW.vy - vh[1]) * d[1] + (0 - vh[2]) * d[2];
-    // Rigid line: T = m_eff·(ė + (a_tow − a_hand,other)·dt + β·e/dt)/dt, clamped to T ≥ 0 (tension only). a_hand,other is the
-    // hand acceleration from all non-line forces, lagged one step. m_eff: across the body axis the whole rider moves,
-    // along it only the upper body (the legs are a force element).
-    const rigid = sim.lineModel === 'rigid', cN = dot(d, nrm), meff = 1 / ((1 - cN * cN) / m + cN * cN / (m - P.BOARD_MASS));
-    const aTd = sim._aTow ? d[0] * sim._aTow[0] + d[1] * sim._aTow[1] : 0, aNd = sim._aNL ? dot(d, sim._aNL) : 0, bG = P.LINE_BAUMGARTE;
-    const lineF = (e, ed) => {
-      if (!L.attached) return 0;
-      if (rigid) return e + ed * dt > 0 ? Math.max(0, meff * (ed + (aTd - aNd) * dt + bG * Math.max(0, e) / dt) / dt) : 0;
-      return e > 0 ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
-    };
+    const lineF = (e, ed) => (L.attached && e > 0) ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
     let F = lineF(e, edot);
     // 3a) Jump start: take off just before the line comes taut, so the jerk has a smaller Δv to deliver
     if (L.attached && sim.jumpArmed && e < 0 && edot > 0.5 && -e / edot < P.JUMP_LEAD) {
@@ -654,7 +670,7 @@ function createSim(opts = {}) {
       // During the start the whole body adds stroke (lean-back → upright, or sitting → standing); afterwards only the arms
       if (sim.strokeMax > P.ARM_TRAVEL && Math.hypot(R.vx, R.vy) > 0.9 * sim.cableSpeed) sim.strokeMax = P.ARM_TRAVEL;
       if (F > P.ARM_YIELD && R.arm < sim.strokeMax)
-        dArm = Math.min((F - P.ARM_YIELD) / (rigid ? meff * (1 + bG) / (dt * dt) : P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
+        dArm = Math.min((F - P.ARM_YIELD) / (P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
       else if ((F < P.ARM_RET_FRAC * P.ARM_YIELD || R.arm > sim.strokeMax) && R.arm > 0) dArm = -Math.min(R.arm, P.ARM_RET_V * dt);
       if (dArm) { R.arm += dArm; e -= dArm; edot -= dArm / dt; F = lineF(e, edot); sim.energy.armWork = (sim.energy.armWork || 0) + F * dArm; }
       // (work the line does on the hands relative to the body; absorbed by the arms, never reaches the body's kinetic energy)
@@ -869,8 +885,6 @@ function createSim(opts = {}) {
     const Pline = dot(Fl, vU), Pwater = (Fw[0]) * R.vx + (Fw[1]) * R.vy + (Fw[2] + mb * P.G) * R.vz;
     const Pair = (Fo[0]) * vU[0] + (Fo[1]) * vU[1] + (Fo[2] + mu * P.G) * vU[2], Pmus = Fleg * R.legv;
     const EN = sim.energy; EN.lineWork += Pline * dt; EN.waterWork += Pwater * dt; EN.airWork += Pair * dt; EN.muscleWork += Pmus * dt;
-    { const aU = [0, 1, 2].map(i => aPerp[i] + (aN_b + legAcc) * nrm[i]), fn = dot(Fl, nrm);
-      sim._aNL = [0, 1, 2].map(i => aU[i] - (Fl[i] - fn * nrm[i]) / m - fn * nrm[i] / mu); }
     R.vx += (aPerp[0] + aN_b * nrm[0]) * dt; R.vy += (aPerp[1] + aN_b * nrm[1]) * dt; R.vz += (aPerp[2] + aN_b * nrm[2]) * dt;
     R.legv += legAcc * dt; R.leg += R.legv * dt;
     R.x += R.vx * dt; R.y += R.vy * dt; R.z += R.vz * dt;
@@ -930,7 +944,7 @@ function createSim(opts = {}) {
       }
     }
     // 9) Output
-    L.F = F; L.stretch = e; L.slack = !L.attached || (rigid ? F < 1 : e <= 0); L.hp = hp;
+    L.F = F; L.stretch = e; L.slack = !L.attached || e <= 0; L.hp = hp;
     // Rail diagnostics (rails report 12, 21, 25): v_req = (l̂·v_c)/(l̂·t), speed margin, side pull, hold ratio
     if (railMode && L.attached) {
       const ob = railC.ob, tl = Math.hypot(1, railC.sl), t3 = [ob.ax / tl, ob.ay / tl, railC.sl / tl], lt = dot(d, t3), lv = d[0] * TW.vx + d[1] * TW.vy;
@@ -962,7 +976,7 @@ function createSim(opts = {}) {
     // Mekanisk energi (kinetisk + potentiel + elastisk i linen) til energitjek
     const vU2 = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];
     const Ek = 0.5 * mb * (R.vx * R.vx + R.vy * R.vy + R.vz * R.vz) + 0.5 * mu * dot(vU2, vU2);
-    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached && !rigid ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
+    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
     o.E = Ek + Ep + Ee; if (EN.E0 === null) EN.E0 = o.E;
     o.Eres = o.E - EN.E0 - (EN.lineWork + EN.waterWork + EN.airWork + EN.muscleWork);
     // Wake sampling (planing only)

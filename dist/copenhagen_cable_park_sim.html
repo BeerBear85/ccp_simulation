@@ -163,7 +163,7 @@ const PHYS = {
   YAW_C_AIR:    0.5,     // N·m·s  yaw damping in the air (aerodynamic, spinning body). Assumed
   YAW_C_W:      10,      // N·m·s per m/s  yaw-dæmpning fra vandet, ∝ fart. Antaget
   // Carving: et kantet board med rocker følger sin skrå rail. Kurveradius R = (L²/8h)·CARVE_SLIP / sin(kant).
-  CARVE_SLIP:   2.2,     // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget
+  CARVE_SLIP:   1.91,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 15 % mindre radius ved samme kant (bruger, 25/9-2026)
   CARVE_TAU:    0.25,    // s      hvor hurtigt vandet drejer boardet ind på railens kurve. Antaget
   PIVOT_K:      400,     // N·m/rad  riderens aktive drej af boardet med fødderne ved stor sideslip. Antaget
   PIVOT_TAU_MAX: 180,    // N·m    maks. drejemoment fra fødderne. Antaget
@@ -186,10 +186,6 @@ const PHYS = {
   RAIL_HIP_TAU: 150,     // N·m    roll balance torque from upper body/arms on a rail (hip strategy, as HIP_TAU_MAX); the rest must come from the contact patch. Assumed
   RAIL_LEAN_GAIN: 0.3,   // –      player lean added on top of the automatic balance lean on a rail (45° input → 13.5°). Assumed
   SLIDE_ANGLE:  90,      // °      board angle to the rail in a boardslide (Q/R held on a rail/box). Geometry
-  // --- Line model (selectable): 'spring' = the spring-damper above; 'rigid' = inextensible, tension-only constraint
-  //     (rails report 2 and 18: (L − d)T = 0, T ≥ 0), solved as a velocity constraint with Baumgarte correction.
-  LINE_MODEL:   'spring',
-  LINE_BAUMGARTE: 0.2,   // –      fraction of the length error removed per step (rigid line). Assumed (typical 0.1–0.3)
   ENTRY_LEN:    4.0,     // m      afrundet indkørsel på box/rail/funbox (maks. 45 % af længden). Antaget
   // --- Water surface: wind chop (JONSWAP, fetch-limited) + the board's own wake ---
   WIND_DEFAULT: 4.0,     // m/s    10 m wind speed (adjustable 0–10 in the UI). Assumed light breeze
@@ -264,6 +260,36 @@ const LAYOUT = {
     { id: 'O7', tag: true, name: 'O7 box',  type: 'box',    x: 107.6, y: -36.0, dir: [0.380, 0.925], L: 14.9, W: 3.1, H: 0.45 },  // broad southern part
     { id: 'O7',            name: 'O7 rail/box', type: 'box', x: 110.1, y: -33.3, dir: [0.441, 0.897], L: 21.9, W: 1.1, H: 0.45 },  // full length incl. narrow extension
   ],
+
+  // Surroundings (visual only, no physics). Read from Google Maps satellite (z15–z17, calibrated on the jetty, ±10–20 m) and
+  // Street View from Kraftværksvej 31 (Oct 2024 imagery), 25 Sep 2026. Heights: CopenHill roof 85 m and chimney 124 m
+  // (public figures); all other heights are assumed from the Street View look. Boxes: [x, y, length, width, height, angle°]
+  // with the length along the angle (counter-clockwise from east).
+  surroundings: {
+    // Kraftværksvej with cycle path, on the NW shore behind a grass bank; continues NNE to Amagerværket
+    roads: [{ w: 12, pts: [[-190, -200], [-150, -110], [-90, -30], [-36, 32], [32, 96], [84, 146], [126, 188], [175, 245], [235, 310], [300, 380]] }],
+    // CopenHill / ARC waste-to-energy plant: sloped ski roof from ≈12 m (SW) to 85 m (NE), chimney 124 m at the NE end
+    copenhill: { x: -97, y: 340, L: 198, W: 73, hLo: 12, hHi: 85, ang: 34, chimney: [-22, 392, 124, 5] },
+    // Industrial halls and the ARC yard west/north of the road (heights assumed)
+    buildings: [
+      [-100, 175, 70, 35, 11, 34, 0xd9dcd8],   // white hall at the ARC yard
+      [-140, 120, 110, 40, 12, 40, 0x4a5563],  // hall with solar roof
+      [-60, 150, 45, 30, 8, 34, 0x6c7378],
+      [-185, 70, 60, 30, 9, 40, 0xb8bcb8],
+      // Amagerværket (HOFOR) power station, NNE end of Kraftværksvej
+      [225, 430, 150, 90, 40, 20, 0x8d949a], [330, 560, 120, 80, 55, 20, 0x7b8388], [190, 520, 80, 60, 25, 20, 0x9ea5aa],
+    ],
+    walls: [[[-55, 140], [35, 215], 5, 0xe4e6e2]],  // long white wall of the ARC yard (seen from the road)
+    chimneys: [[265, 470, 100, 3.5], [290, 490, 90, 3], [320, 470, 80, 3]],   // Amagerværket stacks; heights assumed (the old 150 m stack was demolished)
+    // Stone mole on the east side of the lake (Street View: low rubble mound in front of the oil tanks)
+    mole: { w: 14, h: 2.2, pts: [[152, 205], [166, 150], [186, 118], [218, 70], [252, 18], [270, -68], [266, -175]] },
+    // Prøvestenen tank farm (white oil tanks) and gravel/sand piles east of the mole; tanks placed schematically in the area
+    tankArea: [[374, 77], [460, 314], [913, 378], [913, -483], [633, -483]], tankSpacing: 48,
+    piles: [[330, -40, 25, 8], [385, -120, 20, 6], [320, -200, 18, 7], [420, 20, 15, 5]],
+    // Allotment gardens (kolonihaver) SW of the park: small huts and trees, placed schematically
+    gardens: [[-380, -420], [-190, -420], [-190, -70], [-380, -70]],
+    trees: [[-150, -120], [-120, -70], [-95, -45], [-70, -10], [-20, 70], [-14, 78], [-6, 84], [60, 132], [100, 175]],
+  },
 
   // Orange bøjer ~4 m inde fra jettyen (set i videoen). Kun visuelle.
   buoys: [[24.2,-30.4],[44.3,-52.8],[74.1,-67.9],[95.8,-64.0],[120.3,-47.9],[131.1,-33.2]],
@@ -429,7 +455,7 @@ function createSim(opts = {}) {
     legCmdIn: 0.85, legCmd: 0.85, // m, ønsket hoftehøjde (input / rate-begrænset)
     line: { F: 0, stretch: 0, slack: true, attached: true, over: 0 },
     out: { V: 0, Vc: 0, angle: 0, inWater: true, drag: 0, lift: 0, warn: false, tau: 0, fall: '', contact: '', Fc: 0, air: false, lastAir: null },
-    jump: null, lineModel: P.LINE_MODEL,
+    jump: null,
   };
   // Start dock geometry: u along the carpet axis (0 = centre), v across; surface height h(u)
   const DK = { ax: P.DOCK_DIR[0], ay: P.DOCK_DIR[1] };
@@ -470,7 +496,6 @@ function createSim(opts = {}) {
     return c;
   };
   const dockPt = u => [P.DOCK_C[0] + u * DK.ax, P.DOCK_C[1] + u * DK.ay];
-  sim.setLineModel = m => { sim.lineModel = m === 'rigid' ? 'rigid' : 'spring'; };
   sim.setStartMode = m => { sim.startMode = ['slide', 'jump', 'sit'].includes(m) ? m : 'slide'; };
   sim.reset = function () {
     // Start at the start dock, facing along the first leg (A→F). The carrier leaves sheave A; the line tightens after ~2 s.
@@ -489,7 +514,7 @@ function createSim(opts = {}) {
     sim.autoStand = mode === 'sit'; sim.jumpArmed = mode === 'jump'; sim.startShift = mode === 'sit' ? P.SIT_SHIFT : 0;
     sim.out.fall = ''; sim.out.lastAir = null; sim.out.contact = ''; sim.out.startEvent = ''; sim.jump = null; sim.t = 0; sim.leanCmd = 0;
     sim.trail = []; sim._trailT = -1; sim.windup = 0; sim.windDir = 0; sim.switchStance = false; sim.grab = { type: 0, reach: 0 }; sim.out.lastTrick = null; sim._IzzPrev = null;
-    sim._aNL = null; sim._aTow = null; sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
+    sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
     sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + (mode === 'sit' ? P.STROKE_SIT : P.STROKE_STAND); sim._onDock = mode !== 'sit';
     for (const ob of sim.obs) ob.inContact = false;
     placeCarrier();
@@ -609,7 +634,7 @@ function createSim(opts = {}) {
     // 1b) Trækpunkt: carrierens ophæng følger kablet med 2.-ordens eftergivelighed (ingen uendelig skarpe retningsskift)
     { const T = sim.tow, w = 2 * Math.PI * P.HANGER_F, z = P.HANGER_ZETA;
       const ax = w * w * (C.x - T.x) + 2 * z * w * (C.vx - T.vx), ay = w * w * (C.y - T.y) + 2 * z * w * (C.vy - T.vy);
-      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; sim._aTow = [ax, ay]; }
+      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; }
     // 2) Ønsket læn: rate-begrænset
     const maxd = P.LEAN_RATE_DEG * D2R * dt, lim = P.LEAN_MAX_DEG * D2R;
     const want = Math.max(-lim, Math.min(lim, sim.leanCmdIn * (sim.switchStance ? -1 : 1)));   // riding switch: the board frame is reversed
@@ -636,16 +661,7 @@ function createSim(opts = {}) {
     let e = dist - P.LINE_LENGTH - R.arm;                                      // the arms extend the hands towards the carrier
     const vh = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];   // håndtagets hastighed
     let edot = (TW.vx - vh[0]) * d[0] + (TW.vy - vh[1]) * d[1] + (0 - vh[2]) * d[2];
-    // Rigid line: T = m_eff·(ė + (a_tow − a_hand,other)·dt + β·e/dt)/dt, clamped to T ≥ 0 (tension only). a_hand,other is the
-    // hand acceleration from all non-line forces, lagged one step. m_eff: across the body axis the whole rider moves,
-    // along it only the upper body (the legs are a force element).
-    const rigid = sim.lineModel === 'rigid', cN = dot(d, nrm), meff = 1 / ((1 - cN * cN) / m + cN * cN / (m - P.BOARD_MASS));
-    const aTd = sim._aTow ? d[0] * sim._aTow[0] + d[1] * sim._aTow[1] : 0, aNd = sim._aNL ? dot(d, sim._aNL) : 0, bG = P.LINE_BAUMGARTE;
-    const lineF = (e, ed) => {
-      if (!L.attached) return 0;
-      if (rigid) return e + ed * dt > 0 ? Math.max(0, meff * (ed + (aTd - aNd) * dt + bG * Math.max(0, e) / dt) / dt) : 0;
-      return e > 0 ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
-    };
+    const lineF = (e, ed) => (L.attached && e > 0) ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
     let F = lineF(e, edot);
     // 3a) Jump start: take off just before the line comes taut, so the jerk has a smaller Δv to deliver
     if (L.attached && sim.jumpArmed && e < 0 && edot > 0.5 && -e / edot < P.JUMP_LEAD) {
@@ -661,7 +677,7 @@ function createSim(opts = {}) {
       // During the start the whole body adds stroke (lean-back → upright, or sitting → standing); afterwards only the arms
       if (sim.strokeMax > P.ARM_TRAVEL && Math.hypot(R.vx, R.vy) > 0.9 * sim.cableSpeed) sim.strokeMax = P.ARM_TRAVEL;
       if (F > P.ARM_YIELD && R.arm < sim.strokeMax)
-        dArm = Math.min((F - P.ARM_YIELD) / (rigid ? meff * (1 + bG) / (dt * dt) : P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
+        dArm = Math.min((F - P.ARM_YIELD) / (P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
       else if ((F < P.ARM_RET_FRAC * P.ARM_YIELD || R.arm > sim.strokeMax) && R.arm > 0) dArm = -Math.min(R.arm, P.ARM_RET_V * dt);
       if (dArm) { R.arm += dArm; e -= dArm; edot -= dArm / dt; F = lineF(e, edot); sim.energy.armWork = (sim.energy.armWork || 0) + F * dArm; }
       // (work the line does on the hands relative to the body; absorbed by the arms, never reaches the body's kinetic energy)
@@ -876,8 +892,6 @@ function createSim(opts = {}) {
     const Pline = dot(Fl, vU), Pwater = (Fw[0]) * R.vx + (Fw[1]) * R.vy + (Fw[2] + mb * P.G) * R.vz;
     const Pair = (Fo[0]) * vU[0] + (Fo[1]) * vU[1] + (Fo[2] + mu * P.G) * vU[2], Pmus = Fleg * R.legv;
     const EN = sim.energy; EN.lineWork += Pline * dt; EN.waterWork += Pwater * dt; EN.airWork += Pair * dt; EN.muscleWork += Pmus * dt;
-    { const aU = [0, 1, 2].map(i => aPerp[i] + (aN_b + legAcc) * nrm[i]), fn = dot(Fl, nrm);
-      sim._aNL = [0, 1, 2].map(i => aU[i] - (Fl[i] - fn * nrm[i]) / m - fn * nrm[i] / mu); }
     R.vx += (aPerp[0] + aN_b * nrm[0]) * dt; R.vy += (aPerp[1] + aN_b * nrm[1]) * dt; R.vz += (aPerp[2] + aN_b * nrm[2]) * dt;
     R.legv += legAcc * dt; R.leg += R.legv * dt;
     R.x += R.vx * dt; R.y += R.vy * dt; R.z += R.vz * dt;
@@ -937,7 +951,7 @@ function createSim(opts = {}) {
       }
     }
     // 9) Output
-    L.F = F; L.stretch = e; L.slack = !L.attached || (rigid ? F < 1 : e <= 0); L.hp = hp;
+    L.F = F; L.stretch = e; L.slack = !L.attached || e <= 0; L.hp = hp;
     // Rail diagnostics (rails report 12, 21, 25): v_req = (l̂·v_c)/(l̂·t), speed margin, side pull, hold ratio
     if (railMode && L.attached) {
       const ob = railC.ob, tl = Math.hypot(1, railC.sl), t3 = [ob.ax / tl, ob.ay / tl, railC.sl / tl], lt = dot(d, t3), lv = d[0] * TW.vx + d[1] * TW.vy;
@@ -969,7 +983,7 @@ function createSim(opts = {}) {
     // Mekanisk energi (kinetisk + potentiel + elastisk i linen) til energitjek
     const vU2 = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];
     const Ek = 0.5 * mb * (R.vx * R.vx + R.vy * R.vy + R.vz * R.vz) + 0.5 * mu * dot(vU2, vU2);
-    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached && !rigid ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
+    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
     o.E = Ek + Ep + Ee; if (EN.E0 === null) EN.E0 = o.E;
     o.Eres = o.E - EN.E0 - (EN.lineWork + EN.waterWork + EN.airWork + EN.muscleWork);
     // Wake sampling (planing only)
@@ -1056,6 +1070,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   .field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
   .ticks { grid-column: 1 / -1; display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin-top: -2px; }
 
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); position: sticky; top: -14px; z-index: 2; background: var(--panel); padding-top: 4px; }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--ink-2); padding: 9px 12px; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .pane { display: flex; flex-direction: column; gap: 16px; }
+  .pane[hidden] { display: none; }
   .charts { display: grid; gap: 10px; }
   .chart { background: var(--ground); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 8px 4px; }
   .chart header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -1126,6 +1145,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       <div class="sub">Kraftværksvej 24 · 6 towers · 1 carrier · 1 rider · physics 240 Hz</div>
     </div>
 
+    <div class="tabs" role="tablist" aria-label="Panel">
+      <button role="tab" id="tab-ride" aria-controls="pane-ride" aria-selected="true">Ride</button>
+      <button role="tab" id="tab-settings" aria-controls="pane-settings" aria-selected="false">Settings</button>
+      <button role="tab" id="tab-guide" aria-controls="pane-guide" aria-selected="false">Guide</button>
+    </div>
+    <div class="pane" role="tabpanel" id="pane-ride" aria-labelledby="tab-ride">
     <section>
       <h2>Time</h2>
       <div class="row">
@@ -1146,6 +1171,27 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       <div class="charts" id="chartsTop"></div>
     </section>
 
+    <section>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Instruments</h2>
+        <label class="sr-only" for="selWin">Time window</label>
+        <select id="selWin" aria-label="Time window for charts"><option value="20">20 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></div>
+      <div class="charts" id="charts"></div>
+    </section>
+
+    <details>
+      <summary>Park layout · measured vs. assumed</summary>
+      <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> (Google Earth standard layer dated 6/9/2023) from the obstacle analysis of 25 Sep 2026: O1–O7 with their sub-contours and measured axes (O1 20.8 m, O2 19.6 m, O5 14.7 m, O7 21.2 m in Earth). Positions have ≈5–10 m absolute uncertainty. O4 is moved 4 m W + 4 m N and O2 3 m NW, away from the cable line (user: no obstacle lies directly under the cable). The unconfirmed dark candidate X1 is left out. The analysis gives no heights or product types, so types follow its planform reading (e.g. O3 kicker-like, O6 ramp section) and all heights are assumed typical values. The 2026 history layer (H1–H7) is not used. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+    </details>
+
+    <details id="diagBox">
+      <summary>Diagnostics (live) · report 13.7</summary>
+      <div class="tbl"><table id="tblDiag"><tbody></tbody></table></div>
+      <p class="note">All internal channels, so the simulator can be checked rather than just "look right": line tension, cable power, water-force components, wetted area, centre of pressure, dimensionless numbers, energy balance and contact state.</p>
+    </details>
+
+    </div>
+    <div class="pane" role="tabpanel" id="pane-settings" aria-labelledby="tab-settings" hidden>
     <section class="field">
       <label for="rngSpeed">Cable speed</label><output id="outSpeed">30 km/h</output>
       <input type="range" id="rngSpeed" min="20" max="35" step="1" value="30">
@@ -1157,12 +1203,6 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       <input type="range" id="rngWind" min="0" max="10" step="1" value="4">
       <div class="ticks"><span>0</span><span>3</span><span>6</span><span>10 m/s</span></div>
       <p class="note" style="grid-column:1/-1;margin:2px 0 0" id="noteWind">Wind from WSW over ≈250 m of open water. Wave height and period follow the fetch-limited JONSWAP relations.</p>
-    </section>
-
-    <section class="field">
-      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
-      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
-      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Rails and boxes.</strong> Off the water there is no side force from the board; only the contact, rail friction and the line act. The line locks your speed component along the line, so a rail pointing away from the cable needs v_req = (l̂·v_c)/(l̂·t), often well above cable speed: build speed with an edge before the feature. Too slow and the line tightens and pulls you sideways towards the cable; faster than v_req and the line goes slack. The rider balances automatically over the contact patch (your lean adds 30 %). Hold <kbd>Q</kbd>/<kbd>R</kbd> on a rail for a boardslide: the board across the rail tolerates ±0.7 m of side drift instead of ±0.2 m, but turn back before the end or you land sideways. Approach with a little sideways speed away from the cable so the side pull has the whole width to slow it.</p>
     </section>
 
     <section class="field">
@@ -1186,33 +1226,22 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     </section>
 
     <section class="field">
-      <label for="selLine">Line model</label>
-      <select id="selLine" aria-label="Line model"><option value="spring" selected>Spring-damper (line stretch + arms/legs)</option><option value="rigid">Inextensible, tension only (rails report)</option></select>
-      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Switch any time, also while riding. The inextensible line locks the velocity component along the line, T·(L − d) = 0 with T ≥ 0; only the arms yield. It has no stretch to spread a jerk over, so a dock start and every slack-to-taut moment give very high single-step peaks: a real line needs its ≈4 % stretch.</p>
-    </section>
-
-    <section class="field">
       <label for="chkObs">Obstacles active (contact and collision)</label><input type="checkbox" id="chkObs" checked style="accent-color:var(--accent);width:18px;height:18px">
     </section>
 
-    <section>
-      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Instruments</h2>
-        <label class="sr-only" for="selWin">Time window</label>
-        <select id="selWin" aria-label="Time window for charts"><option value="20">20 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></div>
-      <div class="charts" id="charts"></div>
-    </section>
-
     <details>
-      <summary>Park layout · measured vs. assumed</summary>
-      <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> (Google Earth standard layer dated 6/9/2023) from the obstacle analysis of 25 Sep 2026: O1–O7 with their sub-contours and measured axes (O1 20.8 m, O2 19.6 m, O5 14.7 m, O7 21.2 m in Earth). Positions have ≈5–10 m absolute uncertainty. O4 is moved 4 m W + 4 m N and O2 3 m NW, away from the cable line (user: no obstacle lies directly under the cable). The unconfirmed dark candidate X1 is left out. The analysis gives no heights or product types, so types follow its planform reading (e.g. O3 kicker-like, O6 ramp section) and all heights are assumed typical values. The 2026 history layer (H1–H7) is not used. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <summary>Physics constants</summary>
+      <div class="tbl"><table id="tblPhys"><thead><tr><th>Name</th><th style="text-align:right">Value</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Units, sources and assumptions are given as comments in the PHYS block at the top of the file.</p>
     </details>
-
-    <details id="diagBox">
-      <summary>Diagnostics (live) · report 13.7</summary>
-      <div class="tbl"><table id="tblDiag"><tbody></tbody></table></div>
-      <p class="note">All internal channels, so the simulator can be checked rather than just "look right": line tension, cable power, water-force components, wetted area, centre of pressure, dimensionless numbers, energy balance and contact state.</p>
-    </details>
+    </div>
+    <div class="pane" role="tabpanel" id="pane-guide" aria-labelledby="tab-guide" hidden>
+    <section class="field">
+      <h2 style="grid-column:1/-1;margin:0">How to ride</h2>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
+      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
+      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Rails and boxes.</strong> Off the water there is no side force from the board; only the contact, rail friction and the line act. The line locks your speed component along the line, so a rail pointing away from the cable needs v_req = (l̂·v_c)/(l̂·t), often well above cable speed: build speed with an edge before the feature. Too slow and the line tightens and pulls you sideways towards the cable; faster than v_req and the line goes slack. The rider balances automatically over the contact patch (your lean adds 30 %). Hold <kbd>Q</kbd>/<kbd>R</kbd> on a rail for a boardslide: the board across the rail tolerates ±0.7 m of side drift instead of ±0.2 m, but turn back before the end or you land sideways. Approach with a little sideways speed away from the cable so the side pull has the whole width to slow it.</p>
+    </section>
 
     <details>
       <summary>Physics from the report · validation</summary>
@@ -1277,11 +1306,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       </div>
     </details>
 
-    <details>
-      <summary>Physics constants</summary>
-      <div class="tbl"><table id="tblPhys"><thead><tr><th>Name</th><th style="text-align:right">Value</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Units, sources and assumptions are given as comments in the PHYS block at the top of the file.</p>
-    </details>
+    </div>
   </aside>
 </div>
 
@@ -1301,7 +1326,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   view.prepend(renderer.domElement);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x9fb8c6);
-  scene.fog = new THREE.Fog(0x9fb8c6, 350, 900);
+  scene.fog = new THREE.Fog(0x9fb8c6, 450, 2200);
   scene.add(new THREE.HemisphereLight(0xdfeefa, 0x3a4a3a, 0.9));
   const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(-120, 200, 80); scene.add(sun);
 
@@ -1310,7 +1335,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
 
   // Land med hul til vandet
   const W = LAYOUT.water;
-  const landShape = new THREE.Shape([[-400,-400],[600,-400],[600,500],[-400,500]].map(p => new THREE.Vector2(p[0], p[1])));
+  const landShape = new THREE.Shape([[-1400,-1400],[1600,-1400],[1600,1600],[-1400,1600]].map(p => new THREE.Vector2(p[0], p[1])));
   landShape.holes.push(new THREE.Path(W.map(p => new THREE.Vector2(p[0], p[1]))));
   const landGeo = new THREE.ShapeGeometry(landShape); landGeo.rotateX(-Math.PI / 2);
   const land = new THREE.Mesh(landGeo, new THREE.MeshLambertMaterial({ color: 0x7d8a6e }));
@@ -1355,6 +1380,50 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   // vandflade-grid (10 m) for fornemmelse af fart
   const grid = new THREE.GridHelper(600, 60, 0x44707f, 0x3a6474); grid.position.set(80, 0.02, 0);
   grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+
+  // Surroundings (visual only): roads, CopenHill, Amagerværket, the mole, Prøvestenen tanks, allotment gardens. See LAYOUT.surroundings.
+  { const S = LAYOUT.surroundings, G0 = 0.8, mats = {}, mat = c => mats[c] || (mats[c] = new THREE.MeshLambertMaterial({ color: c }));
+    const box = (x, y, L, Wd, H, ang, c, z0 = G0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(L, H, Wd), mat(c));
+      m.position.copy(V3(x, y, z0 + H / 2)); m.rotation.y = ang * DEG; scene.add(m); return m; };
+    const strip = (pts, w, h, c, z0 = G0) => { for (let i = 0; i < pts.length - 1; i++) { const [a, b] = [pts[i], pts[i + 1]], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      box((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, L + w * 0.6, w, h, Math.atan2(b[1] - a[1], b[0] - a[0]) / DEG, c, z0); } };
+    const cyl = (x, y, r, h, c, seg = 20) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), mat(c)); m.position.copy(V3(x, y, G0 + h / 2)); scene.add(m); };
+    const inPoly = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; return c; };
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (const r of S.roads) { strip(r.pts, r.w, 0.06, 0x55595c); strip(r.pts, 0.25, 0.07, 0xe8e8e0); }
+    // CopenHill: box with a sloped roof (low SW end, high NE end) + chimney
+    { const C = S.copenhill, g = new THREE.BoxGeometry(C.L, 1, C.W), p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) { const top = p.getY(i) > 0, u = p.getX(i) / C.L + 0.5; p.setY(i, top ? C.hLo + (C.hHi - C.hLo) * u : 0); }
+      g.computeVertexNormals(); const facade = mat(0x7f8a8c), roofM = mat(0x6d8a5c);   // top face = green ski/hiking roof
+      const m = new THREE.Mesh(g, [facade, facade, roofM, facade, facade, facade]); m.position.copy(V3(C.x, C.y, G0)); m.rotation.y = C.ang * DEG; scene.add(m);
+      const [cx, cy, ch, cr] = C.chimney; cyl(cx, cy, cr, ch, 0xb9bdbf); }
+    for (const b of S.buildings) box(...b);
+    for (const [a, b, h, c] of S.walls) strip([a, b], 0.4, h, c);
+    for (const [x, y, h, r] of S.chimneys) cyl(x, y, r, h, 0xc9cccd, 14);
+    strip(S.mole.pts, S.mole.w, S.mole.h, 0x8e8a80, G0 - 1.6);
+    // Tank farm on a jittered grid
+    { const A = S.tankArea, sp = S.tankSpacing, xs = A.map(p => p[0]), ys = A.map(p => p[1]);
+      for (let x = Math.min(...xs); x <= Math.max(...xs); x += sp) for (let y = Math.min(...ys); y <= Math.max(...ys); y += sp) {
+        const px = x + (rnd() - 0.5) * sp * 0.3, py = y + (rnd() - 0.5) * sp * 0.3;
+        if (!inPoly(px, py, A) || rnd() < 0.3) continue;
+        cyl(px, py, 9 + rnd() * 7, 10 + rnd() * 6, 0xeef0ee, 24); } }
+    for (const [x, y, r, h] of S.piles) { const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 16), mat(0xb4a58a)); m.position.copy(V3(x, y, G0 + h / 2)); scene.add(m); }
+    // Trees (instanced) and allotment huts
+    const tpos = [];
+    for (const [x, y] of S.trees) tpos.push([x, y, 7 + rnd() * 5]);
+    for (let i = 0; i < 20; i++) { const t = i / 19, r = S.roads[0].pts; const k = Math.min(r.length - 2, Math.floor(t * 3)), a = r[k], b = r[k + 1], f = t * 3 - k;   // row along the SW road
+      tpos.push([a[0] + (b[0] - a[0]) * f - 14, a[1] + (b[1] - a[1]) * f + 10, 6 + rnd() * 4]); }
+    const GA = S.gardens, gx = GA.map(p => p[0]), gy = GA.map(p => p[1]), huts = [];
+    for (let i = 0; i < 260; i++) { const x = Math.min(...gx) + rnd() * (Math.max(...gx) - Math.min(...gx)), y = Math.min(...gy) + rnd() * (Math.max(...gy) - Math.min(...gy));
+      if (!inPoly(x, y, GA)) continue; if (i % 2) huts.push([x, y, rnd() * 90]); else tpos.push([x, y, 5 + rnd() * 5]); }
+    const trunkG = new THREE.CylinderGeometry(0.25, 0.3, 1, 6), crownG = new THREE.ConeGeometry(1, 1, 8), dummy = new THREE.Object3D();
+    const trunks = new THREE.InstancedMesh(trunkG, mat(0x5a4632), tpos.length), crowns = new THREE.InstancedMesh(crownG, mat(0x3f6a3a), tpos.length);
+    tpos.forEach(([x, y, h], i) => { dummy.position.copy(V3(x, y, G0 + h * 0.15)); dummy.scale.set(1, h * 0.3, 1); dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix);
+      dummy.position.copy(V3(x, y, G0 + h * 0.6)); dummy.scale.set(h * 0.28, h * 0.8, h * 0.28); dummy.updateMatrix(); crowns.setMatrixAt(i, dummy.matrix); });
+    scene.add(trunks, crowns);
+    const hutM = new THREE.InstancedMesh(new THREE.BoxGeometry(4, 2.6, 3), mat(0xc9b79a), huts.length);
+    huts.forEach(([x, y, a], i) => { dummy.position.copy(V3(x, y, G0 + 1.3)); dummy.scale.set(1, 1, 1); dummy.rotation.set(0, a * DEG, 0); dummy.updateMatrix(); hutM.setMatrixAt(i, dummy.matrix); });
+    scene.add(hutM); }
 
   // Jetty
   const jettyMat = new THREE.MeshLambertMaterial({ color: 0xb59c78 });
@@ -1707,7 +1776,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   let trailN = 0, trailT = 0;
 
   /* ---------- Kameraer ---------- */
-  const persp = new THREE.PerspectiveCamera(50, 1, 0.5, 2000);
+  const persp = new THREE.PerspectiveCamera(50, 1, 0.5, 4000);
   persp.position.set(-80, 120, 120);
   const controls = new THREE.OrbitControls(persp, renderer.domElement);
   controls.target.copy(V3(90, 30, 0)); controls.maxPolarAngle = Math.PI * 0.49; controls.update();
@@ -1752,8 +1821,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
   $('btnReset').onclick = () => { sim.reset(); clearHistory(); trailN = 0; };
   $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
+  // Panel tabs: Ride (time, charts, diagnostics) · Settings (all configuration) · Guide (how to ride, physics/validation)
+  const TABS = ['ride', 'settings', 'guide'];
+  function showTab(k) { for (const t of TABS) { $('tab-' + t).setAttribute('aria-selected', t === k); $('pane-' + t).hidden = t !== k; }
+    try { localStorage.setItem('ccpTab', k); } catch (e) {} }
+  TABS.forEach((t, i) => { const b = $('tab-' + t); b.onclick = () => showTab(t);
+    b.onkeydown = e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); const n = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]; showTab(n); $('tab-' + n).focus(); } }; });
+  try { const k = localStorage.getItem('ccpTab'); if (TABS.includes(k)) showTab(k); } catch (e) {}
   $('chkObs').onchange = e => { sim.obstaclesOn = e.target.checked; };
-  $('selLine').onchange = e => { sim.setLineModel(e.target.value); };
   const windNote = () => { $('outWind').textContent = sim.wind.toFixed(0) + ' m/s'; $('noteWind').textContent = `Wind from WSW over ≈${PHYS.FETCH} m of open water: significant wave height ${(sim.chop.Hs * 100).toFixed(1)} cm, peak period ${sim.chop.Tp.toFixed(2)} s, wavelength ${sim.chop.lp.toFixed(2)} m (fetch-limited JONSWAP). The board spans the short waves, so they are felt as small bumps.`; };
   $('rngWind').oninput = e => { sim.setWind(+e.target.value); windNote(); }; windNote();
   $('selStart').onchange = e => { sim.setStartMode(e.target.value); sim.reset(); clearHistory(); trailN = 0; };
@@ -1944,7 +2019,6 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       ['', 'Side pull / friction μN / ratio', o.rail ? f(o.rail.Fside) + ' N / ' + f(o.rail.Fhold) + ' N / ' + f(o.rail.ratio, 2) : '–'],
       ['', 'Offset from rail axis / support limit', o.rail ? f(o.rail.offset, 2) + ' / ±' + f(o.rail.span, 2) + ' m' : '–'],
       ['', 'Board angle to rail / stance', o.rail ? f(o.rail.gamma) + '° / ' + o.rail.stance : '–'],
-      ['', 'Line model', sim.lineModel === 'rigid' ? 'inextensible' : 'spring-damper'],
     ];
     document.querySelector('#tblDiag tbody').innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td><td class="n">${r[2]}</td></tr>`).join('');
   }
@@ -2034,8 +2108,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     for (const o of sim.obs) { const dx = o.x - R.x, dy = o.y - R.y, f = dx * hx0 + dy * hy0, l = -dx * hy0 + dy * hx0;
       if (f > 2 && f < 90 && Math.abs(l) < 35 && (!nx || f < nx.f)) nx = { o, f, l }; }
     const hn = $('hudNext'); hn.hidden = !nx || !sim.line.attached;
-    if (nx) { const vr = nx.o.type !== 'kicker' ? sim.railPreview(nx.o) : null;
-      hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}` + (vr != null ? ` · needs ≈ ${isFinite(vr) ? (vr * 3.6).toFixed(0) : '∞'} km/h (now ${(sim.out.V * 3.6).toFixed(0)})` : ''); }
+    if (nx) { const vr0 = nx.o.type !== 'kicker' && nx.f < 40 ? sim.railPreview(nx.o) : null, vr = vr0 != null && isFinite(vr0) ? vr0 : null;   // only close to the feature
+      hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}` + (vr != null ? ` · needs ≈ ${(vr * 3.6).toFixed(0)} km/h (now ${(sim.out.V * 3.6).toFixed(0)})` : ''); }
     // Rail chip: live on a feature, then a summary of the last slide for 6 s
     const hr = $('hudRail'), rr = sim.out.rail, lr = sim.out.lastRail;
     if (rr && sim.line.attached) {

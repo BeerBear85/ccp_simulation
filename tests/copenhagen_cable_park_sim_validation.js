@@ -92,7 +92,7 @@ for (const [n, p] of [['lige hop', () => ({})], ['nose grab 0,15–0,65 s', (d, 
 function railLab(alphaDeg, vKmh, o = {}) { const M = fresh(); M.LAYOUT.wheels = [[0, 0], [3000, 0], [3000, -400], [0, -400]];
   const a = alphaDeg * D, L = 16, H = 0.5, y0 = 4, xs = 300; M.PHYS.ENTRY_LEN = 0.01;
   M.LAYOUT.obstacles = [{ id: 'T', name: 'lab rail', type: 'rail', x: xs + Math.cos(a) * L / 2, y: y0 + Math.sin(a) * L / 2, dir: [Math.cos(a), Math.sin(a)], L, W: 0.1, H }];
-  const s = M.createSim({ cableKmh: 30 }); s.setWind(0); if (o.model) s.setLineModel(o.model); if (o.rel) s.releaseN = o.rel;
+  const s = M.createSim({ cableKmh: 30 }); s.setWind(0); if (o.rel) s.releaseN = o.rel;
   const ob = s.obs[0], R = s.rider, v = vKmh / 3.6, u0 = -L / 2 + 0.3, rx = ob.x + ob.ax * u0, ry = ob.y + ob.ay * u0;
   const dz = M.PHYS.CABLE_HEIGHT - (H + 1.0), hor = Math.sqrt((M.PHYS.LINE_LENGTH - 0.02) ** 2 - dz * dz);
   s.carrier.s = rx + Math.sqrt(hor * hor - ry * ry) - 1; s.step(); Object.assign(s.tow, { x: s.carrier.x, y: s.carrier.y, vx: s.carrier.vx, vy: s.carrier.vy });
@@ -107,9 +107,4 @@ function railLab(alphaDeg, vKmh, o = {}) { const M = fresh(); M.LAYOUT.wheels = 
   console.log('11) Rail-lab, kabel 30 km/t, rail 16 m, 4 m fra kablet, indgangsfart (km/t) → udfald:\n' + rows.join('\n')); }
 for (const [lbl, o] of [['50-50', {}], ['boardslide', { slide: 1 }]]) { const r = railLab(20, 36, o);
   console.log(`11) α 20°, 36 km/t, ${lbl}: ${r.lr ? r.lr.result + ` efter ${r.lr.dur.toFixed(2)} s, maks sidetræk ${r.lr.maxSide.toFixed(0)} N` : 'fald: ' + r.fall}`); }
-for (const model of ['spring', 'rigid']) { const r = railLab(20, 34, { model, rel: 1e9 });
-  console.log(`11) Linemodel ${model}, α 20°, 34 km/t: ${r.lr ? r.lr.result : 'fald: ' + r.fall}, maks linekraft på railen ${r.Tmax.toFixed(0)} N, energirest ${(r.Eres / 1000).toFixed(2)} kJ`); }
-{ const out = []; for (const mode of ['slide', 'jump']) { const M = fresh(), s = M.createSim({ cableKmh: 30 }); s.obstaclesOn = false; s.releaseN = 1e9; s.setWind(0); s.setLineModel('rigid'); s.setStartMode(mode); s.reset();
-    let pk = 0; for (let i = 0; i < 240 * 8; i++) { s.legCmdIn = s.legBase; s.step(); pk = Math.max(pk, s.line.F); } out.push(`${mode} ${(pk / 1000).toFixed(1)} kN`); }
-  console.log(`11) Start 30 km/t med ustrækbar line: ${out.join(' · ')} (fjeder: se 6)`); }
 console.log('* Rapportens tal stammer fra en illustrativ punktmassemodel, ikke fra målinger.');

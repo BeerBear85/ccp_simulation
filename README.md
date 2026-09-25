@@ -13,7 +13,6 @@ Open `dist/copenhagen_cable_park_sim.html` in a browser.
 - **Starts**: sliding (carpet dock), jump and sitting start.
 - **Obstacles**: layout "O" (Google Earth standard layer, 2023) from `analysis/CCP_obstacle_analyse.html`, with sub-contours and axes. Heights and types are assumptions.
 - **Rails and boxes** (from the rails report): off the water only contact, rail friction and the line act. Support exists while the board footprint overlaps the feature top, so a boardslide (Q/R on a rail) tolerates ≈ ±0.7 m of side drift and a 50-50 ≈ ±0.2 m. Balance torques are limited to the contact patch (automatic balance lean + 30 % of the player's lean). Being pulled off emerges from the line: v_req = (l̂·v_c)/(l̂·t); slower and the line tightens and pulls sideways, faster and it goes slack. HUD, charts and diagnostics show v_req, speed margin, side pull and offset.
-- **Line model**: spring-damper (default) or inextensible tension-only constraint, selectable in the UI.
 - **Tricks**: nose/tail grabs (W/S) and spins (Q/R: pre-wind before the lip, then angular momentum). A 180 lands you switch.
 - Fixed 240 Hz time step, live charts, energy bookkeeping.
 
