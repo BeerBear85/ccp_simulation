@@ -108,7 +108,7 @@ const PHYS = {
   LEAN_TAU_MAX: 1500,    // N·m    maks. balancemoment (ankler/knæ/hofte + håndtag). Antaget
   LEAN_STOP_K:  20000,   // N·m/rad  bracing stiffness beyond LEAN_MAX_DEG. Assumed
   LEAN_STOP_TAU: 1500,   // N·m    max. bracing torque (a hard line pull can still topple the rider). Assumed
-  LEAN_MAX_DEG: 50,      // °      max. commanded lean (= edge). Limited to 50° (user)
+  LEAN_MAX_DEG: 45,      // °      max. commanded lean (= edge). Limited to 45° (user)
   LEAN_RATE_DEG: 120,    // °/s    hvor hurtigt ønsket læn kan ændres. Antaget
   FALL_DEG:     72,      // °      rideren falder over denne læn. Antaget
   CDA_AIR:      0.60,    // m²     Cd·A for rider i luft. Kilde: rapport 3.2 (0,5–0,8 m²)
