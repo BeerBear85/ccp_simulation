@@ -1,0 +1,1034 @@
+<title>Copenhagen Cable Park Simulator</title>
+<script>
+/*__PHYSICS__*/
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+  /* Enkelt, bevidst mørkt instrumentlook (havnevand om aftenen) */
+  :root {
+    color-scheme: dark;
+    --ground: #101c24;
+    --panel: #162631;
+    --panel-2: #1c303d;
+    --rule: #2a4252;
+    --ink: #e2ebee;
+    --ink-2: #a9bcc5;
+    --muted: #7d939e;
+    --accent: #e9b949;      /* carrier-gul */
+    --accent-ink: #1a1405;
+    --warn: #f08a5d;
+    --ok: #6cc59a;
+    --grid: rgba(169,188,197,.12);
+    --font: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  #tblDiag th, #tblDiag td { white-space: normal; } #tblDiag td.n { white-space: nowrap; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  html, body { height: 100%; }
+  body { background: var(--ground); color: var(--ink); font: 14px/1.4 var(--font); margin: 0; }
+  .app { height: 100%; display: grid; grid-template-columns: minmax(0,1fr) 360px; }
+  .view { position: relative; min-height: 0; background: #0b141a; }
+  .view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .hud { position: absolute; left: 12px; top: 12px; max-width: calc(100% - 320px); display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+  .chip { font: 500 12px/1 var(--mono); padding: 5px 8px; border-radius: 3px; background: rgba(16,28,36,.82); border: 1px solid var(--rule); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .chip.on-warn { border-color: var(--warn); color: var(--warn); }
+  .chip.on-ok { border-color: var(--ok); color: var(--ok); }
+  .camsw { position: absolute; right: 12px; top: 12px; display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .camsw button { border: 0; border-radius: 0; background: rgba(16,28,36,.88); }
+  .camsw button + button { border-left: 1px solid var(--rule); }
+  .camsw button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .edgepad { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: space-between; pointer-events: none; }
+  .edgepad button { pointer-events: auto; min-width: 88px; padding: 12px 14px; background: rgba(16,28,36,.88); user-select: none; -webkit-user-select: none; }
+  .kneepad { display: flex; gap: 6px; }
+  .trickpad { position: absolute; left: 50%; transform: translateX(-50%); bottom: 64px; display: flex; gap: 6px; }
+  .trickpad button { padding: 9px 11px; background: rgba(16,28,36,.88); user-select: none; -webkit-user-select: none; font-size: 13px; }
+  .trickpad button.held { background: var(--accent); color: var(--accent-ink); }
+  .edgepad button.held { background: var(--accent); color: var(--accent-ink); }
+  .scalebar { position: absolute; left: 12px; bottom: 64px; font: 11px var(--mono); color: var(--ink-2); background: rgba(16,28,36,.82); padding: 6px 8px; border-radius: 3px; }
+  .scalebar i { display: block; height: 4px; border: 1px solid var(--ink-2); border-top: 0; margin-bottom: 3px; }
+
+  .panel { background: var(--panel); border-left: 1px solid var(--rule); overflow-y: auto; padding-inline: 16px; padding-block: 14px 24px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font: 600 19px/1.15 var(--font); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  h2 { font: 600 11px/1 var(--font); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
+  button, select { font: 500 13px/1 var(--font); color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 11px; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--ink-2); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 78px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .field { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+  .field label { color: var(--ink-2); font-size: 13px; }
+  .field output { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+  .ticks { grid-column: 1 / -1; display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin-top: -2px; }
+
+  .charts { display: grid; gap: 10px; }
+  .chart { background: var(--ground); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 8px 4px; }
+  .chart header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .chart .t { font-size: 12.5px; color: var(--ink-2); }
+  .chart .v { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .chart canvas { display: block; width: 100%; height: 74px; margin-top: 3px; cursor: crosshair; }
+  #chartsTop .chart canvas { height: 120px; }
+
+  details { border-top: 1px solid var(--rule); padding-top: 10px; }
+  summary { cursor: pointer; font: 600 11px/1 var(--font); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  .tbl { overflow-x: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+  .tag { font: 500 10.5px var(--mono); padding: 2px 5px; border-radius: 2px; border: 1px solid; }
+  .tag.m { color: var(--ok); border-color: currentColor; }
+  .tag.a { color: var(--accent); border-color: currentColor; }
+  .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; max-width: 60ch; }
+  kbd { font: 11px var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--ink-2); }
+
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; }
+    .panel { border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
+    .hud { top: 54px; max-width: calc(100% - 24px); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <div class="view" id="view">
+    <div class="hud" id="hud" aria-live="off">
+      <span class="chip" id="hudT">t 0.00 s</span>
+      <span class="chip" id="hudMode">▶ 1×</span>
+      <span class="chip" id="hudLine">line slack</span>
+      <span class="chip" id="hudPhase">in water</span>
+      <span class="chip" id="hudEdge">lean 0°</span>
+      <span class="chip" id="hudCoach" hidden>corner</span>
+      <span class="chip" id="hudWater">trim 0°</span>
+      <span class="chip on-warn" id="hudFall" hidden>fall</span>
+      <span class="chip" id="hudJump" hidden>jump</span>
+      <span class="chip" id="hudNext" hidden>next</span>
+      <span class="chip" id="hudLegend" hidden><span style="color:#e23b2e">▶</span> board heading</span>
+    </div>
+    <div class="camsw" role="group" aria-label="Camera">
+      <button id="camOrbit" aria-pressed="false">Orbit</button>
+      <button id="camFollow" aria-pressed="true">Follow rider</button>
+      <button id="camTop" aria-pressed="false">Top-down</button>
+      <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
+    </div>
+    <div class="scalebar" id="scalebar" hidden><i id="scaleI" style="width:100px"></i><span id="scaleT">50 m</span></div>
+    <div class="trickpad" aria-label="Tricks">
+      <button id="trSpinL" aria-label="Spin left (hold, Q)">⟲ Q</button><button id="trNose" aria-label="Nose grab (hold, W)">Nose W</button><button id="trTail" aria-label="Tail grab (hold, S)">Tail S</button><button id="trSpinR" aria-label="Spin right (hold, R)">R ⟳</button>
+    </div>
+    <div class="edgepad">
+      <button id="edgeL" aria-label="Lean left (hold)">◀ Lean</button>
+      <span class="kneepad"><button id="legDn" aria-label="Bend knees (hold)">▼ Crouch</button><button id="legUp" aria-label="Extend/pop (hold)">▲ Pop</button></span>
+      <button id="edgeR" aria-label="Lean right (hold)">Lean ▶</button>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div>
+      <h1>Copenhagen Cable Park Simulator</h1>
+      <div class="sub">Kraftværksvej 24 · 6 towers · 1 carrier · 1 rider · physics 240 Hz</div>
+    </div>
+
+    <section>
+      <h2>Time</h2>
+      <div class="row">
+        <button class="primary" id="btnPlay">Pause</button>
+        <button id="btnStep" title="One physics step (4.17 ms)">Step</button>
+        <button id="btnStep24" title="24 steps (0.1 s)">Step 0.1 s</button>
+        <select id="selSlow" aria-label="Time scale">
+          <option value="1">1×</option>
+          <option value="0.5">0.5×</option>
+          <option value="0.25">0.25×</option>
+          <option value="0.1">0.1×</option>
+        </select>
+        <button id="btnReset">Reset</button>
+      </div>
+    </section>
+
+    <section aria-label="Line tension">
+      <div class="charts" id="chartsTop"></div>
+    </section>
+
+    <section class="field">
+      <label for="rngSpeed">Cable speed</label><output id="outSpeed">30 km/h</output>
+      <input type="range" id="rngSpeed" min="20" max="35" step="1" value="30">
+      <div class="ticks"><span>20</span><span>25</span><span>30</span><span>35 km/h</span></div>
+    </section>
+
+    <section class="field">
+      <label for="rngWind">Wind (chop on the water)</label><output id="outWind">4 m/s</output>
+      <input type="range" id="rngWind" min="0" max="10" step="1" value="4">
+      <div class="ticks"><span>0</span><span>3</span><span>6</span><span>10 m/s</span></div>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0" id="noteWind">Wind from WSW over ≈250 m of open water. Wave height and period follow the fetch-limited JONSWAP relations.</p>
+    </section>
+
+    <section class="field">
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
+      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
+    </section>
+
+    <section class="field">
+      <label for="rngFoot">Foot pressure (weight back ↔ forward)</label><output id="outFoot">0 cm</output>
+      <input type="range" id="rngFoot" min="-15" max="15" step="1" value="0">
+      <div class="ticks"><span>−15 cm back</span><span>0</span><span>forward +15 cm</span></div>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Moves the load on the board. Trim, wetted length and centre of pressure follow from the moment balance: weight back lifts the nose and adds trim and drag; weight forward gives a long, flat contact.</p>
+    </section>
+
+    <section class="field">
+      <label for="selStart">Start technique (applies on Reset)</label>
+      <select id="selStart" aria-label="Start technique"><option value="slide" selected>Sliding start (carpet dock)</option><option value="jump">Jump start (off the dock)</option><option value="sit">Sitting start (in the water)</option></select>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">The start jerk is set by momentum: the rider must go from 0 to cable speed (Δp ≈ m·Δv). Sliding: low carpet friction, but the full Δv. Jump: take-off just before the pull, so Δv is ≈2.6 m/s smaller. Sitting: deep squat, handle at the hips; rising to standing gives a long stroke that absorbs the jerk. In all three the arms and body yield above ≈0.95 kN.</p>
+    </section>
+
+    <section class="field">
+      <label for="rngRelease">Release limit (lose the cable above)</label><output id="outRelease">1.5 kN</output>
+      <input type="range" id="rngRelease" min="0.8" max="3" step="0.1" value="1.5">
+      <div class="ticks"><span>0.8</span><span>1.5</span><span>2.2</span><span>3.0 kN</span></div>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">If the line force stays above this limit for more than 30 ms, you lose the handle, which counts as a fall (as when you hit an obstacle). The warning level is 80 % of the limit.</p>
+    </section>
+
+    <section class="field">
+      <label for="chkObs">Obstacles active (contact and collision)</label><input type="checkbox" id="chkObs" checked style="accent-color:var(--accent);width:18px;height:18px">
+    </section>
+
+    <section>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Instruments</h2>
+        <label class="sr-only" for="selWin">Time window</label>
+        <select id="selWin" aria-label="Time window for charts"><option value="20">20 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></div>
+      <div class="charts" id="charts"></div>
+    </section>
+
+    <details>
+      <summary>Park layout · measured vs. assumed</summary>
+      <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> (Google Earth standard layer dated 6/9/2023) from the obstacle analysis of 25 Sep 2026: O1–O7 with their sub-contours and measured axes (O1 20.8 m, O2 19.6 m, O5 14.7 m, O7 21.2 m in Earth). Positions have ≈5–10 m absolute uncertainty. The unconfirmed dark candidate X1 is left out. The analysis gives no heights or product types, so types follow its planform reading (e.g. O3 kicker-like, O6 ramp section) and all heights are assumed typical values. The 2026 history layer (H1–H7) is not used. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+    </details>
+
+    <details id="diagBox">
+      <summary>Diagnostics (live) · report 13.7</summary>
+      <div class="tbl"><table id="tblDiag"><tbody></tbody></table></div>
+      <p class="note">All internal channels, so the simulator can be checked rather than just "look right": line tension, cable power, water-force components, wetted area, centre of pressure, dimensionless numbers, energy balance and contact state.</p>
+    </details>
+
+    <details>
+      <summary>Physics from the report · validation</summary>
+      <div class="note" style="max-width:none">
+        <p>The model has been checked against the report section by section (1–19 and appendices). It follows "Physics and Simulation of a Cable-Park Wakeboard Rider" and sits between levels M2 and M3: rider and board with translation, yaw, roll, a reduced-coordinate multi-body rider (knees as two-link legs with torque limits, fore–aft body lean with ankle and hip balance strategies, arms that raise/lower and yield the handle, pose-dependent de Leva segment inertia), a unilateral line, one water-model function throughout, and a moving water surface (wind chop + own wake).</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Report requirement</th><th>In the simulator</th></tr></thead>
+          <tbody>
+            <tr><td>Unilateral line T = max(0, k(l−L₀)+c·dl/dt)</td><td>Yes, plus force-limited damping</td></tr>
+            <tr><td>Rider speed ≠ cable speed (swing around the carrier)</td><td>Yes, speed is never clamped</td></tr>
+            <tr><td>Elevated tow point, vertical line component</td><td>Yes, 3D line to a 9 m cable</td></tr>
+            <tr><td>Carrier compliance in corners</td><td>Yes, 2nd-order hanger (1.5 Hz)</td></tr>
+            <tr><td>Multi-body rider (report 6: body as linked segments)</td><td>Yes (reduced coordinates): leg force = 2·τ_knee(β)/|dℓ/dβ| × hip/ankle synergy, linear force–velocity (V0 3.5 m/s); fore–aft lean with COP limited to the bindings plus hip strategy; segment inertia from de Leva (1996)</td></tr>
+            <tr><td>Water surface (report 11: waves)</td><td>Yes: fetch-limited JONSWAP chop (8 components, board-length averaged) and the board's own wake at the Mach-like angle φ ≈ 0.224/Fr; heave, slamming and incidence use the vertical speed relative to the moving surface</td></tr>
+            <tr><td>Start jerk (impulse–momentum, Δp = m·Δv)</td><td>Yes: three start techniques (sliding on carpet μ 0.12, jump start, sitting start) from the start dock</td></tr>
+            <tr><td>Series compliance: rope + arms + body</td><td>Yes: rope spring plus a force-limited, dissipative arm/body stroke (yields above 0.95 kN; 0.45 m arms, +0.30 m standing / +0.85 m sitting during the start)</td></tr>
+            <tr><td>Losing the handle</td><td>Yes: adjustable release limit (default 1.5 kN, &gt;30 ms) = fall</td></tr>
+            <tr><td>Savitsky C<sub>L0</sub>, λ, C<sub>V</sub></td><td>Yes, lift ⟂ to the bottom (pressure drag N·sin τ)</td></tr>
+            <tr><td>ITTC-57 friction + residual (spray/3D)</td><td>Yes, S<sub>w</sub> = l<sub>w</sub>b/(cos τ·cos φ)</td></tr>
+            <tr><td>Rocker: α(x) = θ + dr/dx</td><td>Yes, pitch = τ<sub>eff</sub> + 4h(L−l<sub>w</sub>)/L²</td></tr>
+            <tr><td>Foot pressure controls pitch (6.3), centre of pressure</td><td>Yes, trim solved from moment balance with Savitsky's l<sub>p</sub></td></tr>
+            <tr><td>Edge: N ≈ W/cos φ, F<sub>y</sub> ≈ W·tan φ</td><td>Yes, follows from the tilted normal</td></tr>
+            <tr><td>Edge and sideslip as separate states</td><td>Yes, C<sub>Y</sub>(φ, β)</td></tr>
+            <tr><td>Added mass + slamming on landing</td><td>Yes, m<sub>a</sub> = ρπb²l<sub>w</sub>/8, asymmetric (no suction)</td></tr>
+            <tr><td>Displacement → planing at start</td><td>Yes, hydrostatics + plough drag that vanishes at C<sub>V</sub> > 2</td></tr>
+            <tr><td>Energy and power accounting</td><td>Yes, cable power T·q·v<sub>c</sub> (chart) and energy residual</td></tr>
+            <tr><td>Line moment (3.1, 7.1): the line acts at the hands</td><td>Yes: roll moment about the COM; the pitch moment moves the centre of pressure forward (80 % offset by leaning back)</td></tr>
+            <tr><td>Dynamic incidence α = θ + dr/dx + w/U (4.6)</td><td>Yes, heave velocity enters the lift</td></tr>
+            <tr><td>Ventilation and loss of wetted area at deep edge (4.4, 5.7)</td><td>Yes, smooth loss of lift/side force from 45° edge</td></tr>
+            <tr><td>Rotation rates in the water forces (4.8: p/U, r/U)</td><td>Yes, roll and yaw damping ∝ speed</td></tr>
+            <tr><td>Internal torques do not change angular momentum in flight (6.2)</td><td>Yes: body roll is driven only by the line in the air; the board is edged with the ankles</td></tr>
+            <tr><td>Smooth coefficients without jumps (13.6)</td><td>Yes, deadrise clamp and "catching an edge" are smooth functions</td></tr>
+            <tr><td>Observability: log all channels (13.7)</td><td>Yes, the "Diagnostics (live)" panel</td></tr>
+            <tr><td>Sensitivity analysis (17)</td><td>Yes, in the validation script (±20 % per parameter)</td></tr>
+            <tr><td>Motor/cable compliance (10.2)</td><td>No: cable speed is constant (report: add only if measurements show deviations)</td></tr>
+            <tr><td>Full pitch dynamics, flexible board, strip theory, CFD (M3–M5)</td><td>No: pitch is quasi-static (τ = 0.08 s), the board is rigid</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl"><table>
+          <thead><tr><th>Validation (headless)</th><th>Report</th><th>Simulator</th></tr></thead>
+          <tbody>
+            <tr><td>Straight, 30 km/h, 18.5 m line, 10 m cable: T</td><td class="n">142 N</td><td class="n">171 N (+25 N air drag)</td></tr>
+            <tr><td>Load on the board</td><td class="n">716 N</td><td class="n">704 N</td></tr>
+            <tr><td>λ / wetted length</td><td class="n">2.02 / 0.87 m</td><td class="n">2.36 / 1.01 m</td></tr>
+            <tr><td>Trim (report: prescribed 5°)</td><td class="n">5°</td><td class="n">4.4° (computed)</td></tr>
+            <tr><td>Progressive edge to 38° and release: peak speed</td><td class="n">44 km/h*</td><td class="n">46.1 km/h</td></tr>
+            <tr><td>Same manoeuvre: peak T</td><td class="n">706 N*</td><td class="n">1099 N (arms yield)</td></tr>
+            <tr><td>Time step 1/240 → 1/960 s (peak T)</td><td class="n">must converge</td><td class="n">1099 → 1102 N</td></tr>
+            <tr><td>Energy residual over a 110 s lap</td><td class="n">≈ 0</td><td class="n">≤ 2 % of line work (3.8 of 224 kJ, coached lap)</td></tr>
+            <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
+            <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
+            <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
+            <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
+            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†</td><td class="n">1.43 / 1.03 / 1.52 kN (1.8 / 1.3 / 1.9 BW)</td></tr>
+          </tbody>
+        </table></div>
+        <p>* The report's numbers come from an illustrative point-mass model, not measurements. The report itself recommends calibrating against a load cell in the handle, an IMU on the board and GNSS.</p>
+        <p>† Measured rope tension in a boat deep-water start (PMC case study; Runciman 2011 for slalom loads), not a cable-park measurement.</p>
+        <p><strong>Start (instruction sources and model).</strong> Sitting start: elbows at the waist, handle at the hips, tense core, ~70 % weight on the back foot with the nose up; let the pull bring you up to standing (KiteSista; Miami Ski Nautique). Jump start: jump just before the line comes taut and land with bent knees and arms in (KiteSista). Measured deep-water start loads reach 2.0–2.5 × body weight (PMC case study). Headless model at 30 km/h, 80 kg: peak ≈1.43 kN sliding, ≈1.03 kN jump, ≈1.52 kN sitting (≈0.86–1.02 kN at 20 km/h).</p>
+        <p><strong>Corner technique (instruction sources).</strong> Edge out before the corner, release the edge as the carrier goes round the sheave (~1 s of slack), and let the line pull you round. The HUD shows "Corner in … s".</p>
+        <p>Sources: the report above; de Leva (1996, segment inertia); knee-extension torque meta-analysis (Frontiers in Physiology 2021); Samozino et al. (jump force–velocity profiles); Horak &amp; Nashner (1986, ankle/hip balance strategies); Hasselmann et al. (1973, JONSWAP); Rabaud &amp; Moisy (2013) and Darmon, Benzaquen &amp; Raphaël (2014, wake angle at high Froude number); Savitsky (1964) and NACA TN 4187 (1958); ITTC-1957; Tveitnes (2001, added mass); Runciman (2011) and Bray-Miners et al. (2013), slalom rope loads; IWWF Cable Wakeboard World Rules 2026; KiteSista and Wakeboarding Magazine, technique.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Physics constants</summary>
+      <div class="tbl"><table id="tblPhys"><thead><tr><th>Name</th><th style="text-align:right">Value</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Units, sources and assumptions are given as comments in the PHYS block at the top of the file.</p>
+    </details>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const DEG = Math.PI / 180;
+  const sim = createSim();
+
+  /* ---------- Three.js scene ---------- */
+  const view = $('view');
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  view.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fb8c6);
+  scene.fog = new THREE.Fog(0x9fb8c6, 350, 900);
+  scene.add(new THREE.HemisphereLight(0xdfeefa, 0x3a4a3a, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(-120, 200, 80); scene.add(sun);
+
+  // Verdens-koordinater: sim (x øst, y nord, z op) -> three (X=x, Y=z, Z=-y)
+  const V3 = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
+
+  // Land med hul til vandet
+  const W = LAYOUT.water;
+  const landShape = new THREE.Shape([[-400,-400],[600,-400],[600,500],[-400,500]].map(p => new THREE.Vector2(p[0], p[1])));
+  landShape.holes.push(new THREE.Path(W.map(p => new THREE.Vector2(p[0], p[1]))));
+  const landGeo = new THREE.ShapeGeometry(landShape); landGeo.rotateX(-Math.PI / 2);
+  const land = new THREE.Mesh(landGeo, new THREE.MeshLambertMaterial({ color: 0x7d8a6e }));
+  land.position.y = 0.8; scene.add(land);
+  const waterShape = new THREE.Shape(W.map(p => new THREE.Vector2(p[0], p[1])));
+  const waterGeo = new THREE.ShapeGeometry(waterShape); waterGeo.rotateX(-Math.PI / 2);
+  const flatWater = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x2c5566, roughness: 0.28, metalness: 0.05 })); flatWater.position.y = -0.05; scene.add(flatWater);
+  // Live water patch around the camera target: wind chop (same JONSWAP components as the physics) + the rider's wake, with foam
+  const WP = 48, WN = 120, wGeo = new THREE.PlaneGeometry(WP, WP, WN, WN); wGeo.rotateX(-Math.PI / 2);
+  const wCol = new Float32Array(wGeo.attributes.position.count * 3); wGeo.setAttribute('color', new THREE.BufferAttribute(wCol, 3));
+  const wBase = wGeo.attributes.position.array.slice(), wEta = new Float32Array(wGeo.attributes.position.count);
+  const waterPatch = new THREE.Mesh(wGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.05 }));
+  waterPatch.frustumCulled = false; scene.add(waterPatch);
+  const wc0 = new THREE.Color(0x2c5566), wcFoam = new THREE.Color(0xe8f0f2);
+  let wLast = -1;
+  function updateWater(cx, cy) {                   // cx, cy in physics coordinates (x east, y north)
+    if (sim.t === wLast) return; wLast = sim.t;
+    const step = WP / WN, ox = Math.round(cx / step) * step, oy = Math.round(cy / step) * step;   // snap: no swimming texture
+    waterPatch.position.set(ox, 0, -oy);
+    const pos = wGeo.attributes.position.array, n = wEta.length, t = sim.t, ch = sim.chop;
+    for (let i = 0; i < n; i++) { const x = ox + wBase[i * 3], y = oy - wBase[i * 3 + 2]; let e = 0;
+      for (const c of ch.comps) e += c.a * Math.cos(c.kx * x + c.ky * y - c.w * t + c.ph);
+      wEta[i] = e; }
+    const foam = new Float32Array(n);
+    for (const p of sim.trail) {                   // wake: only the vertices near each track sample's two crests
+      const age = t - p.t; if (age < 0.4) continue; const fa = Math.exp(-age / 1.5), r = p.V * age, yw = r * p.tp, reach = yw + p.lam, ds = p.V * PHYS.WAKE_DT * 2.5;
+      const x0 = p.x - ox, y0 = p.y - oy; if (Math.abs(x0) > WP / 2 + reach || Math.abs(y0) > WP / 2 + reach) continue;
+      const ext = reach + ds, i0 = Math.max(0, Math.floor((x0 - ext + WP / 2) / step)), i1 = Math.min(WN, Math.ceil((x0 + ext + WP / 2) / step));
+      const j0 = Math.max(0, Math.floor((WP / 2 - (y0 + ext)) / step)), j1 = Math.min(WN, Math.ceil((WP / 2 - (y0 - ext)) / step));
+      for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) { const k = j * (WN + 1) + ii;
+        const w = sim.wakeOne(p, ox + wBase[k * 3], oy - wBase[k * 3 + 2], t); if (w) { wEta[k] += w; foam[k] = Math.max(foam[k], w * fa); } }
+    }
+    for (let i = 0; i < n; i++) {
+      pos[i * 3 + 1] = wEta[i];
+      const edge = Math.max(Math.abs(wBase[i * 3]), Math.abs(wBase[i * 3 + 2])) / (WP / 2), fade = edge > 0.8 ? 1 - (edge - 0.8) / 0.2 : 1;
+      pos[i * 3 + 1] = wEta[i] * fade - 0.05 * (1 - fade);
+      const f = Math.min(1, Math.max(0, foam[i] / 0.03)) * 0.7 + Math.max(0, Math.min(0.12, wEta[i] * 2));   // foam only on the young wake; crests slightly lighter
+      wCol[i * 3] = wc0.r + (wcFoam.r - wc0.r) * f; wCol[i * 3 + 1] = wc0.g + (wcFoam.g - wc0.g) * f; wCol[i * 3 + 2] = wc0.b + (wcFoam.b - wc0.b) * f;
+    }
+    wGeo.attributes.position.needsUpdate = true; wGeo.attributes.color.needsUpdate = true; wGeo.computeVertexNormals();
+  }
+  // vandflade-grid (10 m) for fornemmelse af fart
+  const grid = new THREE.GridHelper(600, 60, 0x44707f, 0x3a6474); grid.position.set(80, 0.02, 0);
+  grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+
+  // Jetty
+  const jettyMat = new THREE.MeshLambertMaterial({ color: 0xb59c78 });
+  function plank(a, b, w = 2.4) {
+    const A = V3(a[0], a[1], 0.6), B = V3(b[0], b[1], 0.6), len = A.distanceTo(B);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.3, w), jettyMat);
+    m.position.copy(A).add(B).multiplyScalar(0.5);
+    m.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x); scene.add(m);
+  }
+  const strutLater = [];
+  const J = LAYOUT.jetty; for (let i = 0; i < J.length - 1; i++) plank(J[i], J[i + 1]);
+  plank(LAYOUT.jettyLand[0], LAYOUT.jettyLand[1], 2);
+  const dockM = new THREE.Mesh(new THREE.BoxGeometry(10, 0.3, 6), new THREE.MeshLambertMaterial({ color: 0xd8c29c }));
+  dockM.position.copy(V3(-4.35, -10.7, 0.6)); dockM.rotation.y = Math.atan2(-16.8, 7.8); scene.add(dockM);   // platform on the land side of the jetty head
+  // Start dock: floating pontoon with a carpet and a ramp into the water (same geometry as the physics contact)
+  { const g = new THREE.Group(), P = PHYS, h2 = P.DOCK_LEN / 2, flat = P.DOCK_LEN - P.DOCK_RAMP, W2 = 2 * P.DOCK_HALF_W;
+    const carpet = new THREE.MeshLambertMaterial({ color: 0x2f7d5b }), pont = new THREE.MeshLambertMaterial({ color: 0x9aa4a8 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(flat, 0.35, W2), pont); body.position.set(-h2 + flat / 2, P.DOCK_TOP - 0.2, 0); g.add(body);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(flat, 0.04, W2), carpet); top.position.set(-h2 + flat / 2, P.DOCK_TOP - 0.02, 0); g.add(top);
+    const drop = P.DOCK_TOP + 0.15, rl = Math.hypot(P.DOCK_RAMP, drop);
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(rl, 0.04, W2), carpet);
+    ramp.position.set(h2 - P.DOCK_RAMP / 2, P.DOCK_TOP - drop / 2 - 0.02, 0); ramp.rotation.z = -Math.atan2(drop, P.DOCK_RAMP); g.add(ramp);
+    g.position.copy(V3(P.DOCK_C[0], P.DOCK_C[1], 0)); g.rotation.y = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]); scene.add(g); }
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(3.2, 1.6, 4), new THREE.MeshLambertMaterial({ color: 0x22282c }));
+  tent.position.copy(V3(-6, -12, 3.2)); tent.rotation.y = Math.PI / 4; scene.add(tent);
+  for (const [x, y] of [[-8.3, -9.8], [-3.8, -14.3], [-8.3 + 2.3, -9.8 - 2.3 + 4.5], [-1.5, -12]]) strutLater.push([V3(x, y, 0.8), V3(x, y, 2.4)]);
+  const buoyMat = new THREE.MeshLambertMaterial({ color: 0xf07a28 });
+  for (const [x, y] of LAYOUT.buoys) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), buoyMat); b.position.copy(V3(x, y, 0.15)); scene.add(b); }
+
+  // Master: skrå A-ramme på kysten/jettyen, hjul hængende ud over vandet
+  const mastMat = new THREE.MeshLambertMaterial({ color: 0x9aa4a8 });
+  const motorMat = new THREE.MeshLambertMaterial({ color: 0xe9b949 });
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x2b3338 });
+  const guyMat = new THREE.LineBasicMaterial({ color: 0x55616a });
+  function strut(A, B, r, mat) {
+    const len = A.distanceTo(B), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), mat);
+    m.position.copy(A).add(B).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()); scene.add(m);
+  }
+  for (const [a, b] of strutLater) strut(a, b, 0.05, mastMat);
+  const mastLabels = [], obsTags = [];
+  LAYOUT.masts.forEach((m, i) => {
+    const w = sim.path.wheels[i], ox = w[0] - m.x, oy = w[1] - m.y, ol = Math.hypot(ox, oy);
+    const sx = -oy / ol * 2.2, sy = ox / ol * 2.2;              // fødder spredt på tværs af hældningen
+    // A-ramme (let hældende) + vandret bom med hjulet ude over vandet (jf. fotos/video)
+    // Skrå A-ramme: toppen hælder ~halvdelen af udhænget ind over vandet; bom ud til hjulet (udhæng 15–20 m)
+    const ax = m.x + ox * 0.5, ay = m.y + oy * 0.5, H = PHYS.MAST_HEIGHT + 1.5;
+    const top = V3(ax, ay, H), mat = m.id === 'A' ? motorMat : mastMat;
+    strut(V3(m.x + sx, m.y + sy, 0.8), top, 0.16, mat); strut(V3(m.x - sx, m.y - sy, 0.8), top, 0.16, mat);
+    for (const f of [0.35, 0.65]) strut(V3(m.x + sx * (1 - f) + ox * 0.5 * f, m.y + sy * (1 - f) + oy * 0.5 * f, 0.8 + (H - 0.8) * f),
+                                         V3(m.x - sx * (1 - f) + ox * 0.5 * f, m.y - sy * (1 - f) + oy * 0.5 * f, 0.8 + (H - 0.8) * f), 0.07, mat);
+    strut(V3(ax, ay, H - 0.3), V3(w[0], w[1], PHYS.MAST_HEIGHT), 0.13, mat);                        // bom
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V3(ax, ay, H + 1.5), V3(w[0], w[1], PHYS.MAST_HEIGHT)]), guyMat)); // bardun til bomspids
+    strut(V3(ax, ay, H), V3(ax, ay, H + 1.5), 0.06, mat);
+    strut(V3(w[0], w[1], PHYS.MAST_HEIGHT), V3(w[0], w[1], PHYS.CABLE_HEIGHT), 0.1, wheelMat);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(PHYS.WHEEL_RADIUS, 0.09, 8, 28), wheelMat);
+    wheel.rotation.x = Math.PI / 2; wheel.position.copy(V3(w[0], w[1], PHYS.CABLE_HEIGHT)); scene.add(wheel);
+    const bx = m.x - ox / ol * 9, by = m.y - oy / ol * 9;  // bardun bagud til land
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([top, V3(bx, by, 0.8)]), guyMat));
+    const base = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.6, 4.5), jettyMat); base.position.copy(V3(m.x, m.y, 0.5)); scene.add(base);
+    const lbl = makeLabel(m.id); lbl.position.copy(V3(w[0], w[1], PHYS.MAST_HEIGHT + 2.5)); scene.add(lbl); mastLabels.push(lbl);
+  });
+  const cablePts = []; for (let s0 = 0; s0 <= sim.path.length; s0 += 0.5) { const q = pathAt(sim.path, s0); cablePts.push(V3(q.x, q.y, PHYS.CABLE_HEIGHT)); }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cablePts), new THREE.LineBasicMaterial({ color: 0x1c2328 })));
+  function makeLabel(text) {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const g = c.getContext('2d'); g.fillStyle = '#162631'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill();
+    g.fillStyle = '#e9b949'; g.font = '600 34px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 32, 34);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+    s.scale.set(5, 5, 1); return s;
+  }
+
+  // Obstakler: geometri bygget fra samme højdeprofil som fysikken bruger (fastfrosset bud)
+  for (const o of sim.obs) {
+    const pts = o.prof.map(([u, h]) => new THREE.Vector2(u, h));
+    pts.push(new THREE.Vector2(o.prof[o.prof.length - 1][0], -0.4), new THREE.Vector2(o.prof[0][0], -0.4));
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2);
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef) }));
+    mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; scene.add(mesh);
+    if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
+  }
+  // Carrier
+  const carrierM = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.4), motorMat); scene.add(carrierM);
+  // Line (opdateres pr. frame)
+  // Rebet tegnes som et rør af 16 segmenter. Radius = max(fysisk radius ×1,5, ~1,3 px på skærmen), så det altid er synligt.
+  const LN = 17, ROPE_R = 0.006 * 1.5;   // 12 mm line → Ø 18 mm i visningen
+  const ropeGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); ropeGeo.translate(0, 0.5, 0);
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xe9b949 });
+  const ropeSegs = Array.from({ length: LN - 1 }, () => { const m = new THREE.Mesh(ropeGeo, lineMat); m.frustumCulled = false; scene.add(m); return m; });
+  const ropePts = Array.from({ length: LN }, () => new THREE.Vector3());
+  const hangerMat = new THREE.MeshBasicMaterial({ color: 0x2a2f33 }), hangerM = new THREE.Mesh(ropeGeo, hangerMat); scene.add(hangerM);
+  const _d = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _mid = new THREE.Vector3();
+  function pxSize(p, cam) {   // meter pr. pixel ved punktet p
+    const hgt = renderer.domElement.clientHeight || 600;
+    if (cam.isOrthographicCamera) return (cam.top - cam.bottom) / hgt;
+    return cam.position.distanceTo(p) * 2 * Math.tan(cam.fov * Math.PI / 360) / hgt;
+  }
+  function placeTube(mesh, a, b, r) { _d.copy(b).sub(a); const L = _d.length(); mesh.position.copy(a); mesh.quaternion.setFromUnitVectors(_up, _d.normalize()); mesh.scale.set(r, Math.max(L, 1e-3), r); }
+
+  // Rider: gruppe (yaw) -> boardG (edge/læn om længdeaksen) -> board + krop
+  // Lokale akser i boardG: +x = næse (kørselsretning), +y = kropsakse (op), +z = højre side af boardet.
+  // Goofy: højre fod forrest, rideren vender mod boardets venstre side (−z = toeside).
+  const rider = new THREE.Group(); scene.add(rider);
+  const boardG = new THREE.Group(); rider.add(boardG);
+  const boardOnly = new THREE.Group(); boardG.add(boardOnly);   // boardet kan kantes i forhold til kroppen (ankler)
+  const M = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, metalness: 0.05 });
+  const suit = M(0x1b1f23), suit2 = M(0x2b3238), skin = M(0xd9a88a), vestM = M(0xf08a5d), helmM = M(0xf2f2ee);
+  const boardTop = M(0x1d6f8f), boardBot = M(0xe8eef0), bindM = M(0x111416), handleM = M(0x2a2f33);
+  { // board: afrundet planform 140 × 43 cm, 3 cm tyk, med fire finner
+    const Lb = 1.40, Wb = 0.43, r = Wb / 2, sh = new THREE.Shape();
+    sh.moveTo(-Lb / 2 + r, -Wb / 2); sh.lineTo(Lb / 2 - r, -Wb / 2);
+    sh.absarc(Lb / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2, false); sh.lineTo(-Lb / 2 + r, Wb / 2);
+    sh.absarc(-Lb / 2 + r, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.01, bevelSegments: 2, curveSegments: 16 });
+    g.rotateX(-Math.PI / 2); g.translate(0, 0.004, 0);
+    const top = new THREE.Mesh(g, [boardTop, boardBot]); boardOnly.add(top);
+    for (const [fx, fz] of [[0.58, 0.14], [0.58, -0.14], [-0.58, 0.14], [-0.58, -0.14]]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.008), boardBot); fin.position.set(fx, -0.015, fz); boardOnly.add(fin);
+    }
+  }
+  // ---------- Human model ----------
+  // bodyG/bootsG turn 180° when the rider lands switch (the physics flips the twin-tip board's frame instead)
+  const bodyG = new THREE.Group(); boardG.add(bodyG); const bootsG = new THREE.Group(); boardOnly.add(bootsG);
+  // Proportions from de Leva (1996), scaled to a 1.80 m rider: thigh 0.437, shank 0.449, upper arm 0.291, forearm 0.278 m.
+  // Limbs are lathed muscle profiles between joints; the trunk, pelvis and head are shaped meshes with their own frames.
+  const up = new THREE.Vector3(0, 1, 0);
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const neo = M(0x16191c), neoPanel = M(0x2f5d73), shortsM = M(0x3a4f63), gloveM = M(0x0f1113), kneePadM = M(0x23282d);
+  const hairM = M(0x5a3b22), eyeM = M(0x0d0d0d), eyeW = M(0xf3f1ec), lipM = M(0xb9786a), strapM = M(0x111416), buckleM = M(0xc9ccce);
+  const skinM = new THREE.MeshStandardMaterial({ color: 0xd9a88a, roughness: 0.6, metalness: 0.0 });
+  function limb(profile, mat, sx = 1, sz = 1) {   // lathed limb, length 1 along +y; profile = [radius, t] from the proximal joint
+    const g = new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), 18); g.scale(sx, 1, sz);
+    const m = new THREE.Mesh(g, mat); bodyG.add(m); return m;
+  }
+  function seg(m, a, b) { const d = b.clone().sub(a), L = d.length(); m.position.copy(a); m.quaternion.setFromUnitVectors(up, d.normalize()); m.scale.set(1, Math.max(1e-3, L), 1); }
+  function ball(r, mat, sx = 1, sy = 1, sz = 1, parent = bodyG) { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat); m.scale.set(sx, sy, sz); parent.add(m); return m; }
+  const mBasis = new THREE.Matrix4();
+  function orient(obj, pos, yAxis, zFace) {   // local y = yAxis, local z = face/front
+    const Y = yAxis.clone().normalize(), Z = zFace.clone().sub(Y.clone().multiplyScalar(zFace.dot(Y))).normalize(), X = Y.clone().cross(Z);
+    mBasis.makeBasis(X, Y, Z); obj.quaternion.setFromRotationMatrix(mBasis); obj.position.copy(pos);
+  }
+  function lathe(profile, mat, depthScale, segs = 28) {   // [radius, height] around y; flattened in z (chest depth)
+    const g = new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), segs); g.scale(1, 1, depthScale);
+    return new THREE.Mesh(g, mat);
+  }
+  // Trunk (frame: y = spine, z = chest forward, x = towards the left shoulder)
+  const torsoG = new THREE.Group(); bodyG.add(torsoG);
+  torsoG.add(lathe([[0.001, 0], [0.128, 0.01], [0.136, 0.06], [0.124, 0.16], [0.132, 0.24], [0.155, 0.33], [0.172, 0.41], [0.182, 0.46], [0.16, 0.5], [0.1, 0.535], [0.055, 0.55], [0.001, 0.555]], neo, 0.64));
+  torsoG.add(lathe([[0.16, 0.44], [0.183, 0.46], [0.162, 0.5], [0.1, 0.535]], neoPanel, 0.66));                       // shoulder panel
+  for (const sx of [-1, 1]) { const tr = ball(1, neo, 0.075, 0.05, 0.06, torsoG); tr.position.set(0.075 * sx, 0.525, -0.02); tr.rotation.z = 0.5 * sx; }  // trapezius
+  const vestGroove = M(0xb35d3a);
+  // Life vest: foam panels with grooves, collar, three straps with buckles
+  torsoG.add(lathe([[0.001, 0.12], [0.148, 0.12], [0.152, 0.2], [0.158, 0.3], [0.178, 0.4], [0.176, 0.455], [0.13, 0.48], [0.001, 0.485]], vestM, 0.74));
+  for (let i = 0; i < 14; i++) {                          // vertical grooves between foam panels
+    const a = (i / 14) * Math.PI * 2, rr = 0.166, g = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.3, 0.004), vestGroove);
+    g.position.set(Math.sin(a) * rr, 0.29, Math.cos(a) * rr * 0.745); g.rotation.y = a; torsoG.add(g);
+  }
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 24), vestM); collar.scale.set(1, 0.8, 1); collar.rotation.x = Math.PI / 2; collar.position.y = 0.49; torsoG.add(collar);
+  for (const hh of [0.17, 0.27, 0.37]) {
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(1, 0.011, 6, 32), strapM);
+    const rr = hh < 0.3 ? 0.16 : 0.176; strap.scale.set(rr, rr * 0.745, 1); strap.rotation.x = Math.PI / 2; strap.position.y = hh; torsoG.add(strap);
+    const bk = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.028, 0.014), buckleM); bk.position.set(0, hh, rr * 0.745 + 0.008); torsoG.add(bk);
+  }
+  const zipM = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.34, 0.01), buckleM); zipM.position.set(0, 0.3, 0.13); torsoG.add(zipM);
+  // Pelvis + boardshorts + glutes
+  const pelvisG = new THREE.Group(); bodyG.add(pelvisG);
+  const hipsMesh = ball(1, shortsM, 0.165, 0.12, 0.115, pelvisG);
+  for (const sx of [-1, 1]) { const gl = ball(1, shortsM, 0.075, 0.08, 0.07, pelvisG); gl.position.set(0.065 * sx, -0.02, -0.065); }
+  const waist = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.016, 6, 24), strapM); waist.scale.set(1, 0.74, 1); waist.rotation.x = Math.PI / 2; waist.position.y = 0.075; pelvisG.add(waist);
+  const cord = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.003, 4, 10), buckleM); cord.position.set(0, 0.06, 0.108); pelvisG.add(cord);
+  // Head (frame: z = face): skull, jaw, cheeks, eyes with whites, brows, nose, lips, ears, hair at the nape, helmet with vents
+  const headG = new THREE.Group(); bodyG.add(headG);
+  ball(1, skinM, 0.077, 0.1, 0.09, headG);
+  const jaw = ball(1, skinM, 0.06, 0.05, 0.062, headG); jaw.position.set(0, -0.055, 0.028);
+  const chin = ball(1, skinM, 0.025, 0.02, 0.02, headG); chin.position.set(0, -0.09, 0.07);
+  for (const sx of [-1, 1]) {
+    const ch = ball(1, skinM, 0.025, 0.02, 0.02, headG); ch.position.set(0.042 * sx, -0.02, 0.07);
+    const ew = ball(1, eyeW, 0.012, 0.008, 0.006, headG); ew.position.set(0.028 * sx, 0.018, 0.083);
+    const ey = ball(0.0055, eyeM, 1, 1, 1, headG); ey.position.set(0.028 * sx, 0.018, 0.089);
+    const lid = ball(1, skinM, 0.013, 0.004, 0.007, headG); lid.position.set(0.028 * sx, 0.026, 0.084);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.01), hairM); brow.position.set(0.028 * sx, 0.036, 0.086); brow.rotation.z = -0.15 * sx; headG.add(brow);
+    const ear = ball(1, skinM, 0.011, 0.027, 0.019, headG); ear.position.set(0.077 * sx, 0.0, -0.006);
+    const side = ball(1, hairM, 0.012, 0.03, 0.02, headG); side.position.set(0.07 * sx, 0.03, 0.02);   // sideburns
+  }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.034, 8), skinM); nose.rotation.x = Math.PI / 2 + 0.3; nose.position.set(0, -0.004, 0.097); headG.add(nose);
+  for (const [yy, sc] of [[-0.04, 1], [-0.05, 0.85]]) { const lip = ball(1, lipM, 0.018 * sc, 0.005, 0.008, headG); lip.position.set(0, yy, 0.083); }
+  const nape = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.35), hairM); nape.scale.set(0.082, 0.1, 0.094); nape.rotation.x = -0.6; headG.add(nape);
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), helmM); shell.scale.set(0.1, 0.12, 0.112); shell.position.y = 0.012; headG.add(shell);
+  for (let i = 0; i < 5; i++) { const vt = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.05), strapM); const a = (i - 2) * 0.35; vt.position.set(Math.sin(a) * 0.06, 0.125, Math.cos(a) * 0.01 - 0.01); vt.rotation.y = a; headG.add(vt); }
+  const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.008, 20, 1, false, -0.9, 1.8), helmM); visor.scale.set(0.95, 1, 1.05); visor.position.set(0, 0.03, 0.02); visor.rotation.x = 0.12; headG.add(visor);
+  for (const sx of [-1, 1]) { const ep = ball(1, helmM, 0.02, 0.045, 0.04, headG); ep.position.set(0.09 * sx, -0.01, -0.005); }
+  const chinStrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.005, 5, 20, Math.PI), strapM); chinStrap.rotation.z = Math.PI; chinStrap.position.set(0, -0.02, 0.0); headG.add(chinStrap);
+  const neck = limb([[0.05, 0], [0.047, 0.5], [0.045, 1]], skinM);
+  // Arms: deltoid, upper arm (biceps/triceps), elbow, forearm, glove with fingers wrapped round the bar
+  const deltoid = [ball(0.062, neo, 1, 0.9, 0.95), ball(0.062, neo, 1, 0.9, 0.95)];
+  const uarm = [0, 1].map(() => limb([[0.054, 0], [0.05, 0.25], [0.049, 0.5], [0.043, 0.8], [0.038, 1]], neo, 1, 0.92));
+  const elbow = [ball(0.039, neo), ball(0.039, neo)];
+  const farm = [0, 1].map(() => limb([[0.04, 0], [0.043, 0.2], [0.037, 0.6], [0.028, 0.95], [0.027, 1]], neoPanel, 1, 0.8));
+  const cuffR = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.TorusGeometry(0.029, 0.005, 5, 14), strapM); bodyG.add(m); return m; });
+  const handG = [0, 1].map(() => {   // frame: x = along the bar, y = towards the wrist, z = back of the hand
+    const g = new THREE.Group(); bodyG.add(g);
+    const palm = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.03, 3, 8), gloveM); palm.rotation.z = Math.PI / 2; palm.scale.set(1, 1, 0.55); palm.position.set(0, 0.045, 0.012); g.add(palm);
+    for (let f = 0; f < 4; f++) {     // four fingers curled round the grip (torus arcs about the bar axis)
+      const fg = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.0095, 6, 10, Math.PI * 1.45), gloveM);
+      fg.rotation.y = Math.PI / 2; fg.rotation.x = 0.35; fg.position.set(-0.03 + f * 0.02, 0.0, 0.0); g.add(fg);
+    }
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.01, 0.035, 3, 6), gloveM); thumb.position.set(0.045, 0.012, -0.022); thumb.rotation.set(0.2, 0, 1.2); g.add(thumb);
+    return g;
+  });
+  // Legs: thigh (quadriceps bulge in front), knee pad, shank with calf behind; boardshort legs
+  const thigh = [0, 1].map(() => limb([[0.058, 0], [0.07, 0.15], [0.085, 0.45], [0.094, 0.75], [0.098, 1]], neo, 1, 0.95));
+  const quad = [ball(1, neo, 0.05, 0.12, 0.04), ball(1, neo, 0.05, 0.12, 0.04)];
+  const shortsLeg = [0, 1].map(() => limb([[0.108, 0], [0.11, 0.6], [0.114, 1]], shortsM));
+  const kneeB = [ball(0.05, kneePadM, 1, 1, 1.05), ball(0.05, kneePadM, 1, 1, 1.05)];
+  const shin = [0, 1].map(() => limb([[0.036, 0], [0.042, 0.2], [0.05, 0.55], [0.053, 0.72], [0.048, 0.92], [0.05, 1]], neo));
+  const calf = [ball(1, neo, 0.042, 0.1, 0.036), ball(1, neo, 0.042, 0.1, 0.036)];
+  // Bindings: base plate, boot and highback (right foot forward = +x)
+  const bootG = [0, 1].map(i => {
+    const g = new THREE.Group(); bootsG.add(g);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.3), bindM); plate.position.y = 0.012; g.add(plate);
+    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.16, 4, 10), M(0x2a2e33)); boot.rotation.x = Math.PI / 2; boot.position.set(0, 0.07, -0.01); boot.scale.set(1.05, 1, 1); g.add(boot);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.065, 0.14, 14), M(0x2a2e33)); cuff.position.set(0, 0.15, 0.03); g.add(cuff);
+    const hb = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.2, 0.02), bindM); hb.position.set(0, 0.14, 0.115); hb.rotation.x = -0.25; g.add(hb);
+    for (const zz of [-0.06, 0.04]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.05), vestM); st.position.set(0, 0.11, zz); g.add(st); }
+    for (let k = 0; k < 3; k++) { const lace = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.004, 0.006), buckleM); lace.position.set(0, 0.125 - k * 0.02, -0.07 + k * 0.03); g.add(lace); }
+    g.position.set(i ? -0.27 : 0.27, 0, 0); g.rotation.y = i ? 0.26 : -0.26;   // slight "duck" stance
+    return g;
+  });
+  const handleBar = (() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.38, 10), M(0x2a2f33)); bodyG.add(m);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 10), M(0x3c78a8)); m.add(grip); return m; })();
+  const SHIN = PHYS.SHANK_LEN, THIGH = PHYS.THIGH_LEN, UARM = 0.291, FARM = 0.278, STANCE = PHYS.STANCE / 2;
+  function ik2(a, b, l1, l2, pole) {   // two-link IK; the joint bends towards 'pole'
+    const d = b.clone().sub(a), L = Math.min(d.length(), l1 + l2 - 1e-4), dn = d.clone().normalize();
+    const x = (l1 * l1 - l2 * l2 + L * L) / (2 * L), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
+    const pp = pole.clone().sub(dn.clone().multiplyScalar(pole.dot(dn))).normalize();
+    return [a.clone().add(dn.clone().multiplyScalar(x)).add(pp.multiplyScalar(h)), a.clone().add(dn.multiplyScalar(L))];
+  }
+  const handleLocal = new THREE.Vector3(), lineDirLocal = new THREE.Vector3(1, 0.4, 0);
+  // Pose from the physics state: leg length (knees), fore–aft lean θ (relative to the trimmed board), roll is applied to
+  // the whole group, handle height offset and arm yield from the multi-body model.
+  function poseRider(l, lineF, attached, phi, theta = 0, hOff = 0, arm = 0, trim = 0, sw = false, grab = null) {
+    const edgeFade = 1 - Math.min(1, Math.abs(phi) / 0.9);
+    const th = attached ? (sw ? -1 : 1) * (theta - trim) : 0;                              // lean back towards the tail (−x), relative to the board
+    const ankles = [V(STANCE, PHYS.ANKLE_H + 0.03, 0.0), V(-STANCE, PHYS.ANKLE_H + 0.03, 0.0)];
+    const sitBack = Math.min(0.1, 0.02 + lineF / 9000) * edgeFade;      // hips hang back to the heel side (+z) on the line
+    const pel = V(-l * Math.sin(th) - 0.02, l * Math.cos(th) + 0.03, sitBack), hipW = 0.095;
+    // Direction of the line in the board frame → chest and pelvis open towards it
+    const dir = lineDirLocal.clone(); if (dir.lengthSq() < 1e-6) dir.set(1, 0, 0); dir.normalize();
+    const lineAng = Math.atan2(dir.x, -dir.z);                         // 0 = line on the toe side, + = towards the nose
+    const face = V(Math.sin(0.25), 0, -Math.cos(0.25));
+    orient(pelvisG, pel, V(-Math.sin(th), Math.cos(th), 0), face);
+    const hipX = V(-face.z, 0, face.x).normalize();
+    const hips = [pel.clone().add(hipX.clone().multiplyScalar(hipW)), pel.clone().add(hipX.clone().multiplyScalar(-hipW))];
+    const kneeFwd = [], kneesP = [];
+    for (let i = 0; i < 2; i++) {
+      const [kn, hp] = ik2(ankles[i], hips[i], SHIN, THIGH, V(i ? -0.3 : 0.3, 0.1, -1));
+      seg(shin[i], ankles[i], kn); seg(thigh[i], kn, hp); kneeB[i].position.copy(kn); kneesP.push(kn);
+      seg(shortsLeg[i], hp, hp.clone().lerp(kn, 0.42));
+      const sh = kn.clone().sub(ankles[i]).normalize(), tg = hp.clone().sub(kn).normalize();
+      const post = V(0, 0, 1).sub(sh.clone().multiplyScalar(sh.z)).normalize();          // behind the shank (heel side)
+      calf[i].position.copy(ankles[i].clone().lerp(kn, 0.66)).add(post.clone().multiplyScalar(0.022)); calf[i].quaternion.setFromUnitVectors(up, sh);
+      const ant = V(0, 0, -1).sub(tg.clone().multiplyScalar(-tg.z)).normalize();          // in front of the thigh
+      quad[i].position.copy(kn.clone().lerp(hp, 0.5)).add(ant.multiplyScalar(0.03)); quad[i].quaternion.setFromUnitVectors(up, tg);
+      kneeFwd.push(Math.max(0, -kn.z));
+    }
+    // Trunk: flexes forward over the toes as the knees bend (athletic stance), leans back with θ, hangs to the heel side
+    // with the line; chest twists towards the line.
+    const crouch = Math.max(0, Math.min(1, (PHYS.LEG_NOM + 0.05 - l) / 0.35));
+    const flex = 0.12 + 0.35 * crouch, hang = (0.1 + Math.min(0.3, lineF / 3000)) * edgeFade;
+    const spine = V(-Math.sin(th) * 1.1, 1, Math.sin(hang) - Math.sin(flex)).normalize();
+    const twist = Math.max(-0.2, Math.min(1.0, 0.45 + 0.4 * lineAng)), chestFace = V(Math.sin(twist), 0, -Math.cos(twist));
+    orient(torsoG, pel.clone().add(V(0, 0.04, 0)), spine, chestFace);
+    torsoG.updateMatrix();
+    const T = p => p.clone().applyMatrix4(torsoG.matrix);
+    const shoulders = [T(V(-0.19, 0.47, -0.01)), T(V(0.19, 0.47, -0.01))];     // right, left (local +x = left side)
+    deltoid[0].position.copy(shoulders[0]); deltoid[1].position.copy(shoulders[1]);
+    const neckBase = T(V(0, 0.53, -0.01)), neckTop = T(V(0, 0.63, 0.012));
+    seg(neck, neckBase, neckTop);
+    // Head looks ahead along the direction of travel (+x) over the right shoulder, a little down towards the water
+    orient(headG, neckTop.clone().add(spine.clone().multiplyScalar(0.085)), V(0, 1, 0).add(spine).normalize(), V(1, -0.2, -0.35 + 0.15 * Math.max(0, -lineAng)));
+    // Handle: in front of the hips towards the line, raised/lowered by hOff; the arms yield by 'arm'
+    handleLocal.copy(pel).add(V(0.02, 0.1 + hOff, -0.1)).add(dir.clone().multiplyScalar(0.3 + 0.45 * Math.min(arm, 0.5)));
+    const barAxis = V(-dir.z, 0, dir.x).normalize();
+    handleBar.position.copy(handleLocal); handleBar.quaternion.setFromUnitVectors(up, barAxis); handleBar.visible = attached;
+    let hands = [handleLocal.clone().add(barAxis.clone().multiplyScalar(0.075)), handleLocal.clone().add(barAxis.clone().multiplyScalar(-0.075))];
+    if (hands[0].distanceTo(shoulders[0]) > hands[1].distanceTo(shoulders[0])) hands = [hands[1], hands[0]];
+    if (!attached) hands = [shoulders[0].clone().add(V(0.25, -0.35, -0.2)), shoulders[1].clone().add(V(-0.2, -0.4, -0.2))];
+    let gi = -1;
+    if (attached && grab && grab.type && grab.reach > 0) {    // grab: one hand leaves the handle for the nose (+x) or tail (−x) on the toe-side edge
+      const tgt = V(grab.type * 0.6 * (sw ? -1 : 1), 0.07, -0.17);
+      gi = shoulders[0].distanceTo(tgt) < shoulders[1].distanceTo(tgt) ? 0 : 1;
+      hands[gi] = hands[gi].clone().lerp(tgt, grab.reach);
+    }
+    for (let i = 0; i < 2; i++) {
+      const [el, hd] = ik2(shoulders[i], hands[i], UARM, FARM, V(i ? -0.3 : 0.3, -1, 0.35));
+      seg(uarm[i], shoulders[i], el); seg(farm[i], el, hd); elbow[i].position.copy(el);
+      const fd = hd.clone().sub(el).normalize();
+      cuffR[i].position.copy(el.clone().lerp(hd, 0.93)); cuffR[i].quaternion.setFromUnitVectors(V(0, 0, 1), fd);
+      if (attached && i !== gi) {   // hand frame: x along the bar, y back towards the wrist
+        const X = barAxis.clone(), Y = fd.clone().negate().sub(X.clone().multiplyScalar(-fd.dot(X))).normalize(), Z = X.clone().cross(Y);
+        mBasis.makeBasis(X, Y, Z); handG[i].quaternion.setFromRotationMatrix(mBasis); handG[i].position.copy(hd);
+      } else orient(handG[i], hd, fd.clone().negate(), V(0, 0, -1));
+    }
+  }
+  // Sprøjt fra railen: partikler, hvis mængde følger fart, kant og sideslip
+  const SPN = 500, spPos = new Float32Array(SPN * 3), spVel = new Float32Array(SPN * 3), spAge = new Float32Array(SPN).fill(9);
+  const spGeo = new THREE.BufferGeometry(); spGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
+  const spray = new THREE.Points(spGeo, new THREE.PointsMaterial({ color: 0xf4f8fa, size: 0.12, map: (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })(), transparent: true, opacity: 0.75, depthWrite: false }));
+  spray.frustumCulled = false; scene.add(spray);
+  let spHead = 0, spLastT = 0;
+  function updateSpray(R) {
+    const dt = Math.max(0, Math.min(0.05, sim.t - spLastT)); spLastT = sim.t;
+    for (let i = 0; i < SPN; i++) {
+      if (spAge[i] > 0.9) { spPos[i * 3 + 1] = -50; continue; }
+      spAge[i] += dt; spVel[i * 3 + 1] -= 9.81 * dt;
+      spPos[i * 3] += spVel[i * 3] * dt; spPos[i * 3 + 1] += spVel[i * 3 + 1] * dt; spPos[i * 3 + 2] += spVel[i * 3 + 2] * dt;
+      if (spPos[i * 3 + 1] < 0) spAge[i] = 9;
+    }
+    const V = Math.hypot(R.vx, R.vy);
+    if (sim.out.inWater && V > 2.5 && dt > 0) {
+      const hx = Math.cos(R.psi), hy = Math.sin(R.psi), rx = hy, ry = -hx;
+      const side = Math.sign(R.phi || sim.out.beta || 1);              // sprøjt væk fra den rail der er i vandet
+      const k = V * (0.4 + 2.5 * Math.abs(Math.sin(R.phi)) + 3 * Math.abs(Math.sin(sim.out.beta || 0)));
+      const n = Math.min(40, Math.round(k * dt * 30));
+      for (let j = 0; j < n; j++) {
+        const i = spHead; spHead = (spHead + 1) % SPN; spAge[i] = Math.random() * 0.3;
+        const u = (Math.random() - 0.3) * 1.2;                         // langs railen, mest bagtil
+        const px = R.x + hx * u + rx * side * 0.2, py = R.y + hy * u + ry * side * 0.2;
+        spPos[i * 3] = px; spPos[i * 3 + 1] = 0.05; spPos[i * 3 + 2] = -py;
+        const out = (0.3 + Math.random()) * V * (0.12 + 0.3 * Math.abs(Math.sin(R.phi)));
+        const vx = -hx * V * (0.2 + 0.3 * Math.random()) + rx * side * out, vy = -hy * V * (0.2 + 0.3 * Math.random()) + ry * side * out;
+        spVel[i * 3] = vx; spVel[i * 3 + 1] = (0.5 + Math.random() * 1.2) * (0.3 + Math.abs(Math.sin(R.phi))) * V * 0.22; spVel[i * 3 + 2] = -vy;
+      }
+    }
+    spGeo.attributes.position.needsUpdate = true;
+  }
+  // spor på vandet
+  const TRAIL = 900, trailPos = new Float32Array(TRAIL * 3), trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3)); trailGeo.setDrawRange(0, 0);
+  // Rød retningspil (top-down): boardets retning. Den tynde grå pil viser kablets retning ved carrieren til sammenligning.
+  function flatArrow(color, len, w) {
+    const sh = new THREE.Shape([new THREE.Vector2(0, -w * 0.35), new THREE.Vector2(len * 0.62, -w * 0.35), new THREE.Vector2(len * 0.62, -w), new THREE.Vector2(len, 0),
+      new THREE.Vector2(len * 0.62, w), new THREE.Vector2(len * 0.62, w * 0.35), new THREE.Vector2(0, w * 0.35)]);
+    const g = new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI / 2);   // ligger i vandplanet, peger mod +x
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 })); m.renderOrder = 10; scene.add(m); return m;
+  }
+  const headArrow = flatArrow(0xe23b2e, 9, 1.8), cableArrow = flatArrow(0xd9e2e6, 7, 0.9);
+  const riderTag = makeLabel('R'); riderTag.scale.set(3.5, 3.5, 1); scene.add(riderTag);
+  scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })));
+  let trailN = 0, trailT = 0;
+
+  /* ---------- Kameraer ---------- */
+  const persp = new THREE.PerspectiveCamera(50, 1, 0.5, 2000);
+  persp.position.set(-80, 120, 120);
+  const controls = new THREE.OrbitControls(persp, renderer.domElement);
+  controls.target.copy(V3(90, 30, 0)); controls.maxPolarAngle = Math.PI * 0.49; controls.update();
+  const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2000);
+  ortho.position.set(84, 600, -18); ortho.up.set(0, 0, -1); ortho.lookAt(84, 0, -18);
+  let camMode = 'follow';   // standard: følg rideren bagfra
+  const TOP_SPAN = 400; // m synligt (højeste akse)
+  function setCam(mode) {
+    camMode = mode;
+    $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
+    $('camFollow').setAttribute('aria-pressed', mode === 'follow');
+    $('camTop').setAttribute('aria-pressed', mode === 'top');
+    controls.enabled = mode === 'orbit';
+    $('scalebar').hidden = mode !== 'top';
+    resize();
+  }
+  $('camOrbit').onclick = () => setCam('orbit');
+  $('camFollow').onclick = () => setCam('follow');
+  $('camTop').onclick = () => setCam('top');
+  // Info-tekst i billedet til/fra (huskes lokalt i browseren, hvis muligt)
+  let infoOn = true; try { infoOn = localStorage.getItem('ccpInfo') !== '0'; } catch (e) {}
+  function setInfo(on) { infoOn = on; $('hud').hidden = !on; $('btnInfo').setAttribute('aria-pressed', on); try { localStorage.setItem('ccpInfo', on ? '1' : '0'); } catch (e) {} }
+  $('btnInfo').onclick = () => setInfo(!infoOn); setInfo(infoOn);
+
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h, false);
+    persp.aspect = w / h; persp.updateProjectionMatrix();
+    const a = w / h; let hw, hh;
+    if (a >= 1) { hh = TOP_SPAN / 2; hw = hh * a; } else { hw = TOP_SPAN / 2; hh = hw / a; }
+    ortho.left = -hw; ortho.right = hw; ortho.top = hh; ortho.bottom = -hh; ortho.updateProjectionMatrix();
+    const mPerPx = (2 * hw) / w; $('scaleI').style.width = (50 / mPerPx).toFixed(0) + 'px';
+  }
+  new ResizeObserver(resize).observe(view);
+
+  /* ---------- Kontroller ---------- */
+  let paused = false, timeScale = 1, keyEdge = 0, keyLeg = 0;
+  const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? 'Run' : 'Pause'; };
+  $('btnPlay').onclick = () => setPlay(paused);
+  $('btnStep').onclick = () => { setPlay(false); stepN(1); };
+  $('btnStep24').onclick = () => { setPlay(false); stepN(24); };
+  $('selSlow').onchange = e => { timeScale = +e.target.value; };
+  $('btnReset').onclick = () => { sim.reset(); clearHistory(); trailN = 0; };
+  $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
+  $('chkObs').onchange = e => { sim.obstaclesOn = e.target.checked; };
+  const windNote = () => { $('outWind').textContent = sim.wind.toFixed(0) + ' m/s'; $('noteWind').textContent = `Wind from WSW over ≈${PHYS.FETCH} m of open water: significant wave height ${(sim.chop.Hs * 100).toFixed(1)} cm, peak period ${sim.chop.Tp.toFixed(2)} s, wavelength ${sim.chop.lp.toFixed(2)} m (fetch-limited JONSWAP). The board spans the short waves, so they are felt as small bumps.`; };
+  $('rngWind').oninput = e => { sim.setWind(+e.target.value); windNote(); }; windNote();
+  $('selStart').onchange = e => { sim.setStartMode(e.target.value); sim.reset(); clearHistory(); trailN = 0; };
+  $('rngRelease').oninput = e => { sim.releaseN = +e.target.value * 1000; $('outRelease').textContent = (+e.target.value).toFixed(1) + ' kN'; };
+  $('selWin').onchange = e => { WINDOW = +e.target.value; };
+  $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'ArrowLeft' || e.key === 'a') { keyEdge = -1; e.preventDefault(); }
+    else if (e.key === 'ArrowRight' || e.key === 'd') { keyEdge = 1; e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { keyLeg = 1; e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { keyLeg = -1; e.preventDefault(); }
+    else if (e.key === 'w' || e.key === 'W') { sim.grabIn = 1; setHeld('trNose', true); e.preventDefault(); }       // nose grab (in the air)
+    else if (e.key === 's' || e.key === 'S') { sim.grabIn = -1; setHeld('trTail', true); e.preventDefault(); }      // tail grab
+    else if (e.key === 'q' || e.key === 'Q') { sim.spinIn = 1; setHeld('trSpinL', true); e.preventDefault(); }      // spin left (pre-wind on the ramp, line torque in the air)
+    else if (e.key === 'r' || e.key === 'R') { sim.spinIn = -1; setHeld('trSpinR', true); e.preventDefault(); }     // spin right
+    else if (e.key === ' ') { setPlay(paused); e.preventDefault(); }
+    else if (e.key === '.') { setPlay(false); stepN(1); }
+  });
+  addEventListener('keyup', e => { if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) keyEdge = 0; if (['ArrowUp', 'ArrowDown'].includes(e.key)) keyLeg = 0;
+    const k = e.key.toLowerCase();
+    if (k === 'w' && sim.grabIn === 1) { sim.grabIn = 0; setHeld('trNose', false); } if (k === 's' && sim.grabIn === -1) { sim.grabIn = 0; setHeld('trTail', false); }
+    if (k === 'q' && sim.spinIn === 1) { sim.spinIn = 0; setHeld('trSpinL', false); } if (k === 'r' && sim.spinIn === -1) { sim.spinIn = 0; setHeld('trSpinR', false); } });
+  function setHeld(id, on) { $(id).classList.toggle('held', on); }
+  function holdTrick(id, key, v) {   // on-screen trick buttons (touch)
+    const el = $(id), on = e => { e.preventDefault(); sim[key] = v; el.classList.add('held'); }, off = () => { if (sim[key] === v) sim[key] = 0; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  function holdBtn(el, v) {
+    const on = e => { e.preventDefault(); keyEdge = v; el.classList.add('held'); };
+    const off = () => { if (keyEdge === v) keyEdge = 0; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
+    el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  holdBtn($('edgeL'), -1); holdBtn($('edgeR'), 1);
+  function holdLeg(el, v) {
+    const on = e => { e.preventDefault(); keyLeg = v; el.classList.add('held'); };
+    const off = () => { if (keyLeg === v) keyLeg = 0; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
+    el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  holdLeg($('legDn'), -1); holdLeg($('legUp'), 1);
+  holdTrick('trSpinL', 'spinIn', 1); holdTrick('trNose', 'grabIn', 1); holdTrick('trTail', 'grabIn', -1); holdTrick('trSpinR', 'spinIn', -1);
+
+  /* ---------- Historik + grafer ---------- */
+  let WINDOW = 60; const SAMPLE = 1 / 30, WMAX = 300, N = Math.ceil(WMAX / SAMPLE) + 2;   // log: op til 5 min ved 30 Hz
+  const series = [
+    { key: 'F', title: 'Line tension', unit: 'N', fmt: v => v.toFixed(0), get: () => sim.line.F, floor: 0, minTop: 500 },
+    { key: 'V', title: 'Rider speed', unit: 'km/h', fmt: v => v.toFixed(1), get: () => sim.out.V * 3.6, floor: 0, minTop: 40 },
+    { key: 'Vc', title: 'Carrier speed', unit: 'km/h', fmt: v => v.toFixed(1), get: () => sim.out.Vc * 3.6, floor: 0, minTop: 40 },
+    { key: 'A', title: 'Angle line ↔ cable', unit: '°', fmt: v => v.toFixed(0), get: () => sim.out.angle, floor: 0, minTop: 60 },
+    { key: 'P', title: 'Cable power to rider (T q·v_carrier)', unit: 'kW', fmt: v => v.toFixed(1), get: () => (sim.out.Pcable || 0) / 1000, floor: 0, minTop: 3 },
+    { key: 'W', title: 'Water drag (pressure + friction + slip)', unit: 'N', fmt: v => v.toFixed(0), get: () => sim.out.inWater ? (sim.out.Dw || 0) : 0, floor: 0, minTop: 300 },
+    { key: 'Z', title: 'Board height above water', unit: 'm', fmt: v => v.toFixed(2), get: () => sim.rider.z, floor: -0.5, minTop: 1 },
+    { key: 'H', title: 'Hip height ℓ (knees)', unit: 'm', fmt: v => v.toFixed(2), get: () => sim.rider.leg, floor: 0.4, minTop: 1 },
+    { key: 'L', title: 'Lean / edge (+ = right)', unit: '°', fmt: v => v.toFixed(0), get: () => sim.rider.phi / DEG, floor: -90, minTop: 90, sym: true },
+  ];
+  const hist = { t: new Float64Array(N), n: 0, head: 0 };
+  for (const s of series) s.buf = new Float32Array(N);
+  let lastSample = -1;
+  function clearHistory() { hist.n = 0; hist.head = 0; lastSample = -1; }
+  function sample() {
+    if (sim.t - lastSample < SAMPLE - 1e-9) return;
+    lastSample = sim.t;
+    hist.t[hist.head] = sim.t; for (const s of series) s.buf[hist.head] = s.get();
+    hist.head = (hist.head + 1) % N; hist.n = Math.min(hist.n + 1, N);
+  }
+  const chartsEl = $('charts');
+  for (const s of series) {
+    const box = document.createElement('div'); box.className = 'chart';
+    box.innerHTML = `<header><span class="t">${s.title} <span style="color:var(--muted)">(${s.unit})</span></span><span class="v">–</span></header><canvas role="img" aria-label="${s.title} over the selected time window"></canvas>`;
+    (s.key === 'F' ? $('chartsTop') : chartsEl).appendChild(box); s.cv = box.querySelector('canvas'); s.out = box.querySelector('.v'); s.hoverX = null;
+    s.cv.addEventListener('pointermove', e => { const r = s.cv.getBoundingClientRect(); s.hoverX = (e.clientX - r.left) / r.width; });
+    s.cv.addEventListener('pointerleave', () => { s.hoverX = null; });
+  }
+  const css = getComputedStyle(document.documentElement);
+  const C_ACC = css.getPropertyValue('--accent').trim(), C_MUT = css.getPropertyValue('--muted').trim(),
+        C_GRID = css.getPropertyValue('--grid').trim(), C_INK = css.getPropertyValue('--ink').trim(), C_WARN = css.getPropertyValue('--warn').trim();
+  function niceStep(r) { const p = Math.pow(10, Math.floor(Math.log10(r / 3))), m = r / 3 / p; return p * (m < 1.5 ? 1 : m < 3.5 ? 2 : 5); }
+  function drawChart(s) {
+    const cv = s.cv, dpr = Math.min(devicePixelRatio, 2), w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const padL = 34, padR = 4, padT = 8, padB = 12, pw = w - padL - padR, ph = h - padT - padB;
+    const tNow = sim.t, t0 = tNow - WINDOW;
+    let max = s.minTop;
+    const idx = i => (hist.head - hist.n + i + N) % N;
+    let i0 = 0; { let lo = 0, hi = hist.n - 1; while (lo < hi) { const md = (lo + hi) >> 1; if (hist.t[idx(md)] < t0) lo = md + 1; else hi = md; } i0 = lo; }
+    for (let i = i0; i < hist.n; i++) max = Math.max(max, s.buf[idx(i)]);
+    const step = s.sym ? 30 : niceStep(max - s.floor); const top = Math.ceil(max / step) * step;
+    const X = t => padL + (t - t0) / WINDOW * pw, Y = v => padT + ph - (v - s.floor) / (top - s.floor) * ph;
+    g.font = '10px ' + css.getPropertyValue('--mono'); g.textAlign = 'right'; g.textBaseline = 'middle';
+    for (let v = s.floor; v <= top + 1e-9; v += step) {
+      g.strokeStyle = C_GRID; g.lineWidth = 1; g.beginPath(); g.moveTo(padL, Math.round(Y(v)) + .5); g.lineTo(w - padR, Math.round(Y(v)) + .5); g.stroke();
+      g.fillStyle = C_MUT; g.fillText(v >= 1000 ? (v / 1000) + 'k' : String(+v.toFixed(2)), padL - 5, Y(v));
+    }
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillStyle = C_MUT;
+    g.fillText(WINDOW >= 120 ? `−${WINDOW / 60} min` : `−${WINDOW} s`, padL, h - 1); g.textAlign = 'right'; g.fillText('now', w - padR, h - 1);
+    if (s.key === 'F') { // advarselsniveau
+      const yw = Y(PHYS.WARN_FRAC * sim.releaseN); if (yw > padT) { g.setLineDash([3, 3]); g.strokeStyle = C_WARN; g.beginPath(); g.moveTo(padL, yw); g.lineTo(w - padR, yw); g.stroke(); g.setLineDash([]); }
+      const yr = Y(sim.releaseN); if (yr > padT) { g.strokeStyle = C_WARN; g.lineWidth = 1.5; g.beginPath(); g.moveTo(padL, yr); g.lineTo(w - padR, yr); g.stroke(); g.lineWidth = 1; }   // release limit
+    }
+    if (hist.n > 1) {
+      g.beginPath();
+      // decimering: højst ~2 punkter pr. pixel, men min og max i hver gruppe bevares (spidser forsvinder ikke)
+      const cnt = hist.n - i0, stride = Math.max(1, Math.ceil(cnt / (pw * 2))); let first = true;
+      for (let i = i0; i < hist.n; i += stride) {
+        let kmin = idx(i), kmax = kmin;
+        for (let j = i + 1; j < Math.min(hist.n, i + stride); j++) { const k = idx(j); if (s.buf[k] < s.buf[kmin]) kmin = k; if (s.buf[k] > s.buf[kmax]) kmax = k; }
+        const a = hist.t[kmin] <= hist.t[kmax] ? [kmin, kmax] : [kmax, kmin];
+        for (const k of (stride > 1 ? a : [kmin])) { const x = X(hist.t[k]), y = Y(s.buf[k]); first ? g.moveTo(x, y) : g.lineTo(x, y); first = false; }
+      }
+      const lastX = X(hist.t[idx(hist.n - 1)]);
+      g.strokeStyle = C_ACC; g.lineWidth = 1.75; g.lineJoin = 'round'; g.stroke();
+      if (!s.sym) { g.lineTo(lastX, Y(s.floor)); g.lineTo(X(hist.t[idx(i0)]), Y(s.floor)); g.closePath();
+      g.fillStyle = 'rgba(233,185,73,.10)'; g.fill(); }
+      const kl = idx(hist.n - 1); g.fillStyle = C_ACC; g.beginPath(); g.arc(lastX, Y(s.buf[kl]), 3, 0, 7); g.fill();
+      let shown = s.buf[kl], label = '';
+      if (s.hoverX != null) { // crosshair
+        const tx = t0 + (s.hoverX * w - padL) / pw * WINDOW; let best = 0, bd = 1e9;
+        for (let i = i0; i < hist.n; i++) { const d = Math.abs(hist.t[idx(i)] - tx); if (d < bd) { bd = d; best = idx(i); } }
+        const x = X(hist.t[best]); g.strokeStyle = C_INK; g.globalAlpha = .5; g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ph); g.stroke(); g.globalAlpha = 1;
+        g.fillStyle = C_INK; g.beginPath(); g.arc(x, Y(s.buf[best]), 3, 0, 7); g.fill();
+        shown = s.buf[best]; label = ` @ ${(hist.t[best] - tNow).toFixed(1)} s`;
+      }
+      s.out.textContent = s.fmt(shown) + ' ' + s.unit + label;
+    }
+  }
+
+  /* ---------- Tabeller ---------- */
+  const tb = document.querySelector('#tblMasts tbody');
+  for (const m of LAYOUT.masts) tb.insertAdjacentHTML('beforeend', `<tr><td>${m.id}</td><td>${m.role}</td><td class="n">${m.x.toFixed(0)}</td><td class="n">${m.y.toFixed(0)}</td><td><span class="tag ${m.status === 'målt' ? 'm' : 'a'}">${m.status === 'målt' ? 'measured' : 'assumed'}</span></td></tr>`);
+  tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Cable length (computed)</td><td class="n" colspan="2">${sim.path.length.toFixed(0)} m</td><td></td></tr>`);
+  sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td><span class="tag m">measured</span></td></tr>`); });
+  tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Sheave diameter</td><td class="n" colspan="2">${2 * PHYS.WHEEL_RADIUS} m</td><td><span class="tag a">assumed</span></td></tr>`);
+  tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Direction of travel</td><td class="n" colspan="2">counter-clockwise</td><td><span class="tag m">confirmed</span></td></tr>`);
+  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W} m, height ${o.H} m assumed)</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
+  const tp = document.querySelector('#tblPhys tbody');
+  for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : +Number(v).toPrecision(4)}</td></tr>`);
+
+  /* ---------- Simloop: fast tidsskridt, adskilt fra rendering ---------- */
+  function stepN(n) {
+    for (let i = 0; i < n; i++) {
+      const cmd = keyEdge ? keyEdge * PHYS.LEAN_MAX_DEG : 0;
+      sim.leanCmdIn = cmd * DEG;
+      sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;   // legBase = squat during a sitting start
+      sim.step(); sample();
+    }
+  }
+  let acc = 0, last = performance.now();
+  function frame(now) {
+    const realDt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (!paused) {
+      acc += realDt * timeScale;
+      let n = Math.floor(acc / PHYS.DT); acc -= n * PHYS.DT;
+      stepN(Math.min(n, 96)); // maks 0,4 s sim pr. frame
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), camOff = new THREE.Vector3();
+  const camDir = { x: 1, y: 0 }, coachLast = { arcT: -1 }; let diagLast = 0;
+  function updateDiag() {
+    const o = sim.out, R = sim.rider, E = sim.energy, f = (v, d = 0) => (v ?? 0).toFixed(d);
+    const rows = [
+      ['Line', 'Line tension T', f(sim.line.F) + ' N'], ['', 'Stretch (l − L₀)', f(o.stretch * 100, 1) + ' cm'], ['', 'State', sim.line.attached ? (sim.line.slack ? 'slack' : 'taut') : 'released'],
+      ['', 'Cable power T q·v_c', f(o.Pcable) + ' W'],
+      ['Body', 'Fore–aft lean θ (back +)', f((o.theta || 0) / DEG, 1) + '°'], ['', 'Centre of pressure shift (fwd +)', f((o.cop || 0) * 100, 1) + ' cm'],
+      ['', 'Handle height offset (arms)', f((R.hOff || 0) * 100, 1) + ' cm'], ['', 'Arm/body stroke used', f((R.arm || 0) * 100) + ' cm'],
+      ['', 'Knee flexion', f((o.beta_knee || 0) / DEG) + '°'], ['', 'Leg force now / available', f(o.Fleg || 0) + ' / ' + f(o.FlegMax || 0) + ' N'],
+      ['', 'Roll inertia (segment model)', f(o.Ilean || 0, 1) + ' kg·m²'],
+      ['Surface', 'Wind / Hs / Tp', f(sim.wind) + ' m/s · ' + f(sim.chop.Hs * 100, 1) + ' cm · ' + f(sim.chop.Tp, 2) + ' s'], ['', 'Water level at board (chop + wake)', f((o.eta || 0) * 100, 1) + ' cm'],
+      ['', 'Vertical speed rel. to surface', f(o.wrel || 0, 2) + ' m/s'],
+      ['Water', 'Lift N (Savitsky)', f(o.lift) + ' N'], ['', 'Pressure drag N·sin τ', f(o.Dpress) + ' N'], ['', 'Friction (ITTC-57)', f(o.Df) + ' N'],
+      ['', 'Residual (spray/3D)', f(o.Dres) + ' N'], ['', 'Cross-flow drag (slip)', f(o.Dslip) + ' N'], ['', 'Plough drag (displacement)', f(o.Dplow) + ' N'],
+      ['', 'Slamming', f(o.slam) + ' N'], ['', 'Added mass', f(o.ma) + ' kg'], ['', 'Ventilation (lift retained)', f((o.vent ?? 1) * 100) + ' %'],
+      ['Geometry', 'Effective trim τ / board pitch', f(o.trim / DEG, 1) + '° / ' + f(o.pitch / DEG, 1) + '°'], ['', 'Wetted length l_w / λ', f(o.lw * 100) + ' cm / ' + f(o.lw / PHYS.BOARD_BEAM, 2)],
+      ['', 'Centre of pressure from tail', f(o.lp * 100) + ' cm'], ['', 'Edge (body + ankle)', f(R.phi / DEG) + '° + ' + f(R.ankle / DEG) + '°'], ['', 'Sideslip β', f(o.beta / DEG, 1) + '°'],
+      ['Numbers', 'Re (wetted length)', (o.Re || 0).toExponential(2)], ['', 'Fr (board length)', f(o.Fr, 2)], ['', 'C_V (beam)', f(o.Cv, 2)], ['', 'We', (o.We || 0).toExponential(1)],
+      ['Energy', 'Line work', f(E.lineWork / 1000, 1) + ' kJ'], ['', 'Water + air', f((E.waterWork + E.airWork) / 1000, 1) + ' kJ'], ['', 'Muscle work', f(E.muscleWork / 1000, 2) + ' kJ'],
+      ['', 'Mechanical energy', f(o.E / 1000, 2) + ' kJ'], ['', 'Energy residual (should be ≈ 0)', f((o.Eres || 0) / 1000, 2) + ' kJ'],
+      ['Contact', 'State', o.contact ? 'on ' + o.contact : o.air ? 'airborne' : o.inWater ? 'planing' : 'above water'],
+    ];
+    document.querySelector('#tblDiag tbody').innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td><td class="n">${r[2]}</td></tr>`).join('');
+  }
+  function render() {
+    const C = sim.carrier, R = sim.rider;
+    carrierM.position.copy(V3(C.x, C.y, PHYS.CABLE_HEIGHT - 0.35));
+    carrierM.rotation.y = Math.atan2(C.ty, C.tx);
+    // rider
+    const bz = Math.max(R.z, -0.25);
+    rider.position.copy(V3(R.x, R.y, bz + 0.03));
+    { const tgt = camMode === 'orbit' ? controls.target : null; updateWater(tgt ? tgt.x : R.x, tgt ? -tgt.z : R.y); waterPatch.visible = camMode !== 'top'; }
+    rider.rotation.y = R.psi;
+    const topView = camMode === 'top';
+    headArrow.visible = topView; cableArrow.visible = false;   // kun den røde retningspil
+    $('hudLegend').hidden = !topView;
+    if (topView) { const dAng = Math.atan2(Math.sin(R.psi - Math.atan2(C.ty, C.tx)), Math.cos(R.psi - Math.atan2(C.ty, C.tx))) / DEG; $('hudLegend').lastChild.textContent = ` board heading · ${dAng > 0 ? 'in' : 'out'} ${Math.abs(dAng).toFixed(0)}° vs. cable`; }
+    if (topView) {
+      headArrow.position.copy(V3(R.x, R.y, 0.3)); headArrow.rotation.y = R.psi;               // boardets retning (yaw)
+      const kpx = pxSize(V3(R.x, R.y, 0), ortho) * 55 / 9; headArrow.scale.setScalar(Math.max(0.25, kpx * 0.25)); cableArrow.scale.setScalar(Math.max(1, kpx * 0.9));   // ~55 px lang uanset zoom
+      cableArrow.position.copy(V3(R.x, R.y, 0.25)); cableArrow.rotation.y = Math.atan2(C.ty, C.tx);  // kablets retning
+    }
+    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow'; for (const l of mastLabels.concat(obsTags)) l.visible = camMode !== 'follow';
+    boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
+    boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
+    // line: lige i træk, hængende i slæk
+    tmpA.copy(V3(sim.tow.x, sim.tow.y, PHYS.CABLE_HEIGHT - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
+    // krop: linens retning i boardets ramme -> håndtag -> arme
+    rider.updateMatrixWorld(true);
+    bodyG.rotation.y = sim.switchStance ? Math.PI : 0; bootsG.rotation.y = bodyG.rotation.y; rider.updateMatrixWorld(true);
+    lineDirLocal.copy(bodyG.worldToLocal(tmpA.clone())).sub(bodyG.worldToLocal(V3(sim.line.hp[0], sim.line.hp[1], sim.line.hp[2])));
+    poseRider(R.leg, sim.line.F, sim.line.attached, R.phi, R.theta || 0, R.hOff || 0, R.arm || 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0, sim.switchStance, sim.grab);
+    updateSpray(R);
+    if (sim.line.attached) tmpB.copy(bodyG.localToWorld(handleLocal.clone()));
+    else tmpB.copy(V3(C.x - C.tx * 17, C.y - C.ty * 17, 0.3));   // sluppet håndtag slæbes efter carrier
+    const dist = tmpA.distanceTo(tmpB), sag = sim.line.slack && sim.line.attached ? Math.sqrt(Math.max(0, PHYS.LINE_LENGTH ** 2 - dist ** 2)) * 0.5 : 0;
+    for (let i = 0; i < LN; i++) { const u = i / (LN - 1); ropePts[i].copy(tmpA).lerp(tmpB, u); ropePts[i].y = Math.max(ropePts[i].y - sag * 4 * u * (1 - u), 0.05); }
+    const camNow = camMode === 'top' ? ortho : persp;
+    for (let i = 0; i < LN - 1; i++) { _mid.copy(ropePts[i]).add(ropePts[i + 1]).multiplyScalar(0.5); placeTube(ropeSegs[i], ropePts[i], ropePts[i + 1], Math.max(ROPE_R, 0.65 * pxSize(_mid, camNow))); }
+    placeTube(hangerM, V3(C.x, C.y, PHYS.CABLE_HEIGHT), tmpA, Math.max(0.03, 0.7 * pxSize(tmpA, camNow)));   // carrier-ophæng
+    lineMat.color.set(sim.out.warn ? 0xf08a5d : sim.line.slack ? 0xe6edf0 : 0xe9b949);   // stram: gul, slæk: lys (synlig mod vand og himmel)
+    // spor
+    if (sim.t - trailT > 0.1 || trailN === 0) {
+      trailT = sim.t;
+      if (trailN === TRAIL) { trailPos.copyWithin(0, 3); trailN--; }
+      trailPos[trailN * 3] = R.x; trailPos[trailN * 3 + 1] = 0.05; trailPos[trailN * 3 + 2] = -R.y; trailN++;
+      trailGeo.setDrawRange(0, trailN); trailGeo.attributes.position.needsUpdate = true;
+    }
+    // kamera
+    let cam = persp;
+    if (camMode === 'orbit') controls.update();
+    else if (camMode === 'follow') {
+      const hxv = Math.cos(R.psi), hyv = Math.sin(R.psi);
+      // lige bagfra langs kørselsretningen (hastighedsvektoren, glattet), let hævet
+      const vv = Math.hypot(R.vx, R.vy); if (vv > 1) { camDir.x += (R.vx / vv - camDir.x) * 0.08; camDir.y += (R.vy / vv - camDir.y) * 0.08; }
+      const cl = Math.hypot(camDir.x, camDir.y) || 1, cx = camDir.x / cl, cy = camDir.y / cl;
+      camOff.copy(V3(R.x - cx * 6.5, R.y - cy * 6.5, Math.max(R.z, 0) + 2.1));
+      persp.position.lerp(camOff, 0.2); persp.lookAt(V3(R.x + cx * 3, R.y + cy * 3, Math.max(R.z, 0) + 1.0));
+    } else cam = ortho;
+    renderer.render(scene, cam);
+    // HUD
+    $('hudT').textContent = `t ${sim.t.toFixed(2)} s`;
+    $('hudMode').textContent = (paused ? '❚❚ paused' : '▶ ' + String(timeScale) + '×');
+    const hl = $('hudLine'); hl.textContent = (sim.line.slack ? 'line slack' : `line ${sim.line.F.toFixed(0)} N / ${(sim.releaseN / 1000).toFixed(1)} kN`) + (sim.rider.arm > 0.02 ? ` · arms give ${(sim.rider.arm * 100).toFixed(0)} cm` : '');
+    hl.className = 'chip' + (sim.out.warn ? ' on-warn' : '');
+    const hp = $('hudPhase');
+    hp.textContent = sim.out.contact ? `on ${sim.out.contact}` : sim.out.air ? `airborne ${R.z.toFixed(1)} m${sim.jump ? ` · ${Math.abs(sim.jump.rot / DEG).toFixed(0)}°` : ''}${sim.grab.reach >= 1 ? (sim.grab.type > 0 ? ' · nose grab' : ' · tail grab') : ''}` : sim.windup > 0.05 ? `pre-wind ${(sim.windup * 100).toFixed(0)} %` : sim.out.inWater ? 'in water' : 'above water';
+    hp.className = 'chip' + (sim.out.contact || sim.out.air ? ' on-ok' : '');
+    // Vand: trim, våd længde, sideslip
+    $('hudWater').textContent = sim.out.inWater ? `τ ${(sim.out.trim / DEG).toFixed(1)}° · pitch ${((sim.out.pitch || 0) / DEG).toFixed(1)}° · wetted ${(sim.out.lw * 100).toFixed(0)} cm (λ ${(sim.out.lw / PHYS.BOARD_BEAM).toFixed(1)}) · C_V ${(sim.out.Cv || 0).toFixed(1)} · slip ${((sim.out.beta || 0) / DEG).toFixed(0)}°` : 'board above water';
+    // Hjørne-coach (fra instruktioner: kant udad før hjørnet, slip kanten når carrieren går om hjulet, ~1 s slæk)
+    const hc = $('hudCoach'); let msg = '';
+    if (sim.line.attached) {
+      const P_ = sim.path, cs = ((C.s % P_.length) + P_.length) % P_.length; let dArc = Infinity, inArc = false;
+      for (const g of P_.pieces) if (g.kind === 'arc') { if (cs >= g.s0 && cs <= g.s0 + g.len) inArc = true; let d = g.s0 - cs; if (d < 0) d += P_.length; dArc = Math.min(dArc, d); }
+      const tc = dArc / sim.cableSpeed, since = coachLast.arcT >= 0 ? sim.t - coachLast.arcT : 9;
+      if (inArc) coachLast.arcT = sim.t;
+      if (inArc || since < 1.2) msg = 'Release the edge: let the line pull you round';
+      else if (tc < 5) msg = `Corner in ${tc.toFixed(1)} s: edge out (Lean ▶), stay wide, elbows in`;
+    }
+    hc.hidden = !msg; hc.textContent = msg; hc.className = 'chip' + (msg.startsWith('Release') ? ' on-ok' : '');
+    if ($('diagBox').open && performance.now() - diagLast > 250) { diagLast = performance.now(); updateDiag(); }
+    const hj = $('hudJump'), la = sim.out.lastAir; hj.hidden = !la;
+    const lt = sim.out.lastTrick;
+    if (la) hj.textContent = (lt && sim.t - lt.t < 6 ? `${lt.name}${lt.switchLanding ? ' (riding switch)' : ''} · ` : '') + `last jump ${la.dur.toFixed(2)} s · ${la.hmax.toFixed(1)} m · landing ${(-la.vz).toFixed(1)} m/s`;
+    // næste obstakel foran rideren
+    const hx0 = Math.cos(R.psi), hy0 = Math.sin(R.psi); let nx = null;
+    for (const o of sim.obs) { const dx = o.x - R.x, dy = o.y - R.y, f = dx * hx0 + dy * hy0, l = -dx * hy0 + dy * hx0;
+      if (f > 2 && f < 90 && Math.abs(l) < 35 && (!nx || f < nx.f)) nx = { o, f, l }; }
+    const hn = $('hudNext'); hn.hidden = !nx || !sim.line.attached;
+    if (nx) hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}`;
+    $('hudEdge').textContent = `lean ${(R.phi / DEG).toFixed(0)}° (target ${(sim.leanCmd / DEG).toFixed(0)}°)`;
+    const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall + ' · press Reset';
+    for (const s of series) drawChart(s);
+  }
+  window.__ccpDebug = { sim, persp, controls, setCam };   // for automated screenshots/tests
+  setCam('follow'); resize(); requestAnimationFrame(frame);
+})();
+</script>

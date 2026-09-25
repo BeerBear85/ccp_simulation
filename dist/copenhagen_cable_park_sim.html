@@ -1,0 +1,1923 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Copenhagen Cable Park Simulator</title>
+<script>
+/* =====================================================================
+ *  FYSIKKONSTANTER — alle samlet her. Enhed + kilde/antagelse pr. linje.
+ *  Koordinater: x = øst, y = nord, z = op (m). Origo = mast A ved starterbryggen.
+ * ===================================================================== */
+const PHYS = {
+  // --- Generelt ---
+  G:            9.81,    // m/s²   tyngdeacceleration. Kilde: standard
+  RHO_WATER:    1000,    // kg/m³  havnevand (~1005–1015 i Sydhavnen). Antaget, afrundet
+  RHO_AIR:      1.225,   // kg/m³  luft ved 15 °C. Kilde: ISA
+  DT:           1 / 240, // s      fast fysik-tidsskridt (240 Hz). Kilde: prompt
+
+  // --- Kabelanlæg ---
+  CABLE_HEIGHT: 9.0,     // m      kabelhøjde over vandspejl. Kilde: prompt (rapport: 8,5–11,5 m i praksis)
+  MAST_HEIGHT:  10.5,    // m      A-rammens top. Antaget ud fra fotos (hjul lige under toppen)
+  // Hjulenes placering (kabelbanen) er målt direkte i Google Earth (se LAYOUT.wheels); masternes udhæng følger heraf (15–20 m).
+  WHEEL_RADIUS: 1.0,     // m      hjørnehjul (Ø 2 m); kablet løber om hjulets yderside. Antaget
+  HANGER_F:     1.5,     // Hz     carrier-ophængets egenfrekvens: trækpunktet følger kablet med 2.-ordens eftergivelighed (rapport 10). Antaget
+  HANGER_ZETA:  0.9,     // –      dæmpning af carrier-ophænget. Antaget
+  CABLE_SPEED_KMH: 30,   // km/t   standardhastighed; justerbar 20–35. Antaget (typisk fullsize 28–32 km/t)
+  CABLE_SPEED_MIN: 20,   // km/t   Kilde: prompt
+  CABLE_SPEED_MAX: 35,   // km/t   Kilde: prompt
+  // Omløbsretning: mod uret (A→F→E→D→C→B). Kilde: bekræftet af bruger
+
+  // --- Line (fjeder-dæmper, kun træk) ---
+  LINE_LENGTH:  20.0,    // m      hvilelængde carrier→håndtag. Kilde: prompt (IWWF 2026: ≥ 17,80 m på fullsize)
+  LINE_K:       800,     // N/m    effektiv serie-stivhed: PE-line (~4 % stræk ved 1 kN) + riderens arme/ben. Antaget
+  LINE_C:       200,     // N·s/m  dæmpning ved stræk (ζ≈0,4). Antaget
+  LINE_C_REC:   700,     // N·s/m  dæmpning når linen trækker sig sammen: arme/ben giver ikke energien tilbage (ingen slangebøsse). Antaget
+  LINE_CF_MAX:  700,     // N      maks. dæmpningskraft: armene giver efter ved et ryk (kraftbegrænset). Antaget
+  RELEASE_N:    1500,    // N      default release limit: above this the rider loses the cable (= fall). Adjustable in the UI (0.8–3 kN). Source: user; deep-water start loads 2.0–2.5 BW (Runciman 2011, PMC case study)
+  RELEASE_TIME: 0.03,    // s      time above the limit before the handle is lost (filters single-step spikes). Assumed
+  WARN_FRAC:    0.80,    // –      UI warning at 80 % of the release limit. Assumed
+
+  // --- Arms/shoulders: yielding element in series with the line (start and corner jerks) ---
+  ARM_YIELD:    950,     // N      arms give way (eccentric) above this line force. Assumed ≈1.2 BW; technique sources: elbows in, handle at the hips
+  ARM_TRAVEL:   0.45,    // m      hands can travel from hip to straight arms. Assumed (arm length ≈0.6 m, bent → straight)
+  STROKE_STAND: 0.30,    // m      extra stroke during a standing start: leaning back → upright over the board. Assumed
+  STROKE_SIT:   0.85,    // m      extra stroke during a sitting start: from sitting behind the heels to standing over the board. Assumed
+  ARM_V_MAX:    3.0,     // m/s    max yield speed of the arms. Assumed
+  ARM_RET_V:    0.35,    // m/s    rate at which the rider pulls the handle back to the hip when the load drops. Assumed
+  ARM_RET_FRAC: 0.75,    // –      arms only return when F < this × ARM_YIELD. Assumed
+
+  // --- Start dock (carpet) and start modes ---
+  DOCK_C:       [3.29, -7.17], // m   floating carpet start dock alongside the jetty head near mast A. Assumed (position not measured)
+  DOCK_DIR:     [0.996, -0.090], // – dock axis = line direction at the moment the line comes taut (solved from the cable path)
+  DOCK_LEN:     4.0,     // m      carpet length. Assumed
+  DOCK_HALF_W:  0.8,     // m      half width. Assumed
+  DOCK_TOP:     0.25,    // m      carpet surface above the water (floating pontoon). Assumed
+  DOCK_RAMP:    1.2,     // m      front section that slopes down into the water. Assumed
+  MU_CARPET:    0.12,    // –      wet carpet ↔ board base (sliding). Assumed (wet PE on synthetic carpet ≈0.1–0.2)
+  JUMP_VF:      2.6,     // m/s    forward speed from the jump-start take-off. Assumed (standing jump ≈2–3 m/s)
+  JUMP_VZ:      1.3,     // m/s    upward speed at take-off. Assumed
+  JUMP_LEAD:    0.45,    // s      jump when the line will be taut in ≈ this time (flight time ≈0.3 s). Technique: jump just before the pull
+  SIT_LEG:      0.55,    // m      hip height in the sitting start (deep squat). Technique: KiteSista, Miami Ski Nautique
+  SIT_SHIFT:   -0.12,    // m      weight on the back foot / nose up in the sitting start. Technique: ~70 % on the back foot
+  SIT_STAND_V:  3.5,     // m/s    the rider stands up above this speed (board planing). Assumed
+
+  // --- Rider: board+fødder og overkrop forbundet af ben (knæ) langs kropsaksen; yaw + roll/læn ---
+  RIDER_MASS:   80,      // kg     rider + board i alt. Antaget
+  BOARD_MASS:   6,       // kg     board + bindinger + fødder/underben (resten er "overkrop"). Antaget
+  RIDER_IZZ:    12,      // kg·m²  carve-authority gain (N·m per rad/s × CARVE_TAU) and fallback yaw inertia when YAW_I_FROM_BODY is false. Assumed
+  YAW_I_FROM_BODY: true, // –      use the segment model for yaw inertia (body + board) instead of RIDER_IZZ
+  BOARD_YAW_I:  1.1,     // kg·m²  board + bindings about the vertical axis (≈ m L²/12 with 6 kg, 1.42 m). Computed
+  ROLL_I_BOARD: 0.3,     // kg·m²  board + feet contribution to roll inertia. Assumed
+  PITCH_I_BOARD: 1.5,    // kg·m²  board + feet contribution to fore–aft inertia. Assumed
+  RIDER_IXX:    14,      // kg·m²  (old lumped roll inertia; now computed from the segment model). Reference only
+  UPPER_CG:     0.25,    // m      overkroppens tyngdepunkt over hoften. Antaget
+  HANDLE_ABOVE_HIP: 0.15, // m      hænderne holder håndtaget ved navlen (let bøjede arme) ≈ i tyngdepunktets højde. Antaget; rapport 7.1: linen angriber i hænderne, ikke i COM
+  // Ben/knæ: hoftehøjde ℓ over boardet (langs kropsaksen). Håndtaget holdes i hoftehøjde.
+  LEG_MIN:      0.50,    // m      helt sammenbøjet (mekanisk stop). Antaget
+  LEG_NOM:      0.85,    // m      normal kørestilling (let bøjede knæ). Antaget
+  LEG_MAX:      0.98,    // m      strakte ben (mekanisk stop). Antaget
+  LEG_K:        8000,    // N/m    benenes stivhed om ønsket længde (muskel-"servo"). Antaget
+  LEG_C:        900,     // N·s/m  bendæmpning om den ønskede benhastighed (ζ≈0,6 mod overkrop). Antaget
+  // --- Multi-body rider (reduced coordinates): board → ankles → knees (2-link legs) → hip → trunk/head, arms to the handle ---
+  // Leg force is no longer a constant: it follows from knee torque capacity and knee geometry, F = 2·τ_knee(β)/|dℓ/dβ|.
+  STATURE:      1.80,    // m      rider height. Assumed (anthropometric scaling of de Leva 1996, ref. 1.741 m)
+  THIGH_LEN:    0.437,   // m      hip–knee joint centre. de Leva 1996 (422 mm) × 1.80/1.741
+  SHANK_LEN:    0.449,   // m      knee–ankle joint centre. de Leva 1996 (434 mm) × 1.80/1.741
+  ANKLE_H:      0.09,    // m      ankle joint above the board top (foot + binding). Assumed
+  STANCE:       0.54,    // m      distance between the bindings (goofy, right foot forward). Assumed (typical 50–60 cm)
+  KNEE_TQ:      [[0.0, 1.45], [0.47, 1.79], [1.05, 3.19], [1.66, 2.78], [2.2, 2.2]], // [flexion rad, N·m/kg per leg] isometric knee extension. Frontiers in Physiology 2021 meta-analysis (men: 1.79 at 10–45°, 3.19 at 50–70°, 2.78 at 80–110°); ends extrapolated
+  KNEE_MASS:    78,      // kg     body mass used to scale knee torque. Assumed (rider 80 kg incl. board)
+  ECC_FACTOR:   1.4,     // –      eccentric/isometric torque ratio when absorbing. Assumed (literature ≈1.2–1.5)
+  LEG_V0:       3.5,     // m/s    leg extension velocity at which force reaches zero: linear lower-limb force–velocity profile of jumping (Samozino et al.; typical V0 ≈ 3–4 m/s)
+  LEG_SYNERGY:  1.85,    // –      hip and ankle extensors add to the knee in a two-legged push. Calibrated so the push force at 60–110° knee flexion averages ≈35 N/kg (jump force–velocity profiles: F0 ≈ 30–40 N/kg)
+  LEG_F_CAP:    4500,    // N      cap near the straight-knee singularity. Assumed
+  // Fore–aft lean of the body relative to the board (in the board's plane). The rider balances by moving the centre
+  // of pressure between the bindings (±COP_MAX); the moment balance replaces the old LINE_PITCH_COMP assumption.
+  PITCH_KP:     3000,    // N·m/rad  balance gain (must exceed N·h ≈ 800 N·m for stability). Assumed
+  PITCH_KD:     260,     // N·m·s/rad  damping (ζ≈0,7). Assumed
+  PITCH_C:      30,      // N·m·s  passive damping. Assumed
+  COP_MAX:      0.27,    // m      centre of pressure can move at most to either binding (STANCE/2). Geometry
+  HANDLE_RANGE: 0.25,    // m      the arms can raise/lower the handle this much relative to the hip to balance with the line (handle above the CoM tips the rider forward). Assumed
+  HIP_TAU_MAX:  150,     // N·m    hip strategy: extra fore–aft balance torque from swinging the legs/board under the body. Assumed (hip extensor/flexor capacity ≈200–300 N·m)
+  HANDLE_RATE:  2.5,     // m/s    how fast the arms move the handle up/down. Assumed
+  PITCH_REF_MAX: 40,     // °      largest intended lean-back. Assumed
+  PITCH_REF_TAU: 0.15,   // s      reaction time of the balance target. Assumed (postural reactions ≈ 0.1–0.2 s)
+  PITCH_FALL_BACK: 60,   // °      sat down behind the board. Assumed
+  PITCH_FALL_FWD:  35,   // °      pulled over the nose. Assumed
+  LEG_F_MIN:   -300,     // N      maks. trækkraft (løfte boardet med bindingerne). Antaget
+  LEG_RATE:     4.5,     // m/s    hvor hurtigt ønsket benlængde kan ændres (afsæt ≈2,5–3 m/s ved vertikalt spring). Antaget
+  LEG_STOP_K:   6.0e4,   // N/m    stivhed i mekanisk stop (knæ helt bøjet/strakt). Antaget
+  LEG_STOP_C:   2000,    // N·s/m  dæmpning i stop. Antaget
+  BOTTOM_OUT_V: 3.0,     // m/s    rammer rideren LEG_MIN hurtigere end dette, falder han (bundet ud). Antaget
+  LEAN_KP:      4000,    // N·m/rad  riderens balancestyring mod ønsket læn (≈5× m·g·h). Antaget
+  LEAN_KD:      300,     // N·m·s/rad  muskeldæmpning (ζ≈0,7). Antaget
+  LEAN_TAU_MAX: 1500,    // N·m    maks. balancemoment (ankler/knæ/hofte + håndtag). Antaget
+  LEAN_MAX_DEG: 60,      // °      maks. ønsket læn (= kant). Antaget
+  LEAN_RATE_DEG: 120,    // °/s    hvor hurtigt ønsket læn kan ændres. Antaget
+  FALL_DEG:     72,      // °      rideren falder over denne læn. Antaget
+  CDA_AIR:      0.60,    // m²     Cd·A for rider i luft. Kilde: rapport 3.2 (0,5–0,8 m²)
+
+  // --- Board / hydrodynamik: reduceret "M2"-model jf. rapporten (Savitsky-planing + rocker + added mass) ---
+  // Løft:  N = ½ρ b² τ^1,1 (0,0120 √λ V² + 0,0055 λ^2,5 g b)   [τ = effektiv indfaldsvinkel i grader, λ = l_w / b]
+  //        (= Savitsky C_L0 = τ^1,1 (0,0120 λ^0,5 + 0,0055 λ^2,5 / C_V²), C_V = V/√(g b); skrevet så V = 0 er defineret)
+  // Kant:  C_Lβ = C_L0 − 0,0065 β C_L0^0,6   (kant φ behandlet som asymmetrisk deadrise; klampet nedad)
+  // Trim:  ikke foreskrevet. Løses hvert skridt af momentligevægt: Savitskys trykcentrum
+  //        l_p = l_w (0,75 − 1/(5,21 C_V²/λ² + 2,39)) skal ligge under riderens last (fodtryk for/bag).
+  // Rocker: lokal indfaldsvinkel α(x) = θ + dr/dx (rapport 4.6). Halen er bøjet op, så den våde hale ser
+  //        en MINDRE indfaldsvinkel end midten: θ_board = τ_eff + 4h(L − l_w)/L².
+  // Drag:  trykdrag N·sin τ (løftet står vinkelret på bunden) + ITTC-57-friktion på S_w = l_w b /(cos τ cos φ)
+  //        + residual (spray/3D/finner, rapport 4.3) + pløjedrag i deplacementsfasen.
+  // Heave: added mass m_a = ρ π b² l_w / 8 og asymmetrisk slamming ṁ_a·w ved vandindtræden (rapport 7.2, 11.2).
+  BOARD_AREA:   0.40,    // m²     planform (hydrostatisk opdrift ved lav fart/dyb start). Kilde: typiske mål 138–144 × 42–44 cm
+  BOARD_LEN:    1.42,    // m      boardlængde. Kilde: rapportens referencecase (1,42 × 0,43 m)
+  BOARD_BEAM:   0.43,    // m      bredde. Kilde: rapportens referencecase
+  ROCKER_H:     0.06,    // m      kontinuerlig rocker (6 cm). Kilde: typiske cableboards 5–7 cm
+  NU_WATER:     1.19e-6, // m²/s   kinematisk viskositet, 15 °C. Kilde: ITTC
+  X_LOAD:       0.66,    // m      riderens lastpunkt målt fra halen (lidt bag midten = vægt på bagerste fod). Antaget
+  FOOT_SHIFT_MAX: 0.15,  // m      hvor langt rideren kan flytte lasten frem/tilbage med fodtryk (rapport 6.3). Antaget
+  TRIM_MIN:     1.0,     // °      mindste effektive indfaldsvinkel. Antaget
+  TRIM_MAX:     22,      // °      største (næsen højt, halen dybt). Antaget
+  PITCH_TAU:    0.08,    // s      tidskonstant for boardets pitch mod ligevægt (pitch-inerti). Antaget
+  RESID_AREA:   6.0e-4,  // m²     residual drag-areal (spray, 3D-kanter, finner): ≈20 N ved 30 km/t som i rapportens regner. Kilde: rapport 14.2
+  ADDED_MASS:   true,    //        heave-added-mass + slamming til/fra
+  ENTRY_MIN_DEG: 9.6,    // °      mindste indtrædningsvinkel ved slamming = rocker-hældningen ved halen atan(4h/L). Beregnet
+  CD_PLOW:      1.0,     // –      pløjedrag på neddykket front ved lav fart. Antaget (stump flade)
+  CATCH_GAIN:   3.0,     // –      sidekraft-forstærkning når boardet glider mod den nedsænkede rail ("fanger kanten"). Antaget
+  D_MAX:        0.40,    // m      maks. effektiv dykning. Antaget
+  HEAVE_C:      300,     // N·s/m  resterende lodret dæmpning (bølgedannelse). Hovedparten kommer nu fra w/U-leddet i indfaldsvinklen. Antaget
+  VENT_START:   45,      // °      kant hvor ventilation begynder: luft suges ned langs railen, våd flade og løft tabes (rapport 4.4, 5.7). Antaget
+  VENT_SPAN:    25,      // °      kantinterval hvor ventilationen udvikler sig fuldt. Antaget
+  VENT_LOSS:    0.45,    // –      maks. tab af løft/sidekraft ved fuld ventilation. Antaget
+  ROLL_C_W:     12,      // N·m·s per m/s  roll-dæmpning fra vandet ∝ fart (rail der presses ned/op mod vand, rapport 4.8: p/U). Antaget
+  ANKLE_MAX:    25,      // °      hvor meget rideren kan kante boardet i forhold til kroppen med ankler/knæ (bruges i luften). Antaget
+  ANKLE_RATE:   150,     // °/s    hastighed for ankel-kant. Antaget
+  SIDE_AREA:    0.03,    // m²     rail + finner, sideflade. Antaget
+  SIDE_CLA:     3.0,     // 1/rad  løftkurvehældning for sideslip. Antaget (lav-AR flade)
+  FIN_AREA:     0.008,   // m²     4 finner à ~20 cm². Kilde: typisk finsæt
+  FIN_CLA:      3.0,     // 1/rad  Antaget
+  FIN_ARM:      0.5,     // m      finnernes afstand bag tyngdepunkt. Antaget
+  YAW_C:        60,      // N·m·s  yaw-dæmpning (luft/krop). Antaget
+  YAW_C_AIR:    0.5,     // N·m·s  yaw damping in the air (aerodynamic, spinning body). Assumed
+  YAW_C_W:      10,      // N·m·s per m/s  yaw-dæmpning fra vandet, ∝ fart. Antaget
+  // Carving: et kantet board med rocker følger sin skrå rail. Kurveradius R = (L²/8h)·CARVE_SLIP / sin(kant).
+  CARVE_SLIP:   2.2,     // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget
+  CARVE_TAU:    0.25,    // s      hvor hurtigt vandet drejer boardet ind på railens kurve. Antaget
+  PIVOT_K:      400,     // N·m/rad  riderens aktive drej af boardet med fødderne ved stor sideslip. Antaget
+  PIVOT_TAU_MAX: 180,    // N·m    maks. drejemoment fra fødderne. Antaget
+  PIVOT_DEAD:   15,      // °      sideslip der accepteres før rideren drejer boardet aktivt. Antaget
+  CD_SLIP:      1.1,     // –      tværdrag når boardet glider sidelæns (flad plade ≈1,1–1,2). Kilde: Hoerner, Fluid-Dynamic Drag
+  SLIP_PLATE:   0.25,    // –      andel af boardfladen der skubber vand ved sideslip. Antaget
+  ROLL_C:       40,      // N·m·s  roll-dæmpning fra vand/luft. Antaget
+  FALLEN_CDA:   0.6,     // m²     Cd·A for rider i vandet efter fald. Antaget
+
+  // --- Obstakler (kontakt) ---
+  OBS_K:        1.0e5,   // N/m    kontaktstivhed board↔obstakel (benene er nu modelleret separat). Antaget
+  OBS_C:        800,     // N·s/m  kontaktdæmpning (mod 6 kg board). Antaget
+  MU_SLIDE:     0.10,    // –      friktion board på vådt HDPE/glasfiber. Antaget (PE mod PE vådt ≈0,1)
+  MU_RAIL:      0.15,    // –      friktion board-base på stålrail. Antaget
+  STEP_MAX:     0.35,    // m      højeste kant rideren kan "træde op på" uden kollision. Antaget
+  RAIL_TOL:     0.15,    // m      halv boardbredde: rail rammes hvis |sideafstand| < rail/2 + dette. Antaget
+  ENTRY_LEN:    4.0,     // m      afrundet indkørsel på box/rail/funbox (maks. 45 % af længden). Antaget
+  // --- Water surface: wind chop (JONSWAP, fetch-limited) + the board's own wake ---
+  WIND_DEFAULT: 4.0,     // m/s    10 m wind speed (adjustable 0–10 in the UI). Assumed light breeze
+  WIND_FROM:    250,     // °      wind direction (from), WSW — prevailing in Copenhagen. Assumed
+  FETCH:        250,     // m      open water upwind across the lake. Estimated from the layout
+  CHOP_N:       8,       // –      number of wave components. Assumed
+  CHOP_SPREAD:  35,      // °      directional spread (±). Assumed (cos²-like)
+  WAKE_H0:      0.05,    // m      wake crest height 2 m behind the board at 30 km/h and 700 N load; scales with load and 1/speed (each capped at 1.5×). Assumed (small planing board)
+  WAKE_R0:      2.0,     // m      reference distance for WAKE_H0
+  WAKE_TD:      20,      // s      decay time of the wake (dispersion + dissipation). Assumed
+  WAKE_TMAX:    25,      // s      wake history kept
+  WAKE_DT:      0.1,     // s      wake sampling interval
+  WAKE_ANG_C:   0.224,   // –      max-amplitude wake angle φ = C/Fr_L (Darmon, Benzaquen & Raphaël 2014; Rabaud & Moisy 2013), capped at the Kelvin angle 19.47°
+  // --- Tricks in the air: grabs and spins ---
+  // Spins obey angular momentum (report 6.2): the rider starts the rotation at take-off by twisting against the lip/edge
+  // (pre-wind), and in the air only the line can add yaw torque (handle pulled to the side / behind the back). Tucking
+  // reduces the yaw inertia, so the spin speeds up (I·ω conserved).
+  SPIN_POP:     4.5,     // rad/s  max. yaw rate from a full pre-wind at take-off (≈ 180° in 0.7 s). Assumed
+  SPIN_WIND_T:  0.4,     // s      time to build a full pre-wind while still on the water/ramp. Assumed
+  SPIN_LEVER:   0.08,    // m      effective lever of the line about the spin axis, averaged over the rotation (handle held near the hip, passed behind the back). Assumed
+  SPIN_TAU_MAX: 40,      // N·m    max. yaw torque from the line in the air. Assumed; gives ≈1 rev/s for a pre-wound 360, as seen on cable kickers
+  SPOT_DEG:     40,      // °      within this of straight/switch the rider 'spots' the landing and aligns the board. Assumed
+  LAND_TWIST_MAX: 40,    // °      board more than this off the flight direction (or its reverse) at touchdown = fall. Assumed
+  GRAB_REACH:   0.25,    // s      hand travel from the handle to the board edge. Assumed
+  GRAB_LEG:     0.62,    // m      hip height while grabbing (tucked). Assumed
+  GRAB_GRIP:    0.6,     // –      one hand on the handle: release limit × this while grabbing. Assumed
+  GRAB_MIN:     0.2,     // s      a grab must be held this long to count. Assumed
+  LAND_VZ_MAX:  9.0,     // m/s    lodret landingshastighed der altid giver fald (~4 m frit fald). Antaget
+};
+
+/* Anlæggets geometri: hjul (kabelbane) målt i Google Earth; mastfødder på jetty/kyst/mole. */
+const LAYOUT = {
+  // Hjulcentre = kabelbanens hjørner. MÅLT: brugerens Google Earth-polygon "ccp" (KML), omkreds 520 m, areal 15 413 m².
+  // Omregnet fra lat/lon til lokale meter med origo 55.681713 N, 12.622169 Ø (mast A-området).
+  wheels: [[5.4, 4.2], [77.0, -51.5], [106.6, -45.5], [173.4, 84.6], [161.2, 130.4], [116.9, 118.4]],
+  // Mastfødder (A-rammer på jetty/kyst/mole), som hælder ind over vandet med en bom ud til hjulet.
+  masts: [ // rækkefølge = omløbsretning (mod uret)
+    { id: 'A', x: -3.0,  y: -8.0,  role: 'Drive/start',  status: 'antaget' },
+    { id: 'F', x: 81.9,  y: -71.4, role: 'Jetty south',  status: 'målt' },     // jettypunkt nærmest hjul 2 (20,5 m udhæng)
+    { id: 'E', x: 114.8, y: -63.3, role: 'Jetty corner', status: 'målt' },     // brugerens måling: 20 m mast→hjul
+    { id: 'D', x: 188.3, y: 83.0,  role: 'East',         status: 'antaget' },  // 15 m ud fra hjulet
+    { id: 'C', x: 166.0, y: 145.0, role: 'NE by mole',   status: 'antaget' },
+    { id: 'B', x: 109.3, y: 131.3, role: 'North shore',  status: 'målt' },     // satellit (pæl+skygge) = 15 m ud fra hjulet
+  ],
+  // Vandkontur: NV-kyst og mole fra Google Earth (brugerens skærmbillede, ±3 m); syd/øst fra satellit (±15 m).
+  water: [[-76,-37],[-25,22.4],[42,84.5],[93.8,134.9],[138.1,179.4],[148,196],[162.2,151.2],[181.6,120.8],
+          [212.8,72.4],[246,19.4],[264.5,-67.6],[260.2,-171],[-37.2,-171],[-97.5,-102]],
+  jetty: [[-6.7,6.2],[1.1,-10.6],[58.5,-74.7],[112.8,-65.0],[143.5,-23.0]],   // Google Earth 2D (brugerens skærmbillede, 0,22 m/px)
+  jettyLand: [[1.1,-10.6],[-51.7,-60.3]],
+  // Obstacles: layout "O" (Google Earth standard layer, 6/9/2023) from the user's obstacle analysis (25 Sep 2026).
+  // Each feature is drawn as its sub-contours with their own axis (planform read from the analysis' north-up model,
+  // 3.7 px/m, relative to T1). Positions carry ≈5–10 m absolute uncertainty. X1 (unconfirmed dark linear candidate)
+  // is not included. The analysis gives NO heights or types: types follow its planform interpretation, heights are
+  // typical values and marked as assumed. Direction of travel along each part follows the nearest cable leg.
+  obstacleLayout: 'O (2023 standard layer)',
+  obstacles: [
+    // Road side (T6→T1, travel towards SW)
+    { id: 'O1', tag: true, name: 'O1 box',  type: 'box',    x: 116.6, y: 113.5, dir: [0.661, 0.750], L: 5.8,  W: 4.2, H: 0.45 },  // broad light end
+    { id: 'O1',            name: 'O1 rail', type: 'rail',   x: 109.3, y: 105.8, dir: [0.699, 0.715], L: 15.2, W: 0.3, H: 0.55, color: 0x3a4046 },  // long dark rail/wall form
+    { id: 'O2', tag: true, name: 'O2 rail', type: 'rail',   x: 85.0,  y: 89.4,  dir: [0.660, 0.751], L: 19.8, W: 0.3, H: 0.5 },   // long narrow rail
+    { id: 'O2',            name: 'O2 side box', type: 'box', x: 86.1, y: 92.6,  dir: [0.685, 0.728], L: 6.3,  W: 1.7, H: 0.4 },   // side-offset wide section
+    { id: 'O3', tag: true, name: 'O3 kicker', type: 'kicker', x: 86.8, y: 79.4, dir: [0.443, 0.897], L: 11.8, W: 3.0, H: 1.2 },  // tapered, kicker-like planform
+    { id: 'O3',            name: 'O3 side box', type: 'box', x: 89.4, y: 80.3,  dir: [0.416, 0.910], L: 3.6,  W: 3.2, H: 0.3 },   // short side part
+    { id: 'O4', tag: true, name: 'O4 kicker', type: 'kicker', x: 54.8, y: 68.2, dir: [0.759, 0.651], L: 3.9,  W: 2.8, H: 0.6 },   // separate wide small part upstream of the rail: read as a kick-in (assumed). Moved 4 m W + 4 m N (see O4 rail)
+    { id: 'O4',            name: 'O4 rail', type: 'rail',   x: 54.3,  y: 63.5,  dir: [0.665, 0.747], L: 7.9,  W: 0.3, H: 0.5 },   // short rail. Drawn 0.2 m from the cable line; moved 4 m W + 4 m N as the analysis did for H4 (user: no obstacle lies directly under the cable)
+    // East side (T3→T4, travel towards NNE)
+    { id: 'O5', tag: true, name: 'O5 rail/box', type: 'box', x: 137.9, y: 27.4, dir: [0.420, 0.908], L: 15.2, W: 1.1, H: 0.45 },  // narrow, almost straight
+    { id: 'O6', tag: true, name: 'O6 box',  type: 'box',    x: 137.4, y: 4.4,   dir: [0.494, 0.869], L: 14.7, W: 0.9, H: 0.45 },  // narrow long part
+    { id: 'O6',            name: 'O6 ramp', type: 'funbox', x: 136.0, y: 4.3,   dir: [0.501, 0.866], L: 8.7,  W: 2.4, H: 0.8 },   // broad side/ramp section
+    { id: 'O7', tag: true, name: 'O7 box',  type: 'box',    x: 107.6, y: -36.0, dir: [0.380, 0.925], L: 14.9, W: 3.1, H: 0.45 },  // broad southern part
+    { id: 'O7',            name: 'O7 rail/box', type: 'box', x: 110.1, y: -33.3, dir: [0.441, 0.897], L: 21.9, W: 1.1, H: 0.45 },  // full length incl. narrow extension
+  ],
+
+  // Orange bøjer ~4 m inde fra jettyen (set i videoen). Kun visuelle.
+  buoys: [[24.2,-30.4],[44.3,-52.8],[74.1,-67.9],[95.8,-64.0],[120.3,-47.9],[131.1,-33.2]],
+};
+
+/* ---------------- Kabelbane: lige stykker + buer om hjulene ---------------- */
+function buildPath(wheelsIn, P) {
+  const n = wheelsIn.length;
+  const unit = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
+  const wheels = wheelsIn.map(w => [w[0], w[1]]);
+  const R = P.WHEEL_RADIUS, pieces = []; let L = 0;
+  const segT = [];
+  for (let i = 0; i < n; i++) segT.push(unit(wheels[(i + 1) % n][0] - wheels[i][0], wheels[(i + 1) % n][1] - wheels[i][1]));
+  for (let i = 0; i < n; i++) {
+    const c0 = wheels[i], c1 = wheels[(i + 1) % n], t = segT[i], rgt = [t[1], -t[0]];
+    const a = [c0[0] + rgt[0] * R, c0[1] + rgt[1] * R], len = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]);
+    pieces.push({ kind: 'line', s0: L, len, a, t }); L += len;
+    // bue om hjul i+1: fra højre-normal på dette ben til højre-normal på næste (venstresving)
+    const t2 = segT[(i + 1) % n];
+    const a0 = Math.atan2(rgt[1], rgt[0]);
+    let da = Math.atan2(-t2[0], t2[1]) - a0; while (da < 0) da += 2 * Math.PI; while (da > 2 * Math.PI) da -= 2 * Math.PI;
+    pieces.push({ kind: 'arc', s0: L, len: R * da, c: c1, a0, R }); L += R * da;
+  }
+  return { pieces, length: L, wheels };
+}
+function pathAt(path, s) {
+  s = ((s % path.length) + path.length) % path.length;
+  let k = 0; while (k < path.pieces.length - 1 && s > path.pieces[k].s0 + path.pieces[k].len) k++;
+  const g = path.pieces[k], u = s - g.s0;
+  if (g.kind === 'line') return { x: g.a[0] + g.t[0] * u, y: g.a[1] + g.t[1] * u, tx: g.t[0], ty: g.t[1], k };
+  const ang = g.a0 + u / g.R;
+  return { x: g.c[0] + g.R * Math.cos(ang), y: g.c[1] + g.R * Math.sin(ang), tx: -Math.sin(ang), ty: Math.cos(ang), k };
+}
+
+/* ---------------- Obstakler: lokal ramme + højdeprofil ---------------- */
+// u = langs kørselsretningen (−L/2 … L/2), v = til venstre. Profil = [(u, h)] lineært interpoleret.
+function obstacleProfile(o, P) {
+  // Afrundede overgange (som rigtige obstakler): kicker = parabel (flad ved vandet, ~30° ved lip),
+  // box/rail/funbox = smoothstep-indkørsel (vandret i begge ender).
+  const a = -o.L / 2, b = o.L / 2, lo = -0.15, N = 12, pts = [];
+  const ss = x => x * x * (3 - 2 * x);
+  if (o.type === 'kicker') { for (let i = 0; i <= N; i++) { const x = i / N; pts.push([a + x * o.L, lo + (o.H - lo) * x * x]); } return pts; }
+  const e = Math.min(P.ENTRY_LEN, o.L * 0.45);
+  for (let i = 0; i <= N; i++) { const x = i / N; pts.push([a + x * e, lo + (o.H - lo) * ss(x)]); }
+  if (o.type === 'funbox') { for (let i = 0; i <= N; i++) { const x = i / N; pts.push([b - e + x * e, o.H - (o.H - lo) * ss(x)]); } }
+  else pts.push([b, o.H]);
+  return pts;
+}
+function buildObstacles(path, P) {
+  const legs = path.pieces.filter(g => g.kind === 'line');
+  return LAYOUT.obstacles.map(o => {
+    let best = null, bd = 1e9, bu = 0;
+    for (const g of legs) {
+      const u = Math.max(0, Math.min(g.len, (o.x - g.a[0]) * g.t[0] + (o.y - g.a[1]) * g.t[1]));
+      const d = Math.hypot(g.a[0] + g.t[0] * u - o.x, g.a[1] + g.t[1] * u - o.y); if (d < bd) { bd = d; best = g; bu = u; }
+    }
+    // Axis from the analysis if given, oriented along the direction of travel of the nearest leg
+    let ax = best.t[0], ay = best.t[1];
+    if (o.dir) { const n = Math.hypot(o.dir[0], o.dir[1]), sg = Math.sign(o.dir[0] * ax + o.dir[1] * ay) || 1; ax = sg * o.dir[0] / n; ay = sg * o.dir[1] / n; }
+    const off = best.t[0] * (o.y - best.a[1]) - best.t[1] * (o.x - best.a[0]);
+    return { ...o, ax, ay, off, leg: legs.indexOf(best), yaw: Math.atan2(ay, ax), prof: obstacleProfile(o, P), halfW: o.W / 2 + (o.type === 'rail' ? P.RAIL_TOL : 0) };
+  });
+}
+function profileAt(prof, u) {  // returnerer [h, dh/du] eller null uden for profilen
+  if (u < prof[0][0] || u > prof[prof.length - 1][0]) return null;
+  for (let i = 0; i < prof.length - 1; i++) {
+    const [u0, h0] = prof[i], [u1, h1] = prof[i + 1];
+    if (u <= u1) { const s = (h1 - h0) / (u1 - u0); return [h0 + s * (u - u0), s]; }
+  }
+  return null;
+}
+
+/* ---------------- Body model (de Leva 1996 segments, scaled) ---------------- */
+// Returns knee flexion β, |dℓ/dβ| and the rider's inertia about his centre of mass for the current leg length.
+const DELEVA = { // male: mass fraction, CoM from proximal end, radius of gyration (mean of sagittal/transverse, longitudinal). de Leva 1996
+  head: [0.0694, 0.5002, 0.369, 0.312], trunk: [0.4346, 0.5138, 0.317, 0.169], uarm: [0.0271, 0.5772, 0.277, 0.158],
+  farm: [0.0162, 0.4574, 0.271, 0.121], hand: [0.0061, 0.79, 0.57, 0.401], thigh: [0.1416, 0.4095, 0.329, 0.149],
+  shank: [0.0433, 0.4395, 0.252, 0.103], foot: [0.0137, 0.4415, 0.251, 0.124] };
+function kneeGeom(P, leg) {
+  const T = P.THIGH_LEN, S = P.SHANK_LEN, la = Math.max(Math.abs(T - S) + 0.05, Math.min(T + S - 1e-4, leg - P.ANKLE_H));
+  const cb = Math.max(-1, Math.min(1, (la * la - T * T - S * S) / (2 * T * S))), beta = Math.acos(cb);  // flexion: 0 = straight
+  return { beta, la, arm: T * S * Math.sin(beta) / la };
+}
+function kneeTorque(P, beta) {          // isometric, per leg (N·m)
+  const t = P.KNEE_TQ; let k = 1; while (k < t.length - 1 && beta > t[k][0]) k++;
+  const a = t[k - 1], b = t[k], u = Math.max(0, Math.min(1, (beta - a[0]) / (b[0] - a[0])));
+  return (a[1] + u * (b[1] - a[1])) * P.KNEE_MASS;
+}
+function legForceMax(P, leg, legv) {    // max. force along the body axis from both legs, with Hill force–velocity
+  const g = kneeGeom(P, leg), F0 = Math.min(P.LEG_F_CAP, P.LEG_SYNERGY * 2 * kneeTorque(P, g.beta) / Math.max(g.arm, 0.03));
+  if (legv <= 0) return F0 * Math.min(P.ECC_FACTOR, 1 + (P.ECC_FACTOR - 1) * (-legv / 0.5));   // eccentric: up to ECC_FACTOR
+  return F0 * Math.max(0, 1 - legv / P.LEG_V0);                             // concentric: linear force–velocity
+}
+function bodyInertia(P, leg, mass) {    // about the CoM: [roll (board axis), pitch (across the board), yaw]
+  const s = P.STATURE / 1.741, T = P.THIGH_LEN, S = P.SHANK_LEN, g = kneeGeom(P, leg), segs = [];
+  const add = (key, p0, p1) => segs.push({ key, p0, p1 });
+  const ah = P.ANKLE_H, hh = leg, uF = P.STANCE / 2, uH = 0.1 * s;
+  for (const sgn of [1, -1]) {                                              // coords [u along board, a anterior, z up]
+    const A = [sgn * uF, 0, ah], Hp = [sgn * uH, 0, hh], m = [(A[0] + Hp[0]) / 2, 0, (A[2] + Hp[2]) / 2];
+    const half = Math.hypot(Hp[0] - A[0], Hp[2] - A[2]) / 2, off = Math.sqrt(Math.max(0, S * S - half * half));
+    const K = [m[0], off, m[2]];                                            // knee forward (anterior)
+    add('foot', [sgn * uF, 0.12 * s, 0.03], [sgn * uF, -0.1, 0.03]); add('shank', K, A); add('thigh', Hp, K);
+  }
+  const sh = hh + 0.52 * s, Ht = [0, 0, hh], Sh = [0, 0, sh];
+  add('trunk', Sh, Ht); add('head', [0, 0, sh + 0.24 * s], [0, 0, sh]);
+  for (const sgn of [1, -1]) { const S0 = [sgn * 0.19 * s, 0, sh], E = [sgn * 0.12, 0.2, sh - 0.25], W = [sgn * 0.09, 0.42, hh + 0.12];
+    add('uarm', S0, E); add('farm', E, W); add('hand', W, [sgn * 0.09, 0.5, hh + 0.12]); }
+  const pts = segs.map(q => { const d = DELEVA[q.key], c = q.p0.map((v, i) => v + d[1] * (q.p1[i] - v)), len = Math.hypot(...q.p1.map((v, i) => v - q.p0[i]));
+    return { m: d[0] * mass, c, len, dir: q.p1.map((v, i) => (v - q.p0[i]) / (len || 1)), rt: d[2], rl: d[3] }; });
+  const M = pts.reduce((a, q) => a + q.m, 0), cg = [0, 1, 2].map(i => pts.reduce((a, q) => a + q.m * q.c[i], 0) / M);
+  const I = [0, 0, 0];                                                     // about u, a, z axes through the CoM
+  for (const q of pts) { const r = q.c.map((v, i) => v - cg[i]), It = q.m * (q.rt * q.len) ** 2, Il = q.m * (q.rl * q.len) ** 2;
+    for (let ax = 0; ax < 3; ax++) { const o = [0, 1, 2].filter(i => i !== ax); const along = q.dir[ax] ** 2;
+      I[ax] += q.m * (r[o[0]] ** 2 + r[o[1]] ** 2) + Il * along + It * (1 - along); } }
+  return { roll: I[0], pitch: I[1], yaw: I[2], cgz: cg[2], beta: g.beta };
+}
+
+/* ---------------- Water surface ---------------- */
+// Fetch-limited JONSWAP: gHs/U² = 0.0016 (gF/U²)^½, gTp/U = 0.286 (gF/U²)^⅓ (Hasselmann et al. 1973). Spectrum shape with γ = 3.3,
+// discretised into CHOP_N components with a directional spread; amplitudes scaled so Σa²/2 = Hs²/16 (m0 = Hs²/16).
+function buildChop(P, U) {
+  if (!(U > 0.3)) return { comps: [], Hs: 0, Tp: 0, lp: 0 };
+  const g = P.G, Fh = g * P.FETCH / (U * U), Hs = 0.0016 * Math.sqrt(Fh) * U * U / g, Tp = 0.286 * Math.cbrt(Fh) * U / g, fp = 1 / Tp;
+  const to = (90 - (P.WIND_FROM + 180)) * Math.PI / 180;               // travel direction as a math angle (x = east, y = north)
+  let seed = 12345; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const comps = [], N = P.CHOP_N;
+  for (let i = 0; i < N; i++) {
+    const f = fp * (0.8 + 1.7 * i / (N - 1)), sg = f <= fp ? 0.07 : 0.09;
+    const S = Math.pow(f / fp, -5) * Math.exp(-1.25 * Math.pow(f / fp, -4)) * Math.pow(3.3, Math.exp(-((f - fp) ** 2) / (2 * sg * sg * fp * fp)));
+    const dir = to + (2 * rnd() - 1) * P.CHOP_SPREAD * Math.PI / 180, w = 2 * Math.PI * f, k = w * w / g;
+    comps.push({ S, kx: k * Math.cos(dir), ky: k * Math.sin(dir), w, ph: 2 * Math.PI * rnd() });
+  }
+  const sum = comps.reduce((a, c) => a + c.S, 0);
+  for (const c of comps) c.a = Math.sqrt(2 * (Hs * Hs / 16) * c.S / sum);
+  return { comps, Hs, Tp, lp: g * Tp * Tp / (2 * Math.PI) };
+}
+function chopAt(ch, x, y, t, ux, uy, Lavg) {      // elevation, gradient and ∂η/∂t; optional averaging over a length along (ux, uy)
+  let eta = 0, gx = 0, gy = 0, et = 0;
+  for (const c of ch.comps) { const th = c.kx * x + c.ky * y - c.w * t + c.ph, cs = Math.cos(th), sn = Math.sin(th);
+    let a = c.a; if (Lavg) { const z = 0.5 * (c.kx * ux + c.ky * uy) * Lavg; a *= Math.abs(z) < 1e-6 ? 1 : Math.sin(z) / z; }   // the board spans short waves
+    eta += a * cs; gx -= a * c.kx * sn; gy -= a * c.ky * sn; et += a * c.w * sn; }
+  return { eta, gx, gy, et };
+}
+
+/* ---------------- Simulator ---------------- */
+function createSim(opts = {}) {
+  const P = PHYS, D2R = Math.PI / 180;
+  const path = buildPath(LAYOUT.wheels, P);
+  const sim = {
+    path, t: 0, obs: buildObstacles(path, P), obstaclesOn: true,
+    cableSpeed: (opts.cableKmh ?? P.CABLE_SPEED_KMH) / 3.6, // m/s
+    leanCmdIn: 0,   // rad, input fra UI (før rate-begrænsning)
+    leanCmd: 0,     // rad, rate-begrænset ønsket læn
+    carrier: { s: 0, x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, tx: 1, ty: 0 },
+    tow: { x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, vz: 0 },   // trækpunkt under carrieren (eftergiveligt ophæng)
+    footShift: 0,   // m, fodtryk: + = vægt frem, − = vægt tilbage (styres fra UI)
+    energy: { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, E0: null },
+    // board-reference: x,y,z = boardets bund; phi = læn/kant (+ = højre rail ned), p = rollrate
+    rider: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, psi: 0, r: 0, phi: 0, p: 0, leg: 0.85, legv: 0, tau: 0.1, ankle: 0, arm: 0, theta: 0, q: 0 },
+    wind: P.WIND_DEFAULT, chop: buildChop(P, P.WIND_DEFAULT), trail: [], _trailT: -1,
+    spinIn: 0, grabIn: 0, windup: 0, windDir: 0, switchStance: false, grab: { type: 0, reach: 0 },
+    strokeMax: P.ARM_TRAVEL, startMode: 'slide', releaseN: P.RELEASE_N, legBase: P.LEG_NOM, autoStand: false, jumpArmed: false,
+    legCmdIn: 0.85, legCmd: 0.85, // m, ønsket hoftehøjde (input / rate-begrænset)
+    line: { F: 0, stretch: 0, slack: true, attached: true, over: 0 },
+    out: { V: 0, Vc: 0, angle: 0, inWater: true, drag: 0, lift: 0, warn: false, tau: 0, fall: '', contact: '', Fc: 0, air: false, lastAir: null },
+    jump: null,
+  };
+  // Start dock geometry: u along the carpet axis (0 = centre), v across; surface height h(u)
+  const DK = { ax: P.DOCK_DIR[0], ay: P.DOCK_DIR[1] };
+  function dockAt(x, y) {
+    const rx = x - P.DOCK_C[0], ry = y - P.DOCK_C[1];
+    const u = rx * DK.ax + ry * DK.ay, v = -rx * DK.ay + ry * DK.ax, h2 = P.DOCK_LEN / 2;
+    if (Math.abs(v) > P.DOCK_HALF_W || u < -h2 || u > h2) return null;
+    const r0 = h2 - P.DOCK_RAMP, drop = P.DOCK_TOP + 0.15;              // ramp ends 0.15 m under water
+    if (u <= r0) return { h: P.DOCK_TOP, slope: 0 };
+    return { h: P.DOCK_TOP - drop * (u - r0) / P.DOCK_RAMP, slope: -drop / P.DOCK_RAMP };
+  }
+  sim.dockAt = dockAt;
+  sim.setWind = U => { sim.wind = Math.max(0, U); sim.chop = buildChop(P, sim.wind); };
+  // The board's own wake: sampled track points; each leaves two divergent crests at ±r·tan φ behind the board,
+  // φ = WAKE_ANG_C/Fr_L (Mach-like regime at Fr_L > 0.5), wavelength from the Kelvin dispersion relation for that angle.
+  function wakeParams(V) {
+    const Fr = V / Math.sqrt(P.G * P.BOARD_LEN), phi = Math.min(19.47 * D2R, P.WAKE_ANG_C / Math.max(Fr, 0.5));
+    const tp = Math.tan(phi), tt = Math.max(0.36, (1 + Math.sqrt(Math.max(0, 1 - 8 * tp * tp))) / (4 * tp));   // tanφ = tanθ/(1+2tan²θ)
+    const c2 = 1 / (1 + tt * tt), lam = 2 * Math.PI * V * V * c2 / P.G;
+    return { phi, tp, lam: Math.max(0.3, lam) };
+  }
+  function wakeOne(p, x, y, t) {                    // one track sample's contribution (0 outside its crests)
+    const age = t - p.t; if (age < 0.4 || age > P.WAKE_TMAX) return 0;
+    const dx = x - p.x, dy = y - p.y, ds = p.V * P.WAKE_DT, a = dx * p.ux + dy * p.uy;
+    if (Math.abs(a) > 2.5 * ds) return 0;
+    const r = p.V * age, yw = r * p.tp, b = Math.abs(-dx * p.uy + dy * p.ux) - yw;
+    if (Math.abs(b) > p.lam) return 0;
+    const A = P.WAKE_H0 * Math.min(1.5, p.N / 700) * Math.min(1.5, 8.33 / p.V) * Math.sqrt(P.WAKE_R0 / Math.max(r, P.WAKE_R0)) * Math.exp(-age / P.WAKE_TD);
+    return A * Math.exp(-((a / ds) ** 2)) / 1.7725 * Math.cos(2 * Math.PI * b / p.lam) * Math.exp(-((b / (0.5 * p.lam)) ** 2));
+  }
+  function wakeEta(x, y, t) { let eta = 0; for (const p of sim.trail) eta += wakeOne(p, x, y, t); return eta; }
+  sim.wakeOne = wakeOne;
+  sim.wakeParams = wakeParams; sim.wakeEta = wakeEta;
+  sim.waterAt = function (x, y, t, ux, uy, Lavg) {  // chop + wake: elevation, gradient, ∂η/∂t (board-averaged if Lavg)
+    const c = chopAt(sim.chop, x, y, t, ux, uy, Lavg); if (!sim.trail.length) return c;
+    const h = 0.05, w0 = wakeEta(x, y, t);
+    c.eta += w0; c.gx += (wakeEta(x + h, y, t) - w0) / h; c.gy += (wakeEta(x, y + h, t) - w0) / h; c.et += (wakeEta(x, y, t + 0.02) - w0) / 0.02;
+    return c;
+  };
+  const dockPt = u => [P.DOCK_C[0] + u * DK.ax, P.DOCK_C[1] + u * DK.ay];
+  sim.setStartMode = m => { sim.startMode = ['slide', 'jump', 'sit'].includes(m) ? m : 'slide'; };
+  sim.reset = function () {
+    // Start at the start dock, facing along the first leg (A→F). The carrier leaves sheave A; the line tightens after ~2 s.
+    const psi0 = Math.atan2(DK.ay, DK.ax), mode = sim.startMode;
+    let x, y, z, leg = P.LEG_NOM;
+    if (mode === 'sit') { [x, y] = dockPt(P.DOCK_LEN / 2 + 2.0); z = -0.25; leg = P.SIT_LEG; }     // in the water just off the carpet
+    else if (mode === 'jump') { [x, y] = dockPt(P.DOCK_LEN / 2 - P.DOCK_RAMP - 0.3); z = P.DOCK_TOP; }  // at the edge before the ramp
+    else { [x, y] = dockPt(-1.2); z = P.DOCK_TOP; }                                                   // standing on the carpet
+    Object.assign(sim.rider, { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: mode === 'sit' ? 0.35 : 0.05, q: 0, hOff: 0 });
+    sim._cop = 0; sim._thRef = undefined;
+    sim.carrier.s = 0;
+    placeCarrier(); Object.assign(sim.tow, { x: sim.carrier.x, y: sim.carrier.y, z: P.CABLE_HEIGHT, vx: sim.carrier.vx, vy: sim.carrier.vy, vz: 0 });
+    Object.assign(sim.energy, { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, armWork: 0, E0: null });
+    Object.assign(sim.line, { F: 0, attached: true, over: 0, slack: true, hp: [x, y, z + leg] });
+    sim.legCmd = sim.legCmdIn = sim.legBase = leg;
+    sim.autoStand = mode === 'sit'; sim.jumpArmed = mode === 'jump'; sim.startShift = mode === 'sit' ? P.SIT_SHIFT : 0;
+    sim.out.fall = ''; sim.out.lastAir = null; sim.out.contact = ''; sim.out.startEvent = ''; sim.jump = null; sim.t = 0; sim.leanCmd = 0;
+    sim.trail = []; sim._trailT = -1; sim.windup = 0; sim.windDir = 0; sim.switchStance = false; sim.grab = { type: 0, reach: 0 }; sim.out.lastTrick = null; sim._IzzPrev = null;
+    sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + (mode === 'sit' ? P.STROKE_SIT : P.STROKE_STAND); sim._onDock = mode !== 'sit';
+    for (const ob of sim.obs) ob.inContact = false;
+    placeCarrier();
+  };
+  function placeCarrier() {
+    const c = sim.carrier, p = pathAt(path, c.s);
+    c.x = p.x; c.y = p.y; c.tx = p.tx; c.ty = p.ty;
+    c.vx = c.tx * sim.cableSpeed; c.vy = c.ty * sim.cableSpeed;
+  }
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+  /* ---------- Vandmodel: returnerer kraft (på boardet), yaw-moment og diagnostik ---------- */
+  function savitskyN(tauDeg, lam, V, b) {           // Savitsky C_L0 som kraft (N)
+    return 0.5 * P.RHO_WATER * b * b * Math.pow(tauDeg, 1.1) * (0.0120 * Math.sqrt(lam) * V * V + 0.0055 * Math.pow(lam, 2.5) * P.G * b);
+  }
+  function cpFromTail(lw, V, b) {                   // Savitskys trykcentrum, målt fra halen (m)
+    const lam = Math.max(0.3, lw / b), Cv2 = V * V / (P.G * b);
+    return lw * (0.75 - 1 / (5.21 * Cv2 / (lam * lam) + 2.39));
+  }
+  function solveTrim(d, V, xload) {                 // momentligevægt: trykcentrum under lasten
+    const b = P.BOARD_BEAM, Lb = P.BOARD_LEN, lwOf = t => Math.min(Lb, d / Math.sin(t));
+    let lo = P.TRIM_MIN * D2R, hi = P.TRIM_MAX * D2R;
+    const tFull = Math.asin(Math.min(1, d / Lb));  // under denne trim er hele boardet vådt
+    if (cpFromTail(lwOf(Math.max(lo, tFull)), V, b) < xload) return Math.max(lo, tFull);  // trykcentret når ikke frem: fuldt vådt
+    if (cpFromTail(lwOf(hi), V, b) > xload) return hi;
+    for (let k = 0; k < 24; k++) { const mid = 0.5 * (lo + hi); if (cpFromTail(lwOf(mid), V, b) > xload) lo = mid; else hi = mid; }
+    return 0.5 * (lo + hi);
+  }
+  function hydroWrench(s) {
+    const { R, depth, V, inWater, attached, fwd, rgt, up, sp, cp, hx, hy, F, m, dt } = s, wr = s.wrel ?? R.vz;
+    const out = { F: [0, 0, 0], Mz: 0, lift: 0, drag: 0, beta: 0, rCarve: 0, trim: 0, lw: 0, Df: 0, lp: 0, ma: 0, slam: 0, pitch: 0, Cv: 0, Re: 0 };
+    if (!inWater) { R.tau += (6 * D2R - R.tau) * Math.min(1, dt / 0.3); out.pitch = R.tau; return out; }
+    const b = P.BOARD_BEAM, Lb = P.BOARD_LEN, dd = Math.min(depth, P.D_MAX), q = 0.5 * P.RHO_WATER * V * V;
+    const th = attached ? R.phi + R.ankle : 0;                                  // boardets kant = kroppens læn + ankel-kant
+    const spB = Math.sin(th), cpB = Math.cos(th);
+    out.Cv = V / Math.sqrt(P.G * b);
+    // Trim fra momentligevægt (fodtryk flytter lasten), med pitch-inerti som 1.-ordens forsinkelse
+    // Linens pitch-moment: træk fremad i hoftehøjde tipper rideren frem. Rideren udligner det meste ved at læne sig
+    // tilbage; resten må vandet tage ved at flytte trykcentret frem (rapport 3.1 og 7.1: linemomentet er ikke valgfrit).
+    // Load point = the rider's centre of pressure, from the fore–aft balance of the multi-body rider (step 6b)
+    const xload = P.X_LOAD + Math.max(-P.COP_MAX, Math.min(P.COP_MAX, sim._cop || 0));
+    out.xLine = sim._cop || 0;
+    const tauEq = solveTrim(dd, V, xload);
+    R.tau += (tauEq - R.tau) * Math.min(1, dt / P.PITCH_TAU);
+    const tau = R.tau, tauDeg = tau / D2R;
+    const lw = Math.min(Lb, dd / Math.max(Math.sin(tau), 0.01)), lam = Math.max(0.05, lw / b);
+    out.trim = tau; out.lw = lw; out.lp = cpFromTail(lw, V, b);
+    out.pitch = tau + 4 * P.ROCKER_H * (Lb - lw) / (Lb * Lb);                   // boardets pitch inkl. rocker-korrektion
+    // Bundnormal: rullet om længdeaksen (kant) og tippet bagud (trim)
+    // Near standstill the lift is hydrostatic and acts vertically on the whole body (no N·sin τ push backwards); the
+    // tilt towards the Savitsky pressure-drag direction is blended in below ≈3 m/s. Assumed blend.
+    const sT = Math.sin(tau) * Math.min(1, (V / 3) * (V / 3));
+    const nb = attached ? [cpB * up[0] + spB * rgt[0] - sT * fwd[0], cpB * up[1] + spB * rgt[1] - sT * fwd[1], cpB * Math.cos(tau)] : up;
+    // Ventilation ved dyb kant: glat overgang (rapport 13.6: ingen spring i koefficienterne)
+    const vx_ = Math.max(0, Math.min(1, (Math.abs(th) / D2R - P.VENT_START) / P.VENT_SPAN)), vent = 1 - P.VENT_LOSS * vx_ * vx_ * (3 - 2 * vx_);
+    out.vent = vent;
+    if (attached) {
+      // Dynamisk indfaldsvinkel α = τ + w/U (rapport 4.6): synker boardet (w < 0), rammer vandet det skarpere
+      const tauDyn = Math.max(0.3, Math.min(P.TRIM_MAX + 8, tauDeg + Math.atan2(-wr, Math.max(V, 0.5)) / D2R));   // w relative to the (moving) surface
+      const N0 = savitskyN(tauDyn, lam, V, b), CL0 = N0 / (q * b * b + 1e-6), bet = Math.abs(th) / D2R;
+      const dead = 1 - 0.0065 * bet * Math.pow(Math.max(CL0, 1e-4), -0.4);
+      out.lift = N0 * (0.25 + 0.75 / (1 + Math.exp(-(dead - 0.25) / 0.08)) * Math.max(0, Math.min(1, dead + 0.75)) ) * vent;   // glat klampning
+    }
+    // Hydrostatik: Savitskys λ^2,5-led dækker den våde kile; ekstra opdrift kun når boardet er helt vådt og synker dybere (dyb start)
+    const buoy = P.RHO_WATER * P.G * P.BOARD_AREA * Math.max(0, dd - Lb * Math.sin(tau));
+    for (let i = 0; i < 3; i++) out.F[i] += out.lift * nb[i];                   // inkl. trykdrag N·sin τ
+    out.F[2] += buoy - P.HEAVE_C * wr;
+    // Added mass og slamming (asymmetrisk: kun ved indtræden, ingen sug ved udtræden)
+    if (P.ADDED_MASS) {
+      out.ma = P.RHO_WATER * Math.PI * b * b * lw / 8;
+      if (wr < 0 && lw < Lb) {
+        const sEntry = Math.sin(Math.max(tau, P.ENTRY_MIN_DEG * D2R));
+        out.slam = P.RHO_WATER * Math.PI * b * b / 8 * wr * wr / sEntry;   // = ṁ_a · |w|
+        out.F[2] += out.slam;
+      }
+    }
+    if (V > 1e-4) {
+      // Friktion (ITTC-1957) over S_w = l_w b /(cos τ cos φ) + residual (spray/3D/finner) + pløjedrag ved lav fart
+      out.Re = Math.max(1e4, V * Math.max(lw, 0.05) / P.NU_WATER);
+      const Cf = 0.075 / Math.pow(Math.log10(out.Re) - 2, 2);
+      out.Df = q * (lw * b / (Math.cos(tau) * Math.max(0.35, Math.cos(th)))) * Cf;
+      const Dres = q * P.RESID_AREA * (1 + 2 * Math.sin(Math.abs(th)));          // spray vokser med kant
+      const Dp = q * b * Math.max(0, dd - 0.03) * P.CD_PLOW * Math.exp(-((out.Cv / 1.5) ** 4));   // forsvinder når boardet planer (C_V > ~2)
+      let drag = out.Df + Dres + Dp; out.Dres = Dres; out.Dplow = Dp; out.Dpress = out.lift * Math.sin(tau);
+      out.F[0] -= drag * R.vx / V; out.F[1] -= drag * R.vy / V;
+      const vf = R.vx * hx + R.vy * hy, vl = R.vx * rgt[0] + R.vy * rgt[1];
+      const beta = Math.atan2(vl, Math.abs(vf) + 0.3);                          // sideslip: + = glider mod højre
+      const imm2 = Math.min(lw / 0.3, 2), sb = Math.sin(beta), cb = Math.cos(beta);
+      // Sidekraft Y = q S C_Y(φ, β): kant og sideslip er uafhængige tilstande (rapport 5.2).
+      // Kantens bidrag ligger allerede i den tiltede normal; her er sideslip-delen fra rail + finner.
+      // Fanger kanten: glider mod den nedsænkede rail. Glat funktion af (β, φ) i stedet for et spring.
+      const same = attached ? 1 / (1 + Math.exp(-(beta * Math.sign(th || 1)) / (3 * D2R))) : 0;
+      const catchK = 1 + P.CATCH_GAIN * Math.abs(spB) * same * Math.min(1, Math.abs(th) / (5 * D2R));
+      const fs = -q * P.SIDE_AREA * P.SIDE_CLA * sb * cb * imm2 * catchK * vent;
+      out.F[0] += fs * rgt[0]; out.F[1] += fs * rgt[1];
+      const dslip = q * (P.SIDE_AREA * P.CD_SLIP + P.BOARD_AREA * P.SLIP_PLATE * Math.abs(sb)) * sb * sb * imm2;
+      out.F[0] -= dslip * R.vx / V; out.F[1] -= dslip * R.vy / V; drag += dslip; out.Dslip = dslip;
+      out.Mz += -q * P.FIN_AREA * P.FIN_CLA * sb * cb * P.FIN_ARM * Math.sign(vf || 1) - P.YAW_C_W * V * R.r;
+      if (attached) {
+        const dz = P.PIVOT_DEAD * D2R, ex = Math.abs(beta) > dz ? beta - Math.sign(beta) * dz : 0;
+        out.Mz += -Math.max(-P.PIVOT_TAU_MAX, Math.min(P.PIVOT_TAU_MAX, P.PIVOT_K * ex));
+        const Rgeo = Lb * Lb / (8 * P.ROCKER_H);
+        out.rCarve = -Math.sign(vf || 1) * V * Math.sin(th) / (Rgeo * P.CARVE_SLIP);
+        const grip = Math.min(1, lw / (0.5 * Lb)) * Math.min(1, V / 4);
+        out.Mz += P.RIDER_IZZ * (out.rCarve - R.r) / P.CARVE_TAU * grip;          // carve authority (hydrodynamic gain, calibrated with RIDER_IZZ)
+      }
+      out.drag = drag; out.beta = beta;
+    }
+    return out;
+  }
+
+  sim.step = function () {
+    const dt = P.DT, R = sim.rider, C = sim.carrier, m = P.RIDER_MASS, L = sim.line;
+    // 1) Carrier: kinematisk, konstant hastighed langs kablet (inkl. buer om hjulene)
+    C.s += sim.cableSpeed * dt; placeCarrier();
+    // 1b) Trækpunkt: carrierens ophæng følger kablet med 2.-ordens eftergivelighed (ingen uendelig skarpe retningsskift)
+    { const T = sim.tow, w = 2 * Math.PI * P.HANGER_F, z = P.HANGER_ZETA;
+      const ax = w * w * (C.x - T.x) + 2 * z * w * (C.vx - T.vx), ay = w * w * (C.y - T.y) + 2 * z * w * (C.vy - T.vy);
+      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; }
+    // 2) Ønsket læn: rate-begrænset
+    const maxd = P.LEAN_RATE_DEG * D2R * dt, lim = P.LEAN_MAX_DEG * D2R;
+    const want = Math.max(-lim, Math.min(lim, sim.leanCmdIn * (sim.switchStance ? -1 : 1)));   // riding switch: the board frame is reversed
+    sim.leanCmd += Math.max(-maxd, Math.min(maxd, want - sim.leanCmd));
+    // Boardets akser
+    const hx = Math.cos(R.psi), hy = Math.sin(R.psi);
+    const fwd = [hx, hy, 0], rgt = [hy, -hx, 0], up = [0, 0, 1];
+    const sp = Math.sin(R.phi), cp = Math.cos(R.phi);
+    // Body axis: rolled about the board axis (lean/edge) and tilted back in the board's plane (fore–aft balance)
+    const st = Math.sin(R.theta), ct = Math.cos(R.theta);
+    const nrm = [ct * (cp * up[0] + sp * rgt[0]) - st * fwd[0], ct * (cp * up[1] + sp * rgt[1]) - st * fwd[1], ct * cp];
+    const BI = bodyInertia(P, R.leg, P.RIDER_MASS - P.BOARD_MASS);          // pose-dependent inertia (de Leva segments)
+    const Izz = BI.yaw + P.BOARD_YAW_I;
+    // 3) Linekraft (kun træk) i håndtaget
+    // benlængde-kommando (rate-begrænset)
+    const grabbing = sim.jump && sim.grab.type && sim.grab.reach > 0;
+    const lwant = grabbing ? P.GRAB_LEG : Math.max(P.LEG_MIN, Math.min(P.LEG_MAX, sim.legCmdIn)), lstep = P.LEG_RATE * dt;
+    const legPrev = sim.legCmd; sim.legCmd += Math.max(-lstep, Math.min(lstep, lwant - sim.legCmd)); const legCmdV = (sim.legCmd - legPrev) / dt;
+    const hH = R.leg + P.HANDLE_ABOVE_HIP + (R.hOff || 0);                   // hOff: arms raise/lower the handle (balance)
+    const hp = [R.x + hH * nrm[0], R.y + hH * nrm[1], R.z + hH * nrm[2]];
+    const TW = sim.tow;
+    let d = [TW.x - hp[0], TW.y - hp[1], TW.z - hp[2]];
+    const dist = Math.hypot(d[0], d[1], d[2]); d = [d[0] / dist, d[1] / dist, d[2] / dist];
+    let e = dist - P.LINE_LENGTH - R.arm;                                      // the arms extend the hands towards the carrier
+    const vh = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];   // håndtagets hastighed
+    let edot = (TW.vx - vh[0]) * d[0] + (TW.vy - vh[1]) * d[1] + (0 - vh[2]) * d[2];
+    const lineF = (e, ed) => (L.attached && e > 0) ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
+    let F = lineF(e, edot);
+    // 3a) Jump start: take off just before the line comes taut, so the jerk has a smaller Δv to deliver
+    if (L.attached && sim.jumpArmed && e < 0 && edot > 0.5 && -e / edot < P.JUMP_LEAD) {
+      const hl = Math.hypot(d[0], d[1]) || 1, m2 = R.vx * R.vx + R.vy * R.vy + R.vz * R.vz;
+      R.vx += P.JUMP_VF * d[0] / hl; R.vy += P.JUMP_VF * d[1] / hl; R.vz += P.JUMP_VZ;
+      sim.energy.muscleWork += 0.5 * m * (R.vx * R.vx + R.vy * R.vy + R.vz * R.vz - m2);   // the legs deliver the take-off energy
+      sim.jumpArmed = false; sim.out.startEvent = 'Jump start';
+    }
+    // 3b) Arms/shoulders: a force-limited, dissipative element in series with the line. Above ARM_YIELD the hands
+    //     travel towards the carrier (eccentric work, energy is not returned); at low load the rider pulls them back to the hip.
+    let dArm = 0;
+    if (L.attached) {
+      // During the start the whole body adds stroke (lean-back → upright, or sitting → standing); afterwards only the arms
+      if (sim.strokeMax > P.ARM_TRAVEL && Math.hypot(R.vx, R.vy) > 0.9 * sim.cableSpeed) sim.strokeMax = P.ARM_TRAVEL;
+      if (F > P.ARM_YIELD && R.arm < sim.strokeMax)
+        dArm = Math.min((F - P.ARM_YIELD) / (P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
+      else if ((F < P.ARM_RET_FRAC * P.ARM_YIELD || R.arm > sim.strokeMax) && R.arm > 0) dArm = -Math.min(R.arm, P.ARM_RET_V * dt);
+      if (dArm) { R.arm += dArm; e -= dArm; edot -= dArm / dt; F = lineF(e, edot); sim.energy.armWork = (sim.energy.armWork || 0) + F * dArm; }
+      // (work the line does on the hands relative to the body; absorbed by the arms, never reaches the body's kinetic energy)
+    }
+    const Fl = [F * d[0], F * d[1], F * d[2]];
+    // 4) Tyngde + luftdrag (på tyngdepunkt)
+    const Fw = [0, 0, 0];               // vandkræfter, angriber i boardet
+    const mb = P.BOARD_MASS, mu = m - mb;
+    const Fo = [0, 0, -mu * P.G];       // overkrop: tyngde + luftdrag (+ line)
+    Fw[2] -= mb * P.G;                  // boardets egen tyngde
+    const Va = Math.hypot(R.vx, R.vy, R.vz);
+    const cda = L.attached ? P.CDA_AIR : P.FALLEN_CDA;
+    const rho = (!L.attached && R.z < 0) ? P.RHO_WATER : P.RHO_AIR;
+    if (Va > 1e-6) { const q = 0.5 * rho * Va * cda; Fo[0] -= q * R.vx; Fo[1] -= q * R.vy; Fo[2] -= q * R.vz; }
+    // 5) Hydrodynamik: samlet i én model-funktion (rapport 13.3), så den senere kan udskiftes med et kalibreret kort
+    const WS = sim.waterAt(R.x, R.y, sim.t, Math.cos(R.psi), Math.sin(R.psi), 1.0);                                  // local water surface (chop + wake)
+    const depth = WS.eta - R.z, V = Math.hypot(R.vx, R.vy), inWater = depth > 0;
+    const wrel = R.vz - (WS.et + R.vx * WS.gx + R.vy * WS.gy);                // vertical velocity relative to the moving surface
+    const H = hydroWrench({ R, depth, V, inWater, wrel, attached: L.attached, fwd, rgt, up, sp, cp, hx, hy, F, m, dt, Ffwd: dot(Fl, fwd) });
+    sim._Nprev = H.lift || sim._Nprev;
+    for (let i = 0; i < 3; i++) Fw[i] += H.F[i];
+    let Mz = -(sim.jump ? P.YAW_C_AIR : P.YAW_C) * R.r + H.Mz;                   // in the air only aerodynamic yaw damping
+    const MrollW = inWater ? -P.ROLL_C_W * V * R.p : 0;
+    const { lift, drag, beta, rCarve, trim, lw, Df } = H;
+    // 5a) I luften: rideren drejer boardet ind mod flyveretningen før landing (fødder/hofter)
+    if (!inWater && L.attached && V > 2) {
+      // heading error to the nearest of straight or switch (twin-tip board): + = nose left of the flight direction
+      const e0 = Math.atan2(Math.sin(R.psi - Math.atan2(R.vy, R.vx)), Math.cos(R.psi - Math.atan2(R.vy, R.vx)));
+      const ba = Math.abs(e0) <= Math.PI / 2 ? e0 : e0 - Math.PI * Math.sign(e0);
+      // Spotting the landing: only when not spinning and already close to straight or switch; otherwise the spin runs free
+      if (!(sim.jump && (sim.spinIn || Math.abs(ba) > P.SPOT_DEG * D2R || (R.vz > 0 && Math.abs(R.r) > 1))))   // spot only on the way down
+        Mz += -Math.max(-P.PIVOT_TAU_MAX, Math.min(P.PIVOT_TAU_MAX, P.PIVOT_K * 2 * ba)) - 20 * R.r;
+    }
+    // Spin in the air: the only external yaw torque available is the line, via the handle held off to the side
+    if (sim.jump && L.attached && sim.spinIn) Mz += sim.spinIn * Math.min(P.SPIN_TAU_MAX, F * P.SPIN_LEVER);
+    // 5b) Obstakler: penalty-kontakt med normalkraft + Coulomb-friktion (angriber i boardet)
+    let contactName = '', Fc = 0;
+    if (L.attached && sim.obstaclesOn) for (const ob of sim.obs) {
+      const rx = R.x - ob.x, ry = R.y - ob.y;
+      const u = rx * ob.ax + ry * ob.ay, v = -rx * ob.ay + ry * ob.ax;
+      const hp_ = Math.abs(v) <= ob.halfW ? profileAt(ob.prof, u) : null;
+      if (!hp_ || R.z >= hp_[0]) { ob.inContact = false; continue; }
+      const pen = hp_[0] - R.z;
+      if (!ob.inContact && pen > P.STEP_MAX) {   // ramte en kant/side: kollision
+        L.attached = false; sim.out.fall = `Collision with ${ob.name}`; ob.inContact = false; break;
+      }
+      ob.inContact = true;
+      const sl = hp_[1], nl = Math.hypot(sl, 1);
+      const n = [-sl * ob.ax / nl, -sl * ob.ay / nl, 1 / nl];
+      const vn = R.vx * n[0] + R.vy * n[1] + R.vz * n[2];
+      const N = Math.max(0, P.OBS_K * pen / nl - P.OBS_C * vn);
+      const vt = [R.vx - vn * n[0], R.vy - vn * n[1], R.vz - vn * n[2]], vtl = Math.hypot(vt[0], vt[1], vt[2]);
+      const mu = ob.type === 'rail' ? P.MU_RAIL : P.MU_SLIDE;
+      for (let i = 0; i < 3; i++) Fw[i] += N * n[i] - (vtl > 1e-3 ? mu * N * vt[i] / vtl : 0);
+      contactName = ob.name; Fc += N;
+    }
+    // 5c) Start dock: carpet on a floating pontoon, low sliding friction (sliding start)
+    let onDock = false;
+    if (L.attached) {
+      const dk = dockAt(R.x, R.y);
+      if (dk && R.z < dk.h && (sim._onDock || dk.h - R.z < 0.12)) {        // only from above: under the pontoon there is no contact
+        const pen = dk.h - R.z, sl = dk.slope, nl = Math.hypot(sl, 1), ax = P.DOCK_DIR[0], ay = P.DOCK_DIR[1];
+        const n = [-sl * ax / nl, -sl * ay / nl, 1 / nl];
+        const vn = R.vx * n[0] + R.vy * n[1] + R.vz * n[2];
+        const N = Math.max(0, P.OBS_K * pen / nl - P.OBS_C * vn);
+        const vt = [R.vx - vn * n[0], R.vy - vn * n[1], R.vz - vn * n[2]], vtl = Math.hypot(vt[0], vt[1], vt[2]);
+        for (let i = 0; i < 3; i++) Fw[i] += N * n[i] - (vtl > 1e-3 ? P.MU_CARPET * N * vt[i] / vtl : 0);
+        Fc += N; onDock = N > 0; if (!contactName) contactName = 'start dock';
+      }
+    }
+    sim._onDock = onDock;
+    // Sitting start: stand up once the board is planing
+    if (sim.autoStand && L.attached && V > P.SIT_STAND_V) { sim.autoStand = false; sim.startShift = 0; sim.legBase = P.LEG_NOM; sim.out.startEvent = 'Standing up'; }
+    const supported = inWater || Fc > 0;
+
+    // 6) Roll (stift legeme om længdeaksen gennem tyngdepunktet)
+    let tau = 0;
+    if (L.attached) {
+      const hcg = mu * (R.leg + P.UPPER_CG) / m;                                                   // samlet CG over board
+      const rB = [-hcg * nrm[0], -hcg * nrm[1], -hcg * nrm[2]];                                     // board rel. CG
+      const k = R.leg + P.HANDLE_ABOVE_HIP - hcg, rH = [k * nrm[0], k * nrm[1], k * nrm[2]];                               // håndtag rel. CG
+      const tExt = dot(cross(rB, Fw), fwd) + dot(cross(rH, Fl), fwd);
+      tau = Math.max(-P.LEAN_TAU_MAX, Math.min(P.LEAN_TAU_MAX, P.LEAN_KP * (sim.leanCmd - R.phi) - P.LEAN_KD * R.p));
+      // I luften kan riderens muskler ikke ændre kroppens samlede impulsmoment (rapport 6.2): kun linens moment og
+      // luftdæmpning virker på kroppens roll. Rideren kan i stedet kante BOARDET i forhold til kroppen med anklerne.
+      const tRoll = supported ? tExt + tau - P.ROLL_C * R.p + MrollW : dot(cross(rH, Fl), fwd) - P.ROLL_C * R.p;
+      const aRate = P.ANKLE_RATE * D2R * dt, aMax = P.ANKLE_MAX * D2R;
+      const aWant = supported ? 0 : Math.max(-aMax, Math.min(aMax, -R.phi));        // i luften: fladt board til landing
+      R.ankle += Math.max(-aRate, Math.min(aRate, aWant - R.ankle));
+      R.p += tRoll / (BI.roll + P.ROLL_I_BOARD) * dt; R.phi += R.p * dt;
+    } else { R.p = 0; R.phi += (Math.PI / 2 * Math.sign(R.phi || 1) - R.phi) * Math.min(1, 3 * dt); }
+    // 6b) Fore–aft balance (body pitch in the board's plane). The water reaction must pass through the centre of mass:
+    //     the rider aims for θ_ref = atan(backward water force / normal force), offset by the foot-pressure input, and
+    //     corrects by moving the centre of pressure between the bindings (limited to ±COP_MAX).
+    let copCmd = 0;
+    if (L.attached) {
+      const hcg = mu * (R.leg + P.UPPER_CG) / m;
+      const rB = [-hcg * nrm[0], -hcg * nrm[1], -hcg * nrm[2]], k = hH - hcg, rH = [k * nrm[0], k * nrm[1], k * nrm[2]];
+      const Mline = dot(cross(rH, Fl), rgt), Mw = dot(cross(rB, Fw), rgt);
+      const Fperp = dot(Fl, fwd) * Math.cos(R.theta) + Fl[2] * Math.sin(R.theta);      // line force across the body axis (in the board plane)
+      const Nsup = Math.max(0, dot(Fw, nrm)), Dback = Math.max(0, -dot(Fw, fwd));
+      const shift = Math.max(-P.FOOT_SHIFT_MAX, Math.min(P.FOOT_SHIFT_MAX, sim.footShift + (sim.startShift || 0)));
+      // Equilibrium: the water force, seen in the fore–aft plane of the rolled body, points through the centre of mass
+      const nR = [cp * up[0] + sp * rgt[0], cp * up[1] + sp * rgt[1], cp], Fn = dot(Fw, nR);
+      const thEq = Math.atan2(Dback, Math.max(Fn, 0.6 * m * P.G));
+      const want = Math.max(-10 * D2R, Math.min(P.PITCH_REF_MAX * D2R, thEq - shift / Math.max(hcg, 0.4)));
+      sim._thRef = (sim._thRef ?? want) + (want - (sim._thRef ?? want)) * Math.min(1, dt / P.PITCH_REF_TAU);
+      const thRef = sim._thRef;
+      let tp = 0;
+      // Sitting in the water before the pull: the life vest and the water behind the rider carry the body, so the
+      // balance is not limited to the bindings (no pitch fall until the rider has stood up)
+      const sitting = sim.autoStand && R.z < 0;
+      const tWant = P.PITCH_KP * (thRef - R.theta) - P.PITCH_KD * R.q;
+      if (sitting) { tp = tWant; copCmd = 0; }
+      else if (supported) {
+        // Ankle strategy: move the centre of pressure along the board between the bindings (changes the board's trim);
+        // the moment is COP × vertical support force. Hip strategy: swing legs and board under the body with the hip
+        // muscles (Horak & Nashner 1986), limited torque.
+        const Nc = Math.max(0, Fw[2]);
+        const tc = Math.max(-Nc * P.COP_MAX, Math.min(Nc * P.COP_MAX, tWant)); copCmd = Nc > 30 ? tc / Nc : 0;
+        tp = tc + Math.max(-P.HIP_TAU_MAX, Math.min(P.HIP_TAU_MAX, tWant - tc));
+      }
+      // What the feet cannot deliver, the arms try with the line: raise the handle to tip forward, lower it to tip back
+      const rest = tWant - tp, hWant = Math.abs(Fperp) > 50 ? Math.max(-P.HANDLE_RANGE, Math.min(P.HANDLE_RANGE, -rest / Fperp)) : 0;
+      R.hOff = (R.hOff || 0) + Math.max(-P.HANDLE_RATE * dt, Math.min(P.HANDLE_RATE * dt, hWant - (R.hOff || 0)));
+      const Mp = (supported ? Mline + Mw + tp : Mline) - P.PITCH_C * R.q;
+      R.q += Mp / (BI.pitch + P.PITCH_I_BOARD) * dt; R.theta += R.q * dt;
+      if (!supported) R.theta += (0 - R.theta) * 0;                          // in the air: angular momentum is kept (report 6.2)
+    } else { R.q = 0; R.theta *= 1 - Math.min(1, 3 * dt); }
+    sim._cop = copCmd;
+    // 7) Translation + yaw (semi-implicit Euler)
+    // Ben: kraft langs kropsaksen n mellem board og overkrop (servo + mekaniske stop)
+    let Fleg = 0;
+    if (L.attached) {
+      Fleg = mu * P.G * nrm[2] + P.LEG_K * (sim.legCmd - R.leg) + P.LEG_C * (legCmdV - R.legv);   // feedforward + servo om ønsket bane
+      const Fcap = legForceMax(P, R.leg, R.legv);                           // knee torque × geometry × force–velocity
+      Fleg = Math.max(P.LEG_F_MIN, Math.min(Fcap, Fleg));
+      // Pop = maximal push: full force until the legs are straight (not servo controlled)
+      if (sim.legCmdIn >= P.LEG_MAX - 1e-3 && R.leg < P.LEG_MAX - 0.04 && R.legv > -0.3 && (inWater || Fc > 0)) Fleg = Fcap;
+    }
+    if (R.leg < P.LEG_MIN) Fleg += P.LEG_STOP_K * (P.LEG_MIN - R.leg) - P.LEG_STOP_C * Math.min(0, R.legv);
+    if (R.leg > P.LEG_MAX) Fleg -= P.LEG_STOP_K * (R.leg - P.LEG_MAX) + P.LEG_STOP_C * Math.max(0, R.legv);
+    const Fu = [Fl[0] + Fo[0], Fl[1] + Fo[1], Fl[2] + Fo[2]];        // på overkrop
+    const Fb = Fw;                                                   // på board
+    const Fun = dot(Fu, nrm), Fbn = dot(Fb, nrm);
+    // tværs af n: stift koblet (samlet masse); langs n: to masser med benkraft imellem
+    // Board + medsvingende vand (added mass). Asymmetrisk: vandet kan ikke holde boardet fast, når det accelererer
+    // op og ud (ingen sug ved udtræden, rapport 7.6) — så bruges kun boardets egen masse.
+    const aOut = (Fbn - Fleg) / mb, exiting = aOut > 0 && R.vz > -0.05;
+    const mbEff = mb + (L.attached && !exiting ? H.ma : 0);
+    const aN_b = (Fbn - Fleg) / mbEff;
+    const aPerp = [0, 1, 2].map(i => ((Fu[i] - Fun * nrm[i]) + (Fb[i] - Fbn * nrm[i])) / m);
+    const legAcc = (Fleg + Fun) / mu - aN_b;
+    // Effekt-regnskab (rapport 8): kablets effekt og arbejde fra vand, luft og muskler
+    const vU = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];
+    const Pcable = F * (d[0] * TW.vx + d[1] * TW.vy);                            // T q·v_trækpunkt
+    const Pline = dot(Fl, vU), Pwater = (Fw[0]) * R.vx + (Fw[1]) * R.vy + (Fw[2] + mb * P.G) * R.vz;
+    const Pair = (Fo[0]) * vU[0] + (Fo[1]) * vU[1] + (Fo[2] + mu * P.G) * vU[2], Pmus = Fleg * R.legv;
+    const EN = sim.energy; EN.lineWork += Pline * dt; EN.waterWork += Pwater * dt; EN.airWork += Pair * dt; EN.muscleWork += Pmus * dt;
+    R.vx += (aPerp[0] + aN_b * nrm[0]) * dt; R.vy += (aPerp[1] + aN_b * nrm[1]) * dt; R.vz += (aPerp[2] + aN_b * nrm[2]) * dt;
+    R.legv += legAcc * dt; R.leg += R.legv * dt;
+    R.x += R.vx * dt; R.y += R.vy * dt; R.z += R.vz * dt;
+    if (L.attached && R.leg < P.LEG_MIN - 0.02 && R.legv < -P.BOTTOM_OUT_V) { L.attached = false; sim.out.fall = `Knees bottomed out (${(-R.legv).toFixed(1)} m/s)`; }
+    sim._Izz = P.YAW_I_FROM_BODY ? Izz : P.RIDER_IZZ;
+    if (sim.jump && sim._IzzPrev) R.r *= sim._IzzPrev / sim._Izz;               // in the air: I·ω conserved when tucking/extending
+    sim._IzzPrev = sim._Izz;
+    R.r += Mz / sim._Izz * dt; R.psi += R.r * dt;
+    if (R.z < -1.5) { R.z = -1.5; R.vz = Math.max(0, R.vz); }
+    // 8) Fald: håndtag glipper ved ryk, eller for meget læn
+    if (L.attached) {
+      const relN = sim.releaseN * (sim.grab.reach > 0 ? P.GRAB_GRIP : 1);          // one hand off the handle while grabbing
+      L.over = F > relN ? L.over + dt : 0;
+      if (L.over > P.RELEASE_TIME) { L.attached = false; sim.out.fall = `Lost the cable: ${F.toFixed(0)} N > ${(relN / 1000).toFixed(1)} kN limit${relN < sim.releaseN ? ' (one hand)' : ''}`; }
+      else if (Math.abs(R.phi) > P.FALL_DEG * D2R) { L.attached = false; sim.out.fall = `Fell: lean ${(R.phi / D2R).toFixed(0)}°`; }
+      else if (R.theta > P.PITCH_FALL_BACK * D2R && !sim.autoStand) { L.attached = false; sim.out.fall = `Sat down: leaned back ${(R.theta / D2R).toFixed(0)}°`; }
+      else if (R.theta < -P.PITCH_FALL_FWD * D2R) { L.attached = false; sim.out.fall = `Pulled over the nose (${(-R.theta / D2R).toFixed(0)}° forward)`; }
+    }
+    // 8b) Hop: luftfase = hverken i vand eller på obstakel. Mål tid og højde, tjek landing.
+    const airborne = L.attached && !supported && R.z - WS.eta > 0.02;
+    // Pre-wind while still supported (Q/R held before the lip)
+    if (!airborne) {
+      if (sim.spinIn && supported) { sim.windDir = sim.spinIn; sim.windup = Math.min(1, sim.windup + dt / P.SPIN_WIND_T); }
+      else sim.windup = Math.max(0, sim.windup - dt / 0.3);
+    }
+    if (airborne && !sim.jump) {
+      sim.jump = { t0: sim.t, hmax: R.z, from: sim.out.contact || 'water', rot: 0, grabs: {} };
+      if (sim.windup > 0.05) R.r += sim.windDir * P.SPIN_POP * sim.windup;       // take-off twist against the lip
+      sim.windup = 0;
+    }
+    // Grabs (only in the air): the hand travels to the nose/tail, then the grab time counts
+    const gIn = sim.jump ? sim.grabIn : 0, G = sim.grab;
+    if (gIn && (G.type === gIn || G.reach <= 0)) { G.type = gIn; G.reach = Math.min(1, G.reach + dt / P.GRAB_REACH); }
+    else { G.reach = Math.max(0, G.reach - dt / 0.12); if (G.reach <= 0) G.type = 0; }
+    if (sim.jump) {
+      sim.jump.hmax = Math.max(sim.jump.hmax, R.z); sim.jump.rot += R.r * dt;
+      if (G.type && G.reach >= 1) { const k = G.type > 0 ? 'Nose grab' : 'Tail grab'; sim.jump.grabs[k] = (sim.jump.grabs[k] || 0) + dt; }
+      if (!airborne) {
+        const dur = sim.t - sim.jump.t0, J = sim.jump;
+        if (dur > 0.15) sim.out.lastAir = { dur, hmax: J.hmax, from: J.from, vz: R.vz };
+        if (L.attached) {
+          const vh = Math.atan2(R.vy, R.vx), e = Math.atan2(Math.sin(R.psi - vh), Math.cos(R.psi - vh)), off = Math.min(Math.abs(e), Math.PI - Math.abs(e));
+          if (R.vz < -P.LAND_VZ_MAX) { L.attached = false; sim.out.fall = `Hard landing: ${(-R.vz).toFixed(1)} m/s vertical`; }
+          else if (G.reach > 0.3) { L.attached = false; sim.out.fall = `Landed still holding the ${G.type > 0 ? 'nose' : 'tail'}`; }
+          else if (Math.hypot(R.vx, R.vy) > 2 && off > P.LAND_TWIST_MAX * D2R) { L.attached = false; sim.out.fall = `Landed sideways (${(off / D2R).toFixed(0)}° off)`; }
+          else {
+            if (Math.abs(e) > Math.PI / 2) {                                        // landed switch: twin-tip board, flip the board frame
+              R.psi += Math.PI; sim.switchStance = !sim.switchStance;
+              R.phi = -R.phi; R.p = -R.p; R.ankle = -R.ankle; R.theta = -R.theta; R.q = -R.q; sim.leanCmd = -sim.leanCmd; sim._cop = -(sim._cop || 0); sim._thRef = undefined;
+            }
+            const deg = Math.round(Math.abs(J.rot) / Math.PI) * 180, grabs = Object.entries(J.grabs).filter(([, t]) => t >= P.GRAB_MIN).map(([k]) => k);
+            const name = [deg ? `${deg} ${J.rot > 0 ? 'left' : 'right'}` : '', ...grabs].filter(Boolean).join(' + ');
+            if (dur > 0.15) sim.out.lastTrick = { name: name || 'Straight air', deg, dir: Math.sign(J.rot), grabs, dur, t: sim.t, switchLanding: sim.switchStance };
+          }
+        }
+        sim.jump = null;
+      }
+    }
+    // 9) Output
+    L.F = F; L.stretch = e; L.slack = !L.attached || e <= 0; L.hp = hp;
+    const o = sim.out;
+    o.V = Math.hypot(R.vx, R.vy, R.vz); o.Vc = Math.hypot(C.vx, C.vy);
+    o.angle = Math.acos(Math.max(-1, Math.min(1, d[0] * C.tx + d[1] * C.ty))) / D2R; // 0° = lige bag carrier (3D)
+    o.inWater = inWater; o.drag = drag; o.lift = lift; o.tau = tau;
+    o.warn = F > P.WARN_FRAC * sim.releaseN; o.dock = onDock; o.arm = R.arm; if (sim.t < 15) o.startPeak = Math.max(o.startPeak || 0, F); o.contact = contactName; o.Fc = Fc; o.air = airborne; o.Fleg = Fleg; o.beta = beta; o.rCarve = rCarve; o.trim = trim; o.lw = lw; o.Df = Df; o.Dw = drag + lift * Math.sin(trim);
+    o.pitch = H.pitch; o.theta = R.theta; o.cop = sim._cop; o.Ilean = BI.roll; o.beta_knee = BI.beta; o.FlegMax = legForceMax(P, R.leg, R.legv); o.lp = H.lp; o.ma = H.ma; o.slam = H.slam; o.Cv = H.Cv; o.Re = H.Re; o.Pcable = Pcable; o.Pline = Pline;
+    o.Dpress = H.Dpress || 0; o.Dres = H.Dres || 0; o.Dslip = H.Dslip || 0; o.Dplow = H.Dplow || 0; o.vent = H.vent ?? 1; o.xLine = H.xLine || 0;
+    o.Fr = V / Math.sqrt(P.G * P.BOARD_LEN); o.We = P.RHO_WATER * V * V * P.BOARD_LEN / 0.072; o.stretch = e; o.ankle = R.ankle;
+    // Mekanisk energi (kinetisk + potentiel + elastisk i linen) til energitjek
+    const vU2 = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];
+    const Ek = 0.5 * mb * (R.vx * R.vx + R.vy * R.vy + R.vz * R.vz) + 0.5 * mu * dot(vU2, vU2);
+    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
+    o.E = Ek + Ep + Ee; if (EN.E0 === null) EN.E0 = o.E;
+    o.Eres = o.E - EN.E0 - (EN.lineWork + EN.waterWork + EN.airWork + EN.muscleWork);
+    // Wake sampling (planing only)
+    if (inWater && L.attached && V > 4 && sim.t - sim._trailT >= P.WAKE_DT) {
+      const wp = wakeParams(V); sim._trailT = sim.t;
+      sim.trail.push({ x: R.x, y: R.y, t: sim.t, ux: R.vx / V, uy: R.vy / V, V, N: Math.max(0, H.lift || 0), tp: wp.tp, lam: wp.lam });
+      while (sim.trail.length && sim.t - sim.trail[0].t > P.WAKE_TMAX) sim.trail.shift();
+    }
+    o.eta = WS.eta; o.wrel = wrel; o.Hs = sim.chop.Hs; o.Tp = sim.chop.Tp;
+    sim.t += dt;
+  };
+  sim.reset();
+  return sim;
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, buildPath, pathAt, profileAt, bodyInertia, legForceMax, kneeGeom };
+
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+  /* Enkelt, bevidst mørkt instrumentlook (havnevand om aftenen) */
+  :root {
+    color-scheme: dark;
+    --ground: #101c24;
+    --panel: #162631;
+    --panel-2: #1c303d;
+    --rule: #2a4252;
+    --ink: #e2ebee;
+    --ink-2: #a9bcc5;
+    --muted: #7d939e;
+    --accent: #e9b949;      /* carrier-gul */
+    --accent-ink: #1a1405;
+    --warn: #f08a5d;
+    --ok: #6cc59a;
+    --grid: rgba(169,188,197,.12);
+    --font: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  #tblDiag th, #tblDiag td { white-space: normal; } #tblDiag td.n { white-space: nowrap; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  html, body { height: 100%; }
+  body { background: var(--ground); color: var(--ink); font: 14px/1.4 var(--font); margin: 0; }
+  .app { height: 100%; display: grid; grid-template-columns: minmax(0,1fr) 360px; }
+  .view { position: relative; min-height: 0; background: #0b141a; }
+  .view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .hud { position: absolute; left: 12px; top: 12px; max-width: calc(100% - 320px); display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+  .chip { font: 500 12px/1 var(--mono); padding: 5px 8px; border-radius: 3px; background: rgba(16,28,36,.82); border: 1px solid var(--rule); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .chip.on-warn { border-color: var(--warn); color: var(--warn); }
+  .chip.on-ok { border-color: var(--ok); color: var(--ok); }
+  .camsw { position: absolute; right: 12px; top: 12px; display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .camsw button { border: 0; border-radius: 0; background: rgba(16,28,36,.88); }
+  .camsw button + button { border-left: 1px solid var(--rule); }
+  .camsw button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .edgepad { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: space-between; pointer-events: none; }
+  .edgepad button { pointer-events: auto; min-width: 88px; padding: 12px 14px; background: rgba(16,28,36,.88); user-select: none; -webkit-user-select: none; }
+  .kneepad { display: flex; gap: 6px; }
+  .trickpad { position: absolute; left: 50%; transform: translateX(-50%); bottom: 64px; display: flex; gap: 6px; }
+  .trickpad button { padding: 9px 11px; background: rgba(16,28,36,.88); user-select: none; -webkit-user-select: none; font-size: 13px; }
+  .trickpad button.held { background: var(--accent); color: var(--accent-ink); }
+  .edgepad button.held { background: var(--accent); color: var(--accent-ink); }
+  .scalebar { position: absolute; left: 12px; bottom: 64px; font: 11px var(--mono); color: var(--ink-2); background: rgba(16,28,36,.82); padding: 6px 8px; border-radius: 3px; }
+  .scalebar i { display: block; height: 4px; border: 1px solid var(--ink-2); border-top: 0; margin-bottom: 3px; }
+
+  .panel { background: var(--panel); border-left: 1px solid var(--rule); overflow-y: auto; padding-inline: 16px; padding-block: 14px 24px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font: 600 19px/1.15 var(--font); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  h2 { font: 600 11px/1 var(--font); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
+  button, select { font: 500 13px/1 var(--font); color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 11px; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--ink-2); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 78px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .field { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+  .field label { color: var(--ink-2); font-size: 13px; }
+  .field output { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+  .ticks { grid-column: 1 / -1; display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin-top: -2px; }
+
+  .charts { display: grid; gap: 10px; }
+  .chart { background: var(--ground); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 8px 4px; }
+  .chart header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .chart .t { font-size: 12.5px; color: var(--ink-2); }
+  .chart .v { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .chart canvas { display: block; width: 100%; height: 74px; margin-top: 3px; cursor: crosshair; }
+  #chartsTop .chart canvas { height: 120px; }
+
+  details { border-top: 1px solid var(--rule); padding-top: 10px; }
+  summary { cursor: pointer; font: 600 11px/1 var(--font); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  .tbl { overflow-x: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+  .tag { font: 500 10.5px var(--mono); padding: 2px 5px; border-radius: 2px; border: 1px solid; }
+  .tag.m { color: var(--ok); border-color: currentColor; }
+  .tag.a { color: var(--accent); border-color: currentColor; }
+  .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; max-width: 60ch; }
+  kbd { font: 11px var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--ink-2); }
+
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; }
+    .panel { border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
+    .hud { top: 54px; max-width: calc(100% - 24px); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="view" id="view">
+    <div class="hud" id="hud" aria-live="off">
+      <span class="chip" id="hudT">t 0.00 s</span>
+      <span class="chip" id="hudMode">▶ 1×</span>
+      <span class="chip" id="hudLine">line slack</span>
+      <span class="chip" id="hudPhase">in water</span>
+      <span class="chip" id="hudEdge">lean 0°</span>
+      <span class="chip" id="hudCoach" hidden>corner</span>
+      <span class="chip" id="hudWater">trim 0°</span>
+      <span class="chip on-warn" id="hudFall" hidden>fall</span>
+      <span class="chip" id="hudJump" hidden>jump</span>
+      <span class="chip" id="hudNext" hidden>next</span>
+      <span class="chip" id="hudLegend" hidden><span style="color:#e23b2e">▶</span> board heading</span>
+    </div>
+    <div class="camsw" role="group" aria-label="Camera">
+      <button id="camOrbit" aria-pressed="false">Orbit</button>
+      <button id="camFollow" aria-pressed="true">Follow rider</button>
+      <button id="camTop" aria-pressed="false">Top-down</button>
+      <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
+    </div>
+    <div class="scalebar" id="scalebar" hidden><i id="scaleI" style="width:100px"></i><span id="scaleT">50 m</span></div>
+    <div class="trickpad" aria-label="Tricks">
+      <button id="trSpinL" aria-label="Spin left (hold, Q)">⟲ Q</button><button id="trNose" aria-label="Nose grab (hold, W)">Nose W</button><button id="trTail" aria-label="Tail grab (hold, S)">Tail S</button><button id="trSpinR" aria-label="Spin right (hold, R)">R ⟳</button>
+    </div>
+    <div class="edgepad">
+      <button id="edgeL" aria-label="Lean left (hold)">◀ Lean</button>
+      <span class="kneepad"><button id="legDn" aria-label="Bend knees (hold)">▼ Crouch</button><button id="legUp" aria-label="Extend/pop (hold)">▲ Pop</button></span>
+      <button id="edgeR" aria-label="Lean right (hold)">Lean ▶</button>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div>
+      <h1>Copenhagen Cable Park Simulator</h1>
+      <div class="sub">Kraftværksvej 24 · 6 towers · 1 carrier · 1 rider · physics 240 Hz</div>
+    </div>
+
+    <section>
+      <h2>Time</h2>
+      <div class="row">
+        <button class="primary" id="btnPlay">Pause</button>
+        <button id="btnStep" title="One physics step (4.17 ms)">Step</button>
+        <button id="btnStep24" title="24 steps (0.1 s)">Step 0.1 s</button>
+        <select id="selSlow" aria-label="Time scale">
+          <option value="1">1×</option>
+          <option value="0.5">0.5×</option>
+          <option value="0.25">0.25×</option>
+          <option value="0.1">0.1×</option>
+        </select>
+        <button id="btnReset">Reset</button>
+      </div>
+    </section>
+
+    <section aria-label="Line tension">
+      <div class="charts" id="chartsTop"></div>
+    </section>
+
+    <section class="field">
+      <label for="rngSpeed">Cable speed</label><output id="outSpeed">30 km/h</output>
+      <input type="range" id="rngSpeed" min="20" max="35" step="1" value="30">
+      <div class="ticks"><span>20</span><span>25</span><span>30</span><span>35 km/h</span></div>
+    </section>
+
+    <section class="field">
+      <label for="rngWind">Wind (chop on the water)</label><output id="outWind">4 m/s</output>
+      <input type="range" id="rngWind" min="0" max="10" step="1" value="4">
+      <div class="ticks"><span>0</span><span>3</span><span>6</span><span>10 m/s</span></div>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0" id="noteWind">Wind from WSW over ≈250 m of open water. Wave height and period follow the fetch-limited JONSWAP relations.</p>
+    </section>
+
+    <section class="field">
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
+      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
+    </section>
+
+    <section class="field">
+      <label for="rngFoot">Foot pressure (weight back ↔ forward)</label><output id="outFoot">0 cm</output>
+      <input type="range" id="rngFoot" min="-15" max="15" step="1" value="0">
+      <div class="ticks"><span>−15 cm back</span><span>0</span><span>forward +15 cm</span></div>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Moves the load on the board. Trim, wetted length and centre of pressure follow from the moment balance: weight back lifts the nose and adds trim and drag; weight forward gives a long, flat contact.</p>
+    </section>
+
+    <section class="field">
+      <label for="selStart">Start technique (applies on Reset)</label>
+      <select id="selStart" aria-label="Start technique"><option value="slide" selected>Sliding start (carpet dock)</option><option value="jump">Jump start (off the dock)</option><option value="sit">Sitting start (in the water)</option></select>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">The start jerk is set by momentum: the rider must go from 0 to cable speed (Δp ≈ m·Δv). Sliding: low carpet friction, but the full Δv. Jump: take-off just before the pull, so Δv is ≈2.6 m/s smaller. Sitting: deep squat, handle at the hips; rising to standing gives a long stroke that absorbs the jerk. In all three the arms and body yield above ≈0.95 kN.</p>
+    </section>
+
+    <section class="field">
+      <label for="rngRelease">Release limit (lose the cable above)</label><output id="outRelease">1.5 kN</output>
+      <input type="range" id="rngRelease" min="0.8" max="3" step="0.1" value="1.5">
+      <div class="ticks"><span>0.8</span><span>1.5</span><span>2.2</span><span>3.0 kN</span></div>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">If the line force stays above this limit for more than 30 ms, you lose the handle, which counts as a fall (as when you hit an obstacle). The warning level is 80 % of the limit.</p>
+    </section>
+
+    <section class="field">
+      <label for="chkObs">Obstacles active (contact and collision)</label><input type="checkbox" id="chkObs" checked style="accent-color:var(--accent);width:18px;height:18px">
+    </section>
+
+    <section>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Instruments</h2>
+        <label class="sr-only" for="selWin">Time window</label>
+        <select id="selWin" aria-label="Time window for charts"><option value="20">20 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></div>
+      <div class="charts" id="charts"></div>
+    </section>
+
+    <details>
+      <summary>Park layout · measured vs. assumed</summary>
+      <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> (Google Earth standard layer dated 6/9/2023) from the obstacle analysis of 25 Sep 2026: O1–O7 with their sub-contours and measured axes (O1 20.8 m, O2 19.6 m, O5 14.7 m, O7 21.2 m in Earth). Positions have ≈5–10 m absolute uncertainty. The unconfirmed dark candidate X1 is left out. The analysis gives no heights or product types, so types follow its planform reading (e.g. O3 kicker-like, O6 ramp section) and all heights are assumed typical values. The 2026 history layer (H1–H7) is not used. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+    </details>
+
+    <details id="diagBox">
+      <summary>Diagnostics (live) · report 13.7</summary>
+      <div class="tbl"><table id="tblDiag"><tbody></tbody></table></div>
+      <p class="note">All internal channels, so the simulator can be checked rather than just "look right": line tension, cable power, water-force components, wetted area, centre of pressure, dimensionless numbers, energy balance and contact state.</p>
+    </details>
+
+    <details>
+      <summary>Physics from the report · validation</summary>
+      <div class="note" style="max-width:none">
+        <p>The model has been checked against the report section by section (1–19 and appendices). It follows "Physics and Simulation of a Cable-Park Wakeboard Rider" and sits between levels M2 and M3: rider and board with translation, yaw, roll, a reduced-coordinate multi-body rider (knees as two-link legs with torque limits, fore–aft body lean with ankle and hip balance strategies, arms that raise/lower and yield the handle, pose-dependent de Leva segment inertia), a unilateral line, one water-model function throughout, and a moving water surface (wind chop + own wake).</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Report requirement</th><th>In the simulator</th></tr></thead>
+          <tbody>
+            <tr><td>Unilateral line T = max(0, k(l−L₀)+c·dl/dt)</td><td>Yes, plus force-limited damping</td></tr>
+            <tr><td>Rider speed ≠ cable speed (swing around the carrier)</td><td>Yes, speed is never clamped</td></tr>
+            <tr><td>Elevated tow point, vertical line component</td><td>Yes, 3D line to a 9 m cable</td></tr>
+            <tr><td>Carrier compliance in corners</td><td>Yes, 2nd-order hanger (1.5 Hz)</td></tr>
+            <tr><td>Multi-body rider (report 6: body as linked segments)</td><td>Yes (reduced coordinates): leg force = 2·τ_knee(β)/|dℓ/dβ| × hip/ankle synergy, linear force–velocity (V0 3.5 m/s); fore–aft lean with COP limited to the bindings plus hip strategy; segment inertia from de Leva (1996)</td></tr>
+            <tr><td>Water surface (report 11: waves)</td><td>Yes: fetch-limited JONSWAP chop (8 components, board-length averaged) and the board's own wake at the Mach-like angle φ ≈ 0.224/Fr; heave, slamming and incidence use the vertical speed relative to the moving surface</td></tr>
+            <tr><td>Start jerk (impulse–momentum, Δp = m·Δv)</td><td>Yes: three start techniques (sliding on carpet μ 0.12, jump start, sitting start) from the start dock</td></tr>
+            <tr><td>Series compliance: rope + arms + body</td><td>Yes: rope spring plus a force-limited, dissipative arm/body stroke (yields above 0.95 kN; 0.45 m arms, +0.30 m standing / +0.85 m sitting during the start)</td></tr>
+            <tr><td>Losing the handle</td><td>Yes: adjustable release limit (default 1.5 kN, &gt;30 ms) = fall</td></tr>
+            <tr><td>Savitsky C<sub>L0</sub>, λ, C<sub>V</sub></td><td>Yes, lift ⟂ to the bottom (pressure drag N·sin τ)</td></tr>
+            <tr><td>ITTC-57 friction + residual (spray/3D)</td><td>Yes, S<sub>w</sub> = l<sub>w</sub>b/(cos τ·cos φ)</td></tr>
+            <tr><td>Rocker: α(x) = θ + dr/dx</td><td>Yes, pitch = τ<sub>eff</sub> + 4h(L−l<sub>w</sub>)/L²</td></tr>
+            <tr><td>Foot pressure controls pitch (6.3), centre of pressure</td><td>Yes, trim solved from moment balance with Savitsky's l<sub>p</sub></td></tr>
+            <tr><td>Edge: N ≈ W/cos φ, F<sub>y</sub> ≈ W·tan φ</td><td>Yes, follows from the tilted normal</td></tr>
+            <tr><td>Edge and sideslip as separate states</td><td>Yes, C<sub>Y</sub>(φ, β)</td></tr>
+            <tr><td>Added mass + slamming on landing</td><td>Yes, m<sub>a</sub> = ρπb²l<sub>w</sub>/8, asymmetric (no suction)</td></tr>
+            <tr><td>Displacement → planing at start</td><td>Yes, hydrostatics + plough drag that vanishes at C<sub>V</sub> > 2</td></tr>
+            <tr><td>Energy and power accounting</td><td>Yes, cable power T·q·v<sub>c</sub> (chart) and energy residual</td></tr>
+            <tr><td>Line moment (3.1, 7.1): the line acts at the hands</td><td>Yes: roll moment about the COM; the pitch moment moves the centre of pressure forward (80 % offset by leaning back)</td></tr>
+            <tr><td>Dynamic incidence α = θ + dr/dx + w/U (4.6)</td><td>Yes, heave velocity enters the lift</td></tr>
+            <tr><td>Ventilation and loss of wetted area at deep edge (4.4, 5.7)</td><td>Yes, smooth loss of lift/side force from 45° edge</td></tr>
+            <tr><td>Rotation rates in the water forces (4.8: p/U, r/U)</td><td>Yes, roll and yaw damping ∝ speed</td></tr>
+            <tr><td>Internal torques do not change angular momentum in flight (6.2)</td><td>Yes: body roll is driven only by the line in the air; the board is edged with the ankles</td></tr>
+            <tr><td>Smooth coefficients without jumps (13.6)</td><td>Yes, deadrise clamp and "catching an edge" are smooth functions</td></tr>
+            <tr><td>Observability: log all channels (13.7)</td><td>Yes, the "Diagnostics (live)" panel</td></tr>
+            <tr><td>Sensitivity analysis (17)</td><td>Yes, in the validation script (±20 % per parameter)</td></tr>
+            <tr><td>Motor/cable compliance (10.2)</td><td>No: cable speed is constant (report: add only if measurements show deviations)</td></tr>
+            <tr><td>Full pitch dynamics, flexible board, strip theory, CFD (M3–M5)</td><td>No: pitch is quasi-static (τ = 0.08 s), the board is rigid</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl"><table>
+          <thead><tr><th>Validation (headless)</th><th>Report</th><th>Simulator</th></tr></thead>
+          <tbody>
+            <tr><td>Straight, 30 km/h, 18.5 m line, 10 m cable: T</td><td class="n">142 N</td><td class="n">171 N (+25 N air drag)</td></tr>
+            <tr><td>Load on the board</td><td class="n">716 N</td><td class="n">704 N</td></tr>
+            <tr><td>λ / wetted length</td><td class="n">2.02 / 0.87 m</td><td class="n">2.36 / 1.01 m</td></tr>
+            <tr><td>Trim (report: prescribed 5°)</td><td class="n">5°</td><td class="n">4.4° (computed)</td></tr>
+            <tr><td>Progressive edge to 38° and release: peak speed</td><td class="n">44 km/h*</td><td class="n">46.1 km/h</td></tr>
+            <tr><td>Same manoeuvre: peak T</td><td class="n">706 N*</td><td class="n">1099 N (arms yield)</td></tr>
+            <tr><td>Time step 1/240 → 1/960 s (peak T)</td><td class="n">must converge</td><td class="n">1099 → 1102 N</td></tr>
+            <tr><td>Energy residual over a 110 s lap</td><td class="n">≈ 0</td><td class="n">≤ 2 % of line work (3.8 of 224 kJ, coached lap)</td></tr>
+            <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
+            <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
+            <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
+            <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
+            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†</td><td class="n">1.43 / 1.03 / 1.52 kN (1.8 / 1.3 / 1.9 BW)</td></tr>
+          </tbody>
+        </table></div>
+        <p>* The report's numbers come from an illustrative point-mass model, not measurements. The report itself recommends calibrating against a load cell in the handle, an IMU on the board and GNSS.</p>
+        <p>† Measured rope tension in a boat deep-water start (PMC case study; Runciman 2011 for slalom loads), not a cable-park measurement.</p>
+        <p><strong>Start (instruction sources and model).</strong> Sitting start: elbows at the waist, handle at the hips, tense core, ~70 % weight on the back foot with the nose up; let the pull bring you up to standing (KiteSista; Miami Ski Nautique). Jump start: jump just before the line comes taut and land with bent knees and arms in (KiteSista). Measured deep-water start loads reach 2.0–2.5 × body weight (PMC case study). Headless model at 30 km/h, 80 kg: peak ≈1.43 kN sliding, ≈1.03 kN jump, ≈1.52 kN sitting (≈0.86–1.02 kN at 20 km/h).</p>
+        <p><strong>Corner technique (instruction sources).</strong> Edge out before the corner, release the edge as the carrier goes round the sheave (~1 s of slack), and let the line pull you round. The HUD shows "Corner in … s".</p>
+        <p>Sources: the report above; de Leva (1996, segment inertia); knee-extension torque meta-analysis (Frontiers in Physiology 2021); Samozino et al. (jump force–velocity profiles); Horak &amp; Nashner (1986, ankle/hip balance strategies); Hasselmann et al. (1973, JONSWAP); Rabaud &amp; Moisy (2013) and Darmon, Benzaquen &amp; Raphaël (2014, wake angle at high Froude number); Savitsky (1964) and NACA TN 4187 (1958); ITTC-1957; Tveitnes (2001, added mass); Runciman (2011) and Bray-Miners et al. (2013), slalom rope loads; IWWF Cable Wakeboard World Rules 2026; KiteSista and Wakeboarding Magazine, technique.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Physics constants</summary>
+      <div class="tbl"><table id="tblPhys"><thead><tr><th>Name</th><th style="text-align:right">Value</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Units, sources and assumptions are given as comments in the PHYS block at the top of the file.</p>
+    </details>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const DEG = Math.PI / 180;
+  const sim = createSim();
+
+  /* ---------- Three.js scene ---------- */
+  const view = $('view');
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  view.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fb8c6);
+  scene.fog = new THREE.Fog(0x9fb8c6, 350, 900);
+  scene.add(new THREE.HemisphereLight(0xdfeefa, 0x3a4a3a, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(-120, 200, 80); scene.add(sun);
+
+  // Verdens-koordinater: sim (x øst, y nord, z op) -> three (X=x, Y=z, Z=-y)
+  const V3 = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
+
+  // Land med hul til vandet
+  const W = LAYOUT.water;
+  const landShape = new THREE.Shape([[-400,-400],[600,-400],[600,500],[-400,500]].map(p => new THREE.Vector2(p[0], p[1])));
+  landShape.holes.push(new THREE.Path(W.map(p => new THREE.Vector2(p[0], p[1]))));
+  const landGeo = new THREE.ShapeGeometry(landShape); landGeo.rotateX(-Math.PI / 2);
+  const land = new THREE.Mesh(landGeo, new THREE.MeshLambertMaterial({ color: 0x7d8a6e }));
+  land.position.y = 0.8; scene.add(land);
+  const waterShape = new THREE.Shape(W.map(p => new THREE.Vector2(p[0], p[1])));
+  const waterGeo = new THREE.ShapeGeometry(waterShape); waterGeo.rotateX(-Math.PI / 2);
+  const flatWater = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x2c5566, roughness: 0.28, metalness: 0.05 })); flatWater.position.y = -0.05; scene.add(flatWater);
+  // Live water patch around the camera target: wind chop (same JONSWAP components as the physics) + the rider's wake, with foam
+  const WP = 48, WN = 120, wGeo = new THREE.PlaneGeometry(WP, WP, WN, WN); wGeo.rotateX(-Math.PI / 2);
+  const wCol = new Float32Array(wGeo.attributes.position.count * 3); wGeo.setAttribute('color', new THREE.BufferAttribute(wCol, 3));
+  const wBase = wGeo.attributes.position.array.slice(), wEta = new Float32Array(wGeo.attributes.position.count);
+  const waterPatch = new THREE.Mesh(wGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.05 }));
+  waterPatch.frustumCulled = false; scene.add(waterPatch);
+  const wc0 = new THREE.Color(0x2c5566), wcFoam = new THREE.Color(0xe8f0f2);
+  let wLast = -1;
+  function updateWater(cx, cy) {                   // cx, cy in physics coordinates (x east, y north)
+    if (sim.t === wLast) return; wLast = sim.t;
+    const step = WP / WN, ox = Math.round(cx / step) * step, oy = Math.round(cy / step) * step;   // snap: no swimming texture
+    waterPatch.position.set(ox, 0, -oy);
+    const pos = wGeo.attributes.position.array, n = wEta.length, t = sim.t, ch = sim.chop;
+    for (let i = 0; i < n; i++) { const x = ox + wBase[i * 3], y = oy - wBase[i * 3 + 2]; let e = 0;
+      for (const c of ch.comps) e += c.a * Math.cos(c.kx * x + c.ky * y - c.w * t + c.ph);
+      wEta[i] = e; }
+    const foam = new Float32Array(n);
+    for (const p of sim.trail) {                   // wake: only the vertices near each track sample's two crests
+      const age = t - p.t; if (age < 0.4) continue; const fa = Math.exp(-age / 1.5), r = p.V * age, yw = r * p.tp, reach = yw + p.lam, ds = p.V * PHYS.WAKE_DT * 2.5;
+      const x0 = p.x - ox, y0 = p.y - oy; if (Math.abs(x0) > WP / 2 + reach || Math.abs(y0) > WP / 2 + reach) continue;
+      const ext = reach + ds, i0 = Math.max(0, Math.floor((x0 - ext + WP / 2) / step)), i1 = Math.min(WN, Math.ceil((x0 + ext + WP / 2) / step));
+      const j0 = Math.max(0, Math.floor((WP / 2 - (y0 + ext)) / step)), j1 = Math.min(WN, Math.ceil((WP / 2 - (y0 - ext)) / step));
+      for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) { const k = j * (WN + 1) + ii;
+        const w = sim.wakeOne(p, ox + wBase[k * 3], oy - wBase[k * 3 + 2], t); if (w) { wEta[k] += w; foam[k] = Math.max(foam[k], w * fa); } }
+    }
+    for (let i = 0; i < n; i++) {
+      pos[i * 3 + 1] = wEta[i];
+      const edge = Math.max(Math.abs(wBase[i * 3]), Math.abs(wBase[i * 3 + 2])) / (WP / 2), fade = edge > 0.8 ? 1 - (edge - 0.8) / 0.2 : 1;
+      pos[i * 3 + 1] = wEta[i] * fade - 0.05 * (1 - fade);
+      const f = Math.min(1, Math.max(0, foam[i] / 0.03)) * 0.7 + Math.max(0, Math.min(0.12, wEta[i] * 2));   // foam only on the young wake; crests slightly lighter
+      wCol[i * 3] = wc0.r + (wcFoam.r - wc0.r) * f; wCol[i * 3 + 1] = wc0.g + (wcFoam.g - wc0.g) * f; wCol[i * 3 + 2] = wc0.b + (wcFoam.b - wc0.b) * f;
+    }
+    wGeo.attributes.position.needsUpdate = true; wGeo.attributes.color.needsUpdate = true; wGeo.computeVertexNormals();
+  }
+  // vandflade-grid (10 m) for fornemmelse af fart
+  const grid = new THREE.GridHelper(600, 60, 0x44707f, 0x3a6474); grid.position.set(80, 0.02, 0);
+  grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+
+  // Jetty
+  const jettyMat = new THREE.MeshLambertMaterial({ color: 0xb59c78 });
+  function plank(a, b, w = 2.4) {
+    const A = V3(a[0], a[1], 0.6), B = V3(b[0], b[1], 0.6), len = A.distanceTo(B);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.3, w), jettyMat);
+    m.position.copy(A).add(B).multiplyScalar(0.5);
+    m.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x); scene.add(m);
+  }
+  const strutLater = [];
+  const J = LAYOUT.jetty; for (let i = 0; i < J.length - 1; i++) plank(J[i], J[i + 1]);
+  plank(LAYOUT.jettyLand[0], LAYOUT.jettyLand[1], 2);
+  const dockM = new THREE.Mesh(new THREE.BoxGeometry(10, 0.3, 6), new THREE.MeshLambertMaterial({ color: 0xd8c29c }));
+  dockM.position.copy(V3(-4.35, -10.7, 0.6)); dockM.rotation.y = Math.atan2(-16.8, 7.8); scene.add(dockM);   // platform on the land side of the jetty head
+  // Start dock: floating pontoon with a carpet and a ramp into the water (same geometry as the physics contact)
+  { const g = new THREE.Group(), P = PHYS, h2 = P.DOCK_LEN / 2, flat = P.DOCK_LEN - P.DOCK_RAMP, W2 = 2 * P.DOCK_HALF_W;
+    const carpet = new THREE.MeshLambertMaterial({ color: 0x2f7d5b }), pont = new THREE.MeshLambertMaterial({ color: 0x9aa4a8 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(flat, 0.35, W2), pont); body.position.set(-h2 + flat / 2, P.DOCK_TOP - 0.2, 0); g.add(body);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(flat, 0.04, W2), carpet); top.position.set(-h2 + flat / 2, P.DOCK_TOP - 0.02, 0); g.add(top);
+    const drop = P.DOCK_TOP + 0.15, rl = Math.hypot(P.DOCK_RAMP, drop);
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(rl, 0.04, W2), carpet);
+    ramp.position.set(h2 - P.DOCK_RAMP / 2, P.DOCK_TOP - drop / 2 - 0.02, 0); ramp.rotation.z = -Math.atan2(drop, P.DOCK_RAMP); g.add(ramp);
+    g.position.copy(V3(P.DOCK_C[0], P.DOCK_C[1], 0)); g.rotation.y = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]); scene.add(g); }
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(3.2, 1.6, 4), new THREE.MeshLambertMaterial({ color: 0x22282c }));
+  tent.position.copy(V3(-6, -12, 3.2)); tent.rotation.y = Math.PI / 4; scene.add(tent);
+  for (const [x, y] of [[-8.3, -9.8], [-3.8, -14.3], [-8.3 + 2.3, -9.8 - 2.3 + 4.5], [-1.5, -12]]) strutLater.push([V3(x, y, 0.8), V3(x, y, 2.4)]);
+  const buoyMat = new THREE.MeshLambertMaterial({ color: 0xf07a28 });
+  for (const [x, y] of LAYOUT.buoys) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), buoyMat); b.position.copy(V3(x, y, 0.15)); scene.add(b); }
+
+  // Master: skrå A-ramme på kysten/jettyen, hjul hængende ud over vandet
+  const mastMat = new THREE.MeshLambertMaterial({ color: 0x9aa4a8 });
+  const motorMat = new THREE.MeshLambertMaterial({ color: 0xe9b949 });
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x2b3338 });
+  const guyMat = new THREE.LineBasicMaterial({ color: 0x55616a });
+  function strut(A, B, r, mat) {
+    const len = A.distanceTo(B), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), mat);
+    m.position.copy(A).add(B).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()); scene.add(m);
+  }
+  for (const [a, b] of strutLater) strut(a, b, 0.05, mastMat);
+  const mastLabels = [], obsTags = [];
+  LAYOUT.masts.forEach((m, i) => {
+    const w = sim.path.wheels[i], ox = w[0] - m.x, oy = w[1] - m.y, ol = Math.hypot(ox, oy);
+    const sx = -oy / ol * 2.2, sy = ox / ol * 2.2;              // fødder spredt på tværs af hældningen
+    // A-ramme (let hældende) + vandret bom med hjulet ude over vandet (jf. fotos/video)
+    // Skrå A-ramme: toppen hælder ~halvdelen af udhænget ind over vandet; bom ud til hjulet (udhæng 15–20 m)
+    const ax = m.x + ox * 0.5, ay = m.y + oy * 0.5, H = PHYS.MAST_HEIGHT + 1.5;
+    const top = V3(ax, ay, H), mat = m.id === 'A' ? motorMat : mastMat;
+    strut(V3(m.x + sx, m.y + sy, 0.8), top, 0.16, mat); strut(V3(m.x - sx, m.y - sy, 0.8), top, 0.16, mat);
+    for (const f of [0.35, 0.65]) strut(V3(m.x + sx * (1 - f) + ox * 0.5 * f, m.y + sy * (1 - f) + oy * 0.5 * f, 0.8 + (H - 0.8) * f),
+                                         V3(m.x - sx * (1 - f) + ox * 0.5 * f, m.y - sy * (1 - f) + oy * 0.5 * f, 0.8 + (H - 0.8) * f), 0.07, mat);
+    strut(V3(ax, ay, H - 0.3), V3(w[0], w[1], PHYS.MAST_HEIGHT), 0.13, mat);                        // bom
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V3(ax, ay, H + 1.5), V3(w[0], w[1], PHYS.MAST_HEIGHT)]), guyMat)); // bardun til bomspids
+    strut(V3(ax, ay, H), V3(ax, ay, H + 1.5), 0.06, mat);
+    strut(V3(w[0], w[1], PHYS.MAST_HEIGHT), V3(w[0], w[1], PHYS.CABLE_HEIGHT), 0.1, wheelMat);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(PHYS.WHEEL_RADIUS, 0.09, 8, 28), wheelMat);
+    wheel.rotation.x = Math.PI / 2; wheel.position.copy(V3(w[0], w[1], PHYS.CABLE_HEIGHT)); scene.add(wheel);
+    const bx = m.x - ox / ol * 9, by = m.y - oy / ol * 9;  // bardun bagud til land
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([top, V3(bx, by, 0.8)]), guyMat));
+    const base = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.6, 4.5), jettyMat); base.position.copy(V3(m.x, m.y, 0.5)); scene.add(base);
+    const lbl = makeLabel(m.id); lbl.position.copy(V3(w[0], w[1], PHYS.MAST_HEIGHT + 2.5)); scene.add(lbl); mastLabels.push(lbl);
+  });
+  const cablePts = []; for (let s0 = 0; s0 <= sim.path.length; s0 += 0.5) { const q = pathAt(sim.path, s0); cablePts.push(V3(q.x, q.y, PHYS.CABLE_HEIGHT)); }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cablePts), new THREE.LineBasicMaterial({ color: 0x1c2328 })));
+  function makeLabel(text) {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const g = c.getContext('2d'); g.fillStyle = '#162631'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill();
+    g.fillStyle = '#e9b949'; g.font = '600 34px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 32, 34);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+    s.scale.set(5, 5, 1); return s;
+  }
+
+  // Obstakler: geometri bygget fra samme højdeprofil som fysikken bruger (fastfrosset bud)
+  for (const o of sim.obs) {
+    const pts = o.prof.map(([u, h]) => new THREE.Vector2(u, h));
+    pts.push(new THREE.Vector2(o.prof[o.prof.length - 1][0], -0.4), new THREE.Vector2(o.prof[0][0], -0.4));
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2);
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef) }));
+    mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; scene.add(mesh);
+    if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
+  }
+  // Carrier
+  const carrierM = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.4), motorMat); scene.add(carrierM);
+  // Line (opdateres pr. frame)
+  // Rebet tegnes som et rør af 16 segmenter. Radius = max(fysisk radius ×1,5, ~1,3 px på skærmen), så det altid er synligt.
+  const LN = 17, ROPE_R = 0.006 * 1.5;   // 12 mm line → Ø 18 mm i visningen
+  const ropeGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); ropeGeo.translate(0, 0.5, 0);
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xe9b949 });
+  const ropeSegs = Array.from({ length: LN - 1 }, () => { const m = new THREE.Mesh(ropeGeo, lineMat); m.frustumCulled = false; scene.add(m); return m; });
+  const ropePts = Array.from({ length: LN }, () => new THREE.Vector3());
+  const hangerMat = new THREE.MeshBasicMaterial({ color: 0x2a2f33 }), hangerM = new THREE.Mesh(ropeGeo, hangerMat); scene.add(hangerM);
+  const _d = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _mid = new THREE.Vector3();
+  function pxSize(p, cam) {   // meter pr. pixel ved punktet p
+    const hgt = renderer.domElement.clientHeight || 600;
+    if (cam.isOrthographicCamera) return (cam.top - cam.bottom) / hgt;
+    return cam.position.distanceTo(p) * 2 * Math.tan(cam.fov * Math.PI / 360) / hgt;
+  }
+  function placeTube(mesh, a, b, r) { _d.copy(b).sub(a); const L = _d.length(); mesh.position.copy(a); mesh.quaternion.setFromUnitVectors(_up, _d.normalize()); mesh.scale.set(r, Math.max(L, 1e-3), r); }
+
+  // Rider: gruppe (yaw) -> boardG (edge/læn om længdeaksen) -> board + krop
+  // Lokale akser i boardG: +x = næse (kørselsretning), +y = kropsakse (op), +z = højre side af boardet.
+  // Goofy: højre fod forrest, rideren vender mod boardets venstre side (−z = toeside).
+  const rider = new THREE.Group(); scene.add(rider);
+  const boardG = new THREE.Group(); rider.add(boardG);
+  const boardOnly = new THREE.Group(); boardG.add(boardOnly);   // boardet kan kantes i forhold til kroppen (ankler)
+  const M = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, metalness: 0.05 });
+  const suit = M(0x1b1f23), suit2 = M(0x2b3238), skin = M(0xd9a88a), vestM = M(0xf08a5d), helmM = M(0xf2f2ee);
+  const boardTop = M(0x1d6f8f), boardBot = M(0xe8eef0), bindM = M(0x111416), handleM = M(0x2a2f33);
+  { // board: afrundet planform 140 × 43 cm, 3 cm tyk, med fire finner
+    const Lb = 1.40, Wb = 0.43, r = Wb / 2, sh = new THREE.Shape();
+    sh.moveTo(-Lb / 2 + r, -Wb / 2); sh.lineTo(Lb / 2 - r, -Wb / 2);
+    sh.absarc(Lb / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2, false); sh.lineTo(-Lb / 2 + r, Wb / 2);
+    sh.absarc(-Lb / 2 + r, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.01, bevelSegments: 2, curveSegments: 16 });
+    g.rotateX(-Math.PI / 2); g.translate(0, 0.004, 0);
+    const top = new THREE.Mesh(g, [boardTop, boardBot]); boardOnly.add(top);
+    for (const [fx, fz] of [[0.58, 0.14], [0.58, -0.14], [-0.58, 0.14], [-0.58, -0.14]]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.008), boardBot); fin.position.set(fx, -0.015, fz); boardOnly.add(fin);
+    }
+  }
+  // ---------- Human model ----------
+  // bodyG/bootsG turn 180° when the rider lands switch (the physics flips the twin-tip board's frame instead)
+  const bodyG = new THREE.Group(); boardG.add(bodyG); const bootsG = new THREE.Group(); boardOnly.add(bootsG);
+  // Proportions from de Leva (1996), scaled to a 1.80 m rider: thigh 0.437, shank 0.449, upper arm 0.291, forearm 0.278 m.
+  // Limbs are lathed muscle profiles between joints; the trunk, pelvis and head are shaped meshes with their own frames.
+  const up = new THREE.Vector3(0, 1, 0);
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const neo = M(0x16191c), neoPanel = M(0x2f5d73), shortsM = M(0x3a4f63), gloveM = M(0x0f1113), kneePadM = M(0x23282d);
+  const hairM = M(0x5a3b22), eyeM = M(0x0d0d0d), eyeW = M(0xf3f1ec), lipM = M(0xb9786a), strapM = M(0x111416), buckleM = M(0xc9ccce);
+  const skinM = new THREE.MeshStandardMaterial({ color: 0xd9a88a, roughness: 0.6, metalness: 0.0 });
+  function limb(profile, mat, sx = 1, sz = 1) {   // lathed limb, length 1 along +y; profile = [radius, t] from the proximal joint
+    const g = new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), 18); g.scale(sx, 1, sz);
+    const m = new THREE.Mesh(g, mat); bodyG.add(m); return m;
+  }
+  function seg(m, a, b) { const d = b.clone().sub(a), L = d.length(); m.position.copy(a); m.quaternion.setFromUnitVectors(up, d.normalize()); m.scale.set(1, Math.max(1e-3, L), 1); }
+  function ball(r, mat, sx = 1, sy = 1, sz = 1, parent = bodyG) { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat); m.scale.set(sx, sy, sz); parent.add(m); return m; }
+  const mBasis = new THREE.Matrix4();
+  function orient(obj, pos, yAxis, zFace) {   // local y = yAxis, local z = face/front
+    const Y = yAxis.clone().normalize(), Z = zFace.clone().sub(Y.clone().multiplyScalar(zFace.dot(Y))).normalize(), X = Y.clone().cross(Z);
+    mBasis.makeBasis(X, Y, Z); obj.quaternion.setFromRotationMatrix(mBasis); obj.position.copy(pos);
+  }
+  function lathe(profile, mat, depthScale, segs = 28) {   // [radius, height] around y; flattened in z (chest depth)
+    const g = new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), segs); g.scale(1, 1, depthScale);
+    return new THREE.Mesh(g, mat);
+  }
+  // Trunk (frame: y = spine, z = chest forward, x = towards the left shoulder)
+  const torsoG = new THREE.Group(); bodyG.add(torsoG);
+  torsoG.add(lathe([[0.001, 0], [0.128, 0.01], [0.136, 0.06], [0.124, 0.16], [0.132, 0.24], [0.155, 0.33], [0.172, 0.41], [0.182, 0.46], [0.16, 0.5], [0.1, 0.535], [0.055, 0.55], [0.001, 0.555]], neo, 0.64));
+  torsoG.add(lathe([[0.16, 0.44], [0.183, 0.46], [0.162, 0.5], [0.1, 0.535]], neoPanel, 0.66));                       // shoulder panel
+  for (const sx of [-1, 1]) { const tr = ball(1, neo, 0.075, 0.05, 0.06, torsoG); tr.position.set(0.075 * sx, 0.525, -0.02); tr.rotation.z = 0.5 * sx; }  // trapezius
+  const vestGroove = M(0xb35d3a);
+  // Life vest: foam panels with grooves, collar, three straps with buckles
+  torsoG.add(lathe([[0.001, 0.12], [0.148, 0.12], [0.152, 0.2], [0.158, 0.3], [0.178, 0.4], [0.176, 0.455], [0.13, 0.48], [0.001, 0.485]], vestM, 0.74));
+  for (let i = 0; i < 14; i++) {                          // vertical grooves between foam panels
+    const a = (i / 14) * Math.PI * 2, rr = 0.166, g = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.3, 0.004), vestGroove);
+    g.position.set(Math.sin(a) * rr, 0.29, Math.cos(a) * rr * 0.745); g.rotation.y = a; torsoG.add(g);
+  }
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 24), vestM); collar.scale.set(1, 0.8, 1); collar.rotation.x = Math.PI / 2; collar.position.y = 0.49; torsoG.add(collar);
+  for (const hh of [0.17, 0.27, 0.37]) {
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(1, 0.011, 6, 32), strapM);
+    const rr = hh < 0.3 ? 0.16 : 0.176; strap.scale.set(rr, rr * 0.745, 1); strap.rotation.x = Math.PI / 2; strap.position.y = hh; torsoG.add(strap);
+    const bk = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.028, 0.014), buckleM); bk.position.set(0, hh, rr * 0.745 + 0.008); torsoG.add(bk);
+  }
+  const zipM = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.34, 0.01), buckleM); zipM.position.set(0, 0.3, 0.13); torsoG.add(zipM);
+  // Pelvis + boardshorts + glutes
+  const pelvisG = new THREE.Group(); bodyG.add(pelvisG);
+  const hipsMesh = ball(1, shortsM, 0.165, 0.12, 0.115, pelvisG);
+  for (const sx of [-1, 1]) { const gl = ball(1, shortsM, 0.075, 0.08, 0.07, pelvisG); gl.position.set(0.065 * sx, -0.02, -0.065); }
+  const waist = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.016, 6, 24), strapM); waist.scale.set(1, 0.74, 1); waist.rotation.x = Math.PI / 2; waist.position.y = 0.075; pelvisG.add(waist);
+  const cord = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.003, 4, 10), buckleM); cord.position.set(0, 0.06, 0.108); pelvisG.add(cord);
+  // Head (frame: z = face): skull, jaw, cheeks, eyes with whites, brows, nose, lips, ears, hair at the nape, helmet with vents
+  const headG = new THREE.Group(); bodyG.add(headG);
+  ball(1, skinM, 0.077, 0.1, 0.09, headG);
+  const jaw = ball(1, skinM, 0.06, 0.05, 0.062, headG); jaw.position.set(0, -0.055, 0.028);
+  const chin = ball(1, skinM, 0.025, 0.02, 0.02, headG); chin.position.set(0, -0.09, 0.07);
+  for (const sx of [-1, 1]) {
+    const ch = ball(1, skinM, 0.025, 0.02, 0.02, headG); ch.position.set(0.042 * sx, -0.02, 0.07);
+    const ew = ball(1, eyeW, 0.012, 0.008, 0.006, headG); ew.position.set(0.028 * sx, 0.018, 0.083);
+    const ey = ball(0.0055, eyeM, 1, 1, 1, headG); ey.position.set(0.028 * sx, 0.018, 0.089);
+    const lid = ball(1, skinM, 0.013, 0.004, 0.007, headG); lid.position.set(0.028 * sx, 0.026, 0.084);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.01), hairM); brow.position.set(0.028 * sx, 0.036, 0.086); brow.rotation.z = -0.15 * sx; headG.add(brow);
+    const ear = ball(1, skinM, 0.011, 0.027, 0.019, headG); ear.position.set(0.077 * sx, 0.0, -0.006);
+    const side = ball(1, hairM, 0.012, 0.03, 0.02, headG); side.position.set(0.07 * sx, 0.03, 0.02);   // sideburns
+  }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.034, 8), skinM); nose.rotation.x = Math.PI / 2 + 0.3; nose.position.set(0, -0.004, 0.097); headG.add(nose);
+  for (const [yy, sc] of [[-0.04, 1], [-0.05, 0.85]]) { const lip = ball(1, lipM, 0.018 * sc, 0.005, 0.008, headG); lip.position.set(0, yy, 0.083); }
+  const nape = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.35), hairM); nape.scale.set(0.082, 0.1, 0.094); nape.rotation.x = -0.6; headG.add(nape);
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), helmM); shell.scale.set(0.1, 0.12, 0.112); shell.position.y = 0.012; headG.add(shell);
+  for (let i = 0; i < 5; i++) { const vt = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.05), strapM); const a = (i - 2) * 0.35; vt.position.set(Math.sin(a) * 0.06, 0.125, Math.cos(a) * 0.01 - 0.01); vt.rotation.y = a; headG.add(vt); }
+  const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.008, 20, 1, false, -0.9, 1.8), helmM); visor.scale.set(0.95, 1, 1.05); visor.position.set(0, 0.03, 0.02); visor.rotation.x = 0.12; headG.add(visor);
+  for (const sx of [-1, 1]) { const ep = ball(1, helmM, 0.02, 0.045, 0.04, headG); ep.position.set(0.09 * sx, -0.01, -0.005); }
+  const chinStrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.005, 5, 20, Math.PI), strapM); chinStrap.rotation.z = Math.PI; chinStrap.position.set(0, -0.02, 0.0); headG.add(chinStrap);
+  const neck = limb([[0.05, 0], [0.047, 0.5], [0.045, 1]], skinM);
+  // Arms: deltoid, upper arm (biceps/triceps), elbow, forearm, glove with fingers wrapped round the bar
+  const deltoid = [ball(0.062, neo, 1, 0.9, 0.95), ball(0.062, neo, 1, 0.9, 0.95)];
+  const uarm = [0, 1].map(() => limb([[0.054, 0], [0.05, 0.25], [0.049, 0.5], [0.043, 0.8], [0.038, 1]], neo, 1, 0.92));
+  const elbow = [ball(0.039, neo), ball(0.039, neo)];
+  const farm = [0, 1].map(() => limb([[0.04, 0], [0.043, 0.2], [0.037, 0.6], [0.028, 0.95], [0.027, 1]], neoPanel, 1, 0.8));
+  const cuffR = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.TorusGeometry(0.029, 0.005, 5, 14), strapM); bodyG.add(m); return m; });
+  const handG = [0, 1].map(() => {   // frame: x = along the bar, y = towards the wrist, z = back of the hand
+    const g = new THREE.Group(); bodyG.add(g);
+    const palm = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.03, 3, 8), gloveM); palm.rotation.z = Math.PI / 2; palm.scale.set(1, 1, 0.55); palm.position.set(0, 0.045, 0.012); g.add(palm);
+    for (let f = 0; f < 4; f++) {     // four fingers curled round the grip (torus arcs about the bar axis)
+      const fg = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.0095, 6, 10, Math.PI * 1.45), gloveM);
+      fg.rotation.y = Math.PI / 2; fg.rotation.x = 0.35; fg.position.set(-0.03 + f * 0.02, 0.0, 0.0); g.add(fg);
+    }
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.01, 0.035, 3, 6), gloveM); thumb.position.set(0.045, 0.012, -0.022); thumb.rotation.set(0.2, 0, 1.2); g.add(thumb);
+    return g;
+  });
+  // Legs: thigh (quadriceps bulge in front), knee pad, shank with calf behind; boardshort legs
+  const thigh = [0, 1].map(() => limb([[0.058, 0], [0.07, 0.15], [0.085, 0.45], [0.094, 0.75], [0.098, 1]], neo, 1, 0.95));
+  const quad = [ball(1, neo, 0.05, 0.12, 0.04), ball(1, neo, 0.05, 0.12, 0.04)];
+  const shortsLeg = [0, 1].map(() => limb([[0.108, 0], [0.11, 0.6], [0.114, 1]], shortsM));
+  const kneeB = [ball(0.05, kneePadM, 1, 1, 1.05), ball(0.05, kneePadM, 1, 1, 1.05)];
+  const shin = [0, 1].map(() => limb([[0.036, 0], [0.042, 0.2], [0.05, 0.55], [0.053, 0.72], [0.048, 0.92], [0.05, 1]], neo));
+  const calf = [ball(1, neo, 0.042, 0.1, 0.036), ball(1, neo, 0.042, 0.1, 0.036)];
+  // Bindings: base plate, boot and highback (right foot forward = +x)
+  const bootG = [0, 1].map(i => {
+    const g = new THREE.Group(); bootsG.add(g);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.3), bindM); plate.position.y = 0.012; g.add(plate);
+    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.16, 4, 10), M(0x2a2e33)); boot.rotation.x = Math.PI / 2; boot.position.set(0, 0.07, -0.01); boot.scale.set(1.05, 1, 1); g.add(boot);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.065, 0.14, 14), M(0x2a2e33)); cuff.position.set(0, 0.15, 0.03); g.add(cuff);
+    const hb = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.2, 0.02), bindM); hb.position.set(0, 0.14, 0.115); hb.rotation.x = -0.25; g.add(hb);
+    for (const zz of [-0.06, 0.04]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.05), vestM); st.position.set(0, 0.11, zz); g.add(st); }
+    for (let k = 0; k < 3; k++) { const lace = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.004, 0.006), buckleM); lace.position.set(0, 0.125 - k * 0.02, -0.07 + k * 0.03); g.add(lace); }
+    g.position.set(i ? -0.27 : 0.27, 0, 0); g.rotation.y = i ? 0.26 : -0.26;   // slight "duck" stance
+    return g;
+  });
+  const handleBar = (() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.38, 10), M(0x2a2f33)); bodyG.add(m);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 10), M(0x3c78a8)); m.add(grip); return m; })();
+  const SHIN = PHYS.SHANK_LEN, THIGH = PHYS.THIGH_LEN, UARM = 0.291, FARM = 0.278, STANCE = PHYS.STANCE / 2;
+  function ik2(a, b, l1, l2, pole) {   // two-link IK; the joint bends towards 'pole'
+    const d = b.clone().sub(a), L = Math.min(d.length(), l1 + l2 - 1e-4), dn = d.clone().normalize();
+    const x = (l1 * l1 - l2 * l2 + L * L) / (2 * L), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
+    const pp = pole.clone().sub(dn.clone().multiplyScalar(pole.dot(dn))).normalize();
+    return [a.clone().add(dn.clone().multiplyScalar(x)).add(pp.multiplyScalar(h)), a.clone().add(dn.multiplyScalar(L))];
+  }
+  const handleLocal = new THREE.Vector3(), lineDirLocal = new THREE.Vector3(1, 0.4, 0);
+  // Pose from the physics state: leg length (knees), fore–aft lean θ (relative to the trimmed board), roll is applied to
+  // the whole group, handle height offset and arm yield from the multi-body model.
+  function poseRider(l, lineF, attached, phi, theta = 0, hOff = 0, arm = 0, trim = 0, sw = false, grab = null) {
+    const edgeFade = 1 - Math.min(1, Math.abs(phi) / 0.9);
+    const th = attached ? (sw ? -1 : 1) * (theta - trim) : 0;                              // lean back towards the tail (−x), relative to the board
+    const ankles = [V(STANCE, PHYS.ANKLE_H + 0.03, 0.0), V(-STANCE, PHYS.ANKLE_H + 0.03, 0.0)];
+    const sitBack = Math.min(0.1, 0.02 + lineF / 9000) * edgeFade;      // hips hang back to the heel side (+z) on the line
+    const pel = V(-l * Math.sin(th) - 0.02, l * Math.cos(th) + 0.03, sitBack), hipW = 0.095;
+    // Direction of the line in the board frame → chest and pelvis open towards it
+    const dir = lineDirLocal.clone(); if (dir.lengthSq() < 1e-6) dir.set(1, 0, 0); dir.normalize();
+    const lineAng = Math.atan2(dir.x, -dir.z);                         // 0 = line on the toe side, + = towards the nose
+    const face = V(Math.sin(0.25), 0, -Math.cos(0.25));
+    orient(pelvisG, pel, V(-Math.sin(th), Math.cos(th), 0), face);
+    const hipX = V(-face.z, 0, face.x).normalize();
+    const hips = [pel.clone().add(hipX.clone().multiplyScalar(hipW)), pel.clone().add(hipX.clone().multiplyScalar(-hipW))];
+    const kneeFwd = [], kneesP = [];
+    for (let i = 0; i < 2; i++) {
+      const [kn, hp] = ik2(ankles[i], hips[i], SHIN, THIGH, V(i ? -0.3 : 0.3, 0.1, -1));
+      seg(shin[i], ankles[i], kn); seg(thigh[i], kn, hp); kneeB[i].position.copy(kn); kneesP.push(kn);
+      seg(shortsLeg[i], hp, hp.clone().lerp(kn, 0.42));
+      const sh = kn.clone().sub(ankles[i]).normalize(), tg = hp.clone().sub(kn).normalize();
+      const post = V(0, 0, 1).sub(sh.clone().multiplyScalar(sh.z)).normalize();          // behind the shank (heel side)
+      calf[i].position.copy(ankles[i].clone().lerp(kn, 0.66)).add(post.clone().multiplyScalar(0.022)); calf[i].quaternion.setFromUnitVectors(up, sh);
+      const ant = V(0, 0, -1).sub(tg.clone().multiplyScalar(-tg.z)).normalize();          // in front of the thigh
+      quad[i].position.copy(kn.clone().lerp(hp, 0.5)).add(ant.multiplyScalar(0.03)); quad[i].quaternion.setFromUnitVectors(up, tg);
+      kneeFwd.push(Math.max(0, -kn.z));
+    }
+    // Trunk: flexes forward over the toes as the knees bend (athletic stance), leans back with θ, hangs to the heel side
+    // with the line; chest twists towards the line.
+    const crouch = Math.max(0, Math.min(1, (PHYS.LEG_NOM + 0.05 - l) / 0.35));
+    const flex = 0.12 + 0.35 * crouch, hang = (0.1 + Math.min(0.3, lineF / 3000)) * edgeFade;
+    const spine = V(-Math.sin(th) * 1.1, 1, Math.sin(hang) - Math.sin(flex)).normalize();
+    const twist = Math.max(-0.2, Math.min(1.0, 0.45 + 0.4 * lineAng)), chestFace = V(Math.sin(twist), 0, -Math.cos(twist));
+    orient(torsoG, pel.clone().add(V(0, 0.04, 0)), spine, chestFace);
+    torsoG.updateMatrix();
+    const T = p => p.clone().applyMatrix4(torsoG.matrix);
+    const shoulders = [T(V(-0.19, 0.47, -0.01)), T(V(0.19, 0.47, -0.01))];     // right, left (local +x = left side)
+    deltoid[0].position.copy(shoulders[0]); deltoid[1].position.copy(shoulders[1]);
+    const neckBase = T(V(0, 0.53, -0.01)), neckTop = T(V(0, 0.63, 0.012));
+    seg(neck, neckBase, neckTop);
+    // Head looks ahead along the direction of travel (+x) over the right shoulder, a little down towards the water
+    orient(headG, neckTop.clone().add(spine.clone().multiplyScalar(0.085)), V(0, 1, 0).add(spine).normalize(), V(1, -0.2, -0.35 + 0.15 * Math.max(0, -lineAng)));
+    // Handle: in front of the hips towards the line, raised/lowered by hOff; the arms yield by 'arm'
+    handleLocal.copy(pel).add(V(0.02, 0.1 + hOff, -0.1)).add(dir.clone().multiplyScalar(0.3 + 0.45 * Math.min(arm, 0.5)));
+    const barAxis = V(-dir.z, 0, dir.x).normalize();
+    handleBar.position.copy(handleLocal); handleBar.quaternion.setFromUnitVectors(up, barAxis); handleBar.visible = attached;
+    let hands = [handleLocal.clone().add(barAxis.clone().multiplyScalar(0.075)), handleLocal.clone().add(barAxis.clone().multiplyScalar(-0.075))];
+    if (hands[0].distanceTo(shoulders[0]) > hands[1].distanceTo(shoulders[0])) hands = [hands[1], hands[0]];
+    if (!attached) hands = [shoulders[0].clone().add(V(0.25, -0.35, -0.2)), shoulders[1].clone().add(V(-0.2, -0.4, -0.2))];
+    let gi = -1;
+    if (attached && grab && grab.type && grab.reach > 0) {    // grab: one hand leaves the handle for the nose (+x) or tail (−x) on the toe-side edge
+      const tgt = V(grab.type * 0.6 * (sw ? -1 : 1), 0.07, -0.17);
+      gi = shoulders[0].distanceTo(tgt) < shoulders[1].distanceTo(tgt) ? 0 : 1;
+      hands[gi] = hands[gi].clone().lerp(tgt, grab.reach);
+    }
+    for (let i = 0; i < 2; i++) {
+      const [el, hd] = ik2(shoulders[i], hands[i], UARM, FARM, V(i ? -0.3 : 0.3, -1, 0.35));
+      seg(uarm[i], shoulders[i], el); seg(farm[i], el, hd); elbow[i].position.copy(el);
+      const fd = hd.clone().sub(el).normalize();
+      cuffR[i].position.copy(el.clone().lerp(hd, 0.93)); cuffR[i].quaternion.setFromUnitVectors(V(0, 0, 1), fd);
+      if (attached && i !== gi) {   // hand frame: x along the bar, y back towards the wrist
+        const X = barAxis.clone(), Y = fd.clone().negate().sub(X.clone().multiplyScalar(-fd.dot(X))).normalize(), Z = X.clone().cross(Y);
+        mBasis.makeBasis(X, Y, Z); handG[i].quaternion.setFromRotationMatrix(mBasis); handG[i].position.copy(hd);
+      } else orient(handG[i], hd, fd.clone().negate(), V(0, 0, -1));
+    }
+  }
+  // Sprøjt fra railen: partikler, hvis mængde følger fart, kant og sideslip
+  const SPN = 500, spPos = new Float32Array(SPN * 3), spVel = new Float32Array(SPN * 3), spAge = new Float32Array(SPN).fill(9);
+  const spGeo = new THREE.BufferGeometry(); spGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
+  const spray = new THREE.Points(spGeo, new THREE.PointsMaterial({ color: 0xf4f8fa, size: 0.12, map: (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })(), transparent: true, opacity: 0.75, depthWrite: false }));
+  spray.frustumCulled = false; scene.add(spray);
+  let spHead = 0, spLastT = 0;
+  function updateSpray(R) {
+    const dt = Math.max(0, Math.min(0.05, sim.t - spLastT)); spLastT = sim.t;
+    for (let i = 0; i < SPN; i++) {
+      if (spAge[i] > 0.9) { spPos[i * 3 + 1] = -50; continue; }
+      spAge[i] += dt; spVel[i * 3 + 1] -= 9.81 * dt;
+      spPos[i * 3] += spVel[i * 3] * dt; spPos[i * 3 + 1] += spVel[i * 3 + 1] * dt; spPos[i * 3 + 2] += spVel[i * 3 + 2] * dt;
+      if (spPos[i * 3 + 1] < 0) spAge[i] = 9;
+    }
+    const V = Math.hypot(R.vx, R.vy);
+    if (sim.out.inWater && V > 2.5 && dt > 0) {
+      const hx = Math.cos(R.psi), hy = Math.sin(R.psi), rx = hy, ry = -hx;
+      const side = Math.sign(R.phi || sim.out.beta || 1);              // sprøjt væk fra den rail der er i vandet
+      const k = V * (0.4 + 2.5 * Math.abs(Math.sin(R.phi)) + 3 * Math.abs(Math.sin(sim.out.beta || 0)));
+      const n = Math.min(40, Math.round(k * dt * 30));
+      for (let j = 0; j < n; j++) {
+        const i = spHead; spHead = (spHead + 1) % SPN; spAge[i] = Math.random() * 0.3;
+        const u = (Math.random() - 0.3) * 1.2;                         // langs railen, mest bagtil
+        const px = R.x + hx * u + rx * side * 0.2, py = R.y + hy * u + ry * side * 0.2;
+        spPos[i * 3] = px; spPos[i * 3 + 1] = 0.05; spPos[i * 3 + 2] = -py;
+        const out = (0.3 + Math.random()) * V * (0.12 + 0.3 * Math.abs(Math.sin(R.phi)));
+        const vx = -hx * V * (0.2 + 0.3 * Math.random()) + rx * side * out, vy = -hy * V * (0.2 + 0.3 * Math.random()) + ry * side * out;
+        spVel[i * 3] = vx; spVel[i * 3 + 1] = (0.5 + Math.random() * 1.2) * (0.3 + Math.abs(Math.sin(R.phi))) * V * 0.22; spVel[i * 3 + 2] = -vy;
+      }
+    }
+    spGeo.attributes.position.needsUpdate = true;
+  }
+  // spor på vandet
+  const TRAIL = 900, trailPos = new Float32Array(TRAIL * 3), trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3)); trailGeo.setDrawRange(0, 0);
+  // Rød retningspil (top-down): boardets retning. Den tynde grå pil viser kablets retning ved carrieren til sammenligning.
+  function flatArrow(color, len, w) {
+    const sh = new THREE.Shape([new THREE.Vector2(0, -w * 0.35), new THREE.Vector2(len * 0.62, -w * 0.35), new THREE.Vector2(len * 0.62, -w), new THREE.Vector2(len, 0),
+      new THREE.Vector2(len * 0.62, w), new THREE.Vector2(len * 0.62, w * 0.35), new THREE.Vector2(0, w * 0.35)]);
+    const g = new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI / 2);   // ligger i vandplanet, peger mod +x
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 })); m.renderOrder = 10; scene.add(m); return m;
+  }
+  const headArrow = flatArrow(0xe23b2e, 9, 1.8), cableArrow = flatArrow(0xd9e2e6, 7, 0.9);
+  const riderTag = makeLabel('R'); riderTag.scale.set(3.5, 3.5, 1); scene.add(riderTag);
+  scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })));
+  let trailN = 0, trailT = 0;
+
+  /* ---------- Kameraer ---------- */
+  const persp = new THREE.PerspectiveCamera(50, 1, 0.5, 2000);
+  persp.position.set(-80, 120, 120);
+  const controls = new THREE.OrbitControls(persp, renderer.domElement);
+  controls.target.copy(V3(90, 30, 0)); controls.maxPolarAngle = Math.PI * 0.49; controls.update();
+  const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2000);
+  ortho.position.set(84, 600, -18); ortho.up.set(0, 0, -1); ortho.lookAt(84, 0, -18);
+  let camMode = 'follow';   // standard: følg rideren bagfra
+  const TOP_SPAN = 400; // m synligt (højeste akse)
+  function setCam(mode) {
+    camMode = mode;
+    $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
+    $('camFollow').setAttribute('aria-pressed', mode === 'follow');
+    $('camTop').setAttribute('aria-pressed', mode === 'top');
+    controls.enabled = mode === 'orbit';
+    $('scalebar').hidden = mode !== 'top';
+    resize();
+  }
+  $('camOrbit').onclick = () => setCam('orbit');
+  $('camFollow').onclick = () => setCam('follow');
+  $('camTop').onclick = () => setCam('top');
+  // Info-tekst i billedet til/fra (huskes lokalt i browseren, hvis muligt)
+  let infoOn = true; try { infoOn = localStorage.getItem('ccpInfo') !== '0'; } catch (e) {}
+  function setInfo(on) { infoOn = on; $('hud').hidden = !on; $('btnInfo').setAttribute('aria-pressed', on); try { localStorage.setItem('ccpInfo', on ? '1' : '0'); } catch (e) {} }
+  $('btnInfo').onclick = () => setInfo(!infoOn); setInfo(infoOn);
+
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h, false);
+    persp.aspect = w / h; persp.updateProjectionMatrix();
+    const a = w / h; let hw, hh;
+    if (a >= 1) { hh = TOP_SPAN / 2; hw = hh * a; } else { hw = TOP_SPAN / 2; hh = hw / a; }
+    ortho.left = -hw; ortho.right = hw; ortho.top = hh; ortho.bottom = -hh; ortho.updateProjectionMatrix();
+    const mPerPx = (2 * hw) / w; $('scaleI').style.width = (50 / mPerPx).toFixed(0) + 'px';
+  }
+  new ResizeObserver(resize).observe(view);
+
+  /* ---------- Kontroller ---------- */
+  let paused = false, timeScale = 1, keyEdge = 0, keyLeg = 0;
+  const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? 'Run' : 'Pause'; };
+  $('btnPlay').onclick = () => setPlay(paused);
+  $('btnStep').onclick = () => { setPlay(false); stepN(1); };
+  $('btnStep24').onclick = () => { setPlay(false); stepN(24); };
+  $('selSlow').onchange = e => { timeScale = +e.target.value; };
+  $('btnReset').onclick = () => { sim.reset(); clearHistory(); trailN = 0; };
+  $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
+  $('chkObs').onchange = e => { sim.obstaclesOn = e.target.checked; };
+  const windNote = () => { $('outWind').textContent = sim.wind.toFixed(0) + ' m/s'; $('noteWind').textContent = `Wind from WSW over ≈${PHYS.FETCH} m of open water: significant wave height ${(sim.chop.Hs * 100).toFixed(1)} cm, peak period ${sim.chop.Tp.toFixed(2)} s, wavelength ${sim.chop.lp.toFixed(2)} m (fetch-limited JONSWAP). The board spans the short waves, so they are felt as small bumps.`; };
+  $('rngWind').oninput = e => { sim.setWind(+e.target.value); windNote(); }; windNote();
+  $('selStart').onchange = e => { sim.setStartMode(e.target.value); sim.reset(); clearHistory(); trailN = 0; };
+  $('rngRelease').oninput = e => { sim.releaseN = +e.target.value * 1000; $('outRelease').textContent = (+e.target.value).toFixed(1) + ' kN'; };
+  $('selWin').onchange = e => { WINDOW = +e.target.value; };
+  $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'ArrowLeft' || e.key === 'a') { keyEdge = -1; e.preventDefault(); }
+    else if (e.key === 'ArrowRight' || e.key === 'd') { keyEdge = 1; e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { keyLeg = 1; e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { keyLeg = -1; e.preventDefault(); }
+    else if (e.key === 'w' || e.key === 'W') { sim.grabIn = 1; setHeld('trNose', true); e.preventDefault(); }       // nose grab (in the air)
+    else if (e.key === 's' || e.key === 'S') { sim.grabIn = -1; setHeld('trTail', true); e.preventDefault(); }      // tail grab
+    else if (e.key === 'q' || e.key === 'Q') { sim.spinIn = 1; setHeld('trSpinL', true); e.preventDefault(); }      // spin left (pre-wind on the ramp, line torque in the air)
+    else if (e.key === 'r' || e.key === 'R') { sim.spinIn = -1; setHeld('trSpinR', true); e.preventDefault(); }     // spin right
+    else if (e.key === ' ') { setPlay(paused); e.preventDefault(); }
+    else if (e.key === '.') { setPlay(false); stepN(1); }
+  });
+  addEventListener('keyup', e => { if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) keyEdge = 0; if (['ArrowUp', 'ArrowDown'].includes(e.key)) keyLeg = 0;
+    const k = e.key.toLowerCase();
+    if (k === 'w' && sim.grabIn === 1) { sim.grabIn = 0; setHeld('trNose', false); } if (k === 's' && sim.grabIn === -1) { sim.grabIn = 0; setHeld('trTail', false); }
+    if (k === 'q' && sim.spinIn === 1) { sim.spinIn = 0; setHeld('trSpinL', false); } if (k === 'r' && sim.spinIn === -1) { sim.spinIn = 0; setHeld('trSpinR', false); } });
+  function setHeld(id, on) { $(id).classList.toggle('held', on); }
+  function holdTrick(id, key, v) {   // on-screen trick buttons (touch)
+    const el = $(id), on = e => { e.preventDefault(); sim[key] = v; el.classList.add('held'); }, off = () => { if (sim[key] === v) sim[key] = 0; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  function holdBtn(el, v) {
+    const on = e => { e.preventDefault(); keyEdge = v; el.classList.add('held'); };
+    const off = () => { if (keyEdge === v) keyEdge = 0; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
+    el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  holdBtn($('edgeL'), -1); holdBtn($('edgeR'), 1);
+  function holdLeg(el, v) {
+    const on = e => { e.preventDefault(); keyLeg = v; el.classList.add('held'); };
+    const off = () => { if (keyLeg === v) keyLeg = 0; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
+    el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  holdLeg($('legDn'), -1); holdLeg($('legUp'), 1);
+  holdTrick('trSpinL', 'spinIn', 1); holdTrick('trNose', 'grabIn', 1); holdTrick('trTail', 'grabIn', -1); holdTrick('trSpinR', 'spinIn', -1);
+
+  /* ---------- Historik + grafer ---------- */
+  let WINDOW = 60; const SAMPLE = 1 / 30, WMAX = 300, N = Math.ceil(WMAX / SAMPLE) + 2;   // log: op til 5 min ved 30 Hz
+  const series = [
+    { key: 'F', title: 'Line tension', unit: 'N', fmt: v => v.toFixed(0), get: () => sim.line.F, floor: 0, minTop: 500 },
+    { key: 'V', title: 'Rider speed', unit: 'km/h', fmt: v => v.toFixed(1), get: () => sim.out.V * 3.6, floor: 0, minTop: 40 },
+    { key: 'Vc', title: 'Carrier speed', unit: 'km/h', fmt: v => v.toFixed(1), get: () => sim.out.Vc * 3.6, floor: 0, minTop: 40 },
+    { key: 'A', title: 'Angle line ↔ cable', unit: '°', fmt: v => v.toFixed(0), get: () => sim.out.angle, floor: 0, minTop: 60 },
+    { key: 'P', title: 'Cable power to rider (T q·v_carrier)', unit: 'kW', fmt: v => v.toFixed(1), get: () => (sim.out.Pcable || 0) / 1000, floor: 0, minTop: 3 },
+    { key: 'W', title: 'Water drag (pressure + friction + slip)', unit: 'N', fmt: v => v.toFixed(0), get: () => sim.out.inWater ? (sim.out.Dw || 0) : 0, floor: 0, minTop: 300 },
+    { key: 'Z', title: 'Board height above water', unit: 'm', fmt: v => v.toFixed(2), get: () => sim.rider.z, floor: -0.5, minTop: 1 },
+    { key: 'H', title: 'Hip height ℓ (knees)', unit: 'm', fmt: v => v.toFixed(2), get: () => sim.rider.leg, floor: 0.4, minTop: 1 },
+    { key: 'L', title: 'Lean / edge (+ = right)', unit: '°', fmt: v => v.toFixed(0), get: () => sim.rider.phi / DEG, floor: -90, minTop: 90, sym: true },
+  ];
+  const hist = { t: new Float64Array(N), n: 0, head: 0 };
+  for (const s of series) s.buf = new Float32Array(N);
+  let lastSample = -1;
+  function clearHistory() { hist.n = 0; hist.head = 0; lastSample = -1; }
+  function sample() {
+    if (sim.t - lastSample < SAMPLE - 1e-9) return;
+    lastSample = sim.t;
+    hist.t[hist.head] = sim.t; for (const s of series) s.buf[hist.head] = s.get();
+    hist.head = (hist.head + 1) % N; hist.n = Math.min(hist.n + 1, N);
+  }
+  const chartsEl = $('charts');
+  for (const s of series) {
+    const box = document.createElement('div'); box.className = 'chart';
+    box.innerHTML = `<header><span class="t">${s.title} <span style="color:var(--muted)">(${s.unit})</span></span><span class="v">–</span></header><canvas role="img" aria-label="${s.title} over the selected time window"></canvas>`;
+    (s.key === 'F' ? $('chartsTop') : chartsEl).appendChild(box); s.cv = box.querySelector('canvas'); s.out = box.querySelector('.v'); s.hoverX = null;
+    s.cv.addEventListener('pointermove', e => { const r = s.cv.getBoundingClientRect(); s.hoverX = (e.clientX - r.left) / r.width; });
+    s.cv.addEventListener('pointerleave', () => { s.hoverX = null; });
+  }
+  const css = getComputedStyle(document.documentElement);
+  const C_ACC = css.getPropertyValue('--accent').trim(), C_MUT = css.getPropertyValue('--muted').trim(),
+        C_GRID = css.getPropertyValue('--grid').trim(), C_INK = css.getPropertyValue('--ink').trim(), C_WARN = css.getPropertyValue('--warn').trim();
+  function niceStep(r) { const p = Math.pow(10, Math.floor(Math.log10(r / 3))), m = r / 3 / p; return p * (m < 1.5 ? 1 : m < 3.5 ? 2 : 5); }
+  function drawChart(s) {
+    const cv = s.cv, dpr = Math.min(devicePixelRatio, 2), w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const padL = 34, padR = 4, padT = 8, padB = 12, pw = w - padL - padR, ph = h - padT - padB;
+    const tNow = sim.t, t0 = tNow - WINDOW;
+    let max = s.minTop;
+    const idx = i => (hist.head - hist.n + i + N) % N;
+    let i0 = 0; { let lo = 0, hi = hist.n - 1; while (lo < hi) { const md = (lo + hi) >> 1; if (hist.t[idx(md)] < t0) lo = md + 1; else hi = md; } i0 = lo; }
+    for (let i = i0; i < hist.n; i++) max = Math.max(max, s.buf[idx(i)]);
+    const step = s.sym ? 30 : niceStep(max - s.floor); const top = Math.ceil(max / step) * step;
+    const X = t => padL + (t - t0) / WINDOW * pw, Y = v => padT + ph - (v - s.floor) / (top - s.floor) * ph;
+    g.font = '10px ' + css.getPropertyValue('--mono'); g.textAlign = 'right'; g.textBaseline = 'middle';
+    for (let v = s.floor; v <= top + 1e-9; v += step) {
+      g.strokeStyle = C_GRID; g.lineWidth = 1; g.beginPath(); g.moveTo(padL, Math.round(Y(v)) + .5); g.lineTo(w - padR, Math.round(Y(v)) + .5); g.stroke();
+      g.fillStyle = C_MUT; g.fillText(v >= 1000 ? (v / 1000) + 'k' : String(+v.toFixed(2)), padL - 5, Y(v));
+    }
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillStyle = C_MUT;
+    g.fillText(WINDOW >= 120 ? `−${WINDOW / 60} min` : `−${WINDOW} s`, padL, h - 1); g.textAlign = 'right'; g.fillText('now', w - padR, h - 1);
+    if (s.key === 'F') { // advarselsniveau
+      const yw = Y(PHYS.WARN_FRAC * sim.releaseN); if (yw > padT) { g.setLineDash([3, 3]); g.strokeStyle = C_WARN; g.beginPath(); g.moveTo(padL, yw); g.lineTo(w - padR, yw); g.stroke(); g.setLineDash([]); }
+      const yr = Y(sim.releaseN); if (yr > padT) { g.strokeStyle = C_WARN; g.lineWidth = 1.5; g.beginPath(); g.moveTo(padL, yr); g.lineTo(w - padR, yr); g.stroke(); g.lineWidth = 1; }   // release limit
+    }
+    if (hist.n > 1) {
+      g.beginPath();
+      // decimering: højst ~2 punkter pr. pixel, men min og max i hver gruppe bevares (spidser forsvinder ikke)
+      const cnt = hist.n - i0, stride = Math.max(1, Math.ceil(cnt / (pw * 2))); let first = true;
+      for (let i = i0; i < hist.n; i += stride) {
+        let kmin = idx(i), kmax = kmin;
+        for (let j = i + 1; j < Math.min(hist.n, i + stride); j++) { const k = idx(j); if (s.buf[k] < s.buf[kmin]) kmin = k; if (s.buf[k] > s.buf[kmax]) kmax = k; }
+        const a = hist.t[kmin] <= hist.t[kmax] ? [kmin, kmax] : [kmax, kmin];
+        for (const k of (stride > 1 ? a : [kmin])) { const x = X(hist.t[k]), y = Y(s.buf[k]); first ? g.moveTo(x, y) : g.lineTo(x, y); first = false; }
+      }
+      const lastX = X(hist.t[idx(hist.n - 1)]);
+      g.strokeStyle = C_ACC; g.lineWidth = 1.75; g.lineJoin = 'round'; g.stroke();
+      if (!s.sym) { g.lineTo(lastX, Y(s.floor)); g.lineTo(X(hist.t[idx(i0)]), Y(s.floor)); g.closePath();
+      g.fillStyle = 'rgba(233,185,73,.10)'; g.fill(); }
+      const kl = idx(hist.n - 1); g.fillStyle = C_ACC; g.beginPath(); g.arc(lastX, Y(s.buf[kl]), 3, 0, 7); g.fill();
+      let shown = s.buf[kl], label = '';
+      if (s.hoverX != null) { // crosshair
+        const tx = t0 + (s.hoverX * w - padL) / pw * WINDOW; let best = 0, bd = 1e9;
+        for (let i = i0; i < hist.n; i++) { const d = Math.abs(hist.t[idx(i)] - tx); if (d < bd) { bd = d; best = idx(i); } }
+        const x = X(hist.t[best]); g.strokeStyle = C_INK; g.globalAlpha = .5; g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ph); g.stroke(); g.globalAlpha = 1;
+        g.fillStyle = C_INK; g.beginPath(); g.arc(x, Y(s.buf[best]), 3, 0, 7); g.fill();
+        shown = s.buf[best]; label = ` @ ${(hist.t[best] - tNow).toFixed(1)} s`;
+      }
+      s.out.textContent = s.fmt(shown) + ' ' + s.unit + label;
+    }
+  }
+
+  /* ---------- Tabeller ---------- */
+  const tb = document.querySelector('#tblMasts tbody');
+  for (const m of LAYOUT.masts) tb.insertAdjacentHTML('beforeend', `<tr><td>${m.id}</td><td>${m.role}</td><td class="n">${m.x.toFixed(0)}</td><td class="n">${m.y.toFixed(0)}</td><td><span class="tag ${m.status === 'målt' ? 'm' : 'a'}">${m.status === 'målt' ? 'measured' : 'assumed'}</span></td></tr>`);
+  tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Cable length (computed)</td><td class="n" colspan="2">${sim.path.length.toFixed(0)} m</td><td></td></tr>`);
+  sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td><span class="tag m">measured</span></td></tr>`); });
+  tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Sheave diameter</td><td class="n" colspan="2">${2 * PHYS.WHEEL_RADIUS} m</td><td><span class="tag a">assumed</span></td></tr>`);
+  tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Direction of travel</td><td class="n" colspan="2">counter-clockwise</td><td><span class="tag m">confirmed</span></td></tr>`);
+  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W} m, height ${o.H} m assumed)</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
+  const tp = document.querySelector('#tblPhys tbody');
+  for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : +Number(v).toPrecision(4)}</td></tr>`);
+
+  /* ---------- Simloop: fast tidsskridt, adskilt fra rendering ---------- */
+  function stepN(n) {
+    for (let i = 0; i < n; i++) {
+      const cmd = keyEdge ? keyEdge * PHYS.LEAN_MAX_DEG : 0;
+      sim.leanCmdIn = cmd * DEG;
+      sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;   // legBase = squat during a sitting start
+      sim.step(); sample();
+    }
+  }
+  let acc = 0, last = performance.now();
+  function frame(now) {
+    const realDt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (!paused) {
+      acc += realDt * timeScale;
+      let n = Math.floor(acc / PHYS.DT); acc -= n * PHYS.DT;
+      stepN(Math.min(n, 96)); // maks 0,4 s sim pr. frame
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), camOff = new THREE.Vector3();
+  const camDir = { x: 1, y: 0 }, coachLast = { arcT: -1 }; let diagLast = 0;
+  function updateDiag() {
+    const o = sim.out, R = sim.rider, E = sim.energy, f = (v, d = 0) => (v ?? 0).toFixed(d);
+    const rows = [
+      ['Line', 'Line tension T', f(sim.line.F) + ' N'], ['', 'Stretch (l − L₀)', f(o.stretch * 100, 1) + ' cm'], ['', 'State', sim.line.attached ? (sim.line.slack ? 'slack' : 'taut') : 'released'],
+      ['', 'Cable power T q·v_c', f(o.Pcable) + ' W'],
+      ['Body', 'Fore–aft lean θ (back +)', f((o.theta || 0) / DEG, 1) + '°'], ['', 'Centre of pressure shift (fwd +)', f((o.cop || 0) * 100, 1) + ' cm'],
+      ['', 'Handle height offset (arms)', f((R.hOff || 0) * 100, 1) + ' cm'], ['', 'Arm/body stroke used', f((R.arm || 0) * 100) + ' cm'],
+      ['', 'Knee flexion', f((o.beta_knee || 0) / DEG) + '°'], ['', 'Leg force now / available', f(o.Fleg || 0) + ' / ' + f(o.FlegMax || 0) + ' N'],
+      ['', 'Roll inertia (segment model)', f(o.Ilean || 0, 1) + ' kg·m²'],
+      ['Surface', 'Wind / Hs / Tp', f(sim.wind) + ' m/s · ' + f(sim.chop.Hs * 100, 1) + ' cm · ' + f(sim.chop.Tp, 2) + ' s'], ['', 'Water level at board (chop + wake)', f((o.eta || 0) * 100, 1) + ' cm'],
+      ['', 'Vertical speed rel. to surface', f(o.wrel || 0, 2) + ' m/s'],
+      ['Water', 'Lift N (Savitsky)', f(o.lift) + ' N'], ['', 'Pressure drag N·sin τ', f(o.Dpress) + ' N'], ['', 'Friction (ITTC-57)', f(o.Df) + ' N'],
+      ['', 'Residual (spray/3D)', f(o.Dres) + ' N'], ['', 'Cross-flow drag (slip)', f(o.Dslip) + ' N'], ['', 'Plough drag (displacement)', f(o.Dplow) + ' N'],
+      ['', 'Slamming', f(o.slam) + ' N'], ['', 'Added mass', f(o.ma) + ' kg'], ['', 'Ventilation (lift retained)', f((o.vent ?? 1) * 100) + ' %'],
+      ['Geometry', 'Effective trim τ / board pitch', f(o.trim / DEG, 1) + '° / ' + f(o.pitch / DEG, 1) + '°'], ['', 'Wetted length l_w / λ', f(o.lw * 100) + ' cm / ' + f(o.lw / PHYS.BOARD_BEAM, 2)],
+      ['', 'Centre of pressure from tail', f(o.lp * 100) + ' cm'], ['', 'Edge (body + ankle)', f(R.phi / DEG) + '° + ' + f(R.ankle / DEG) + '°'], ['', 'Sideslip β', f(o.beta / DEG, 1) + '°'],
+      ['Numbers', 'Re (wetted length)', (o.Re || 0).toExponential(2)], ['', 'Fr (board length)', f(o.Fr, 2)], ['', 'C_V (beam)', f(o.Cv, 2)], ['', 'We', (o.We || 0).toExponential(1)],
+      ['Energy', 'Line work', f(E.lineWork / 1000, 1) + ' kJ'], ['', 'Water + air', f((E.waterWork + E.airWork) / 1000, 1) + ' kJ'], ['', 'Muscle work', f(E.muscleWork / 1000, 2) + ' kJ'],
+      ['', 'Mechanical energy', f(o.E / 1000, 2) + ' kJ'], ['', 'Energy residual (should be ≈ 0)', f((o.Eres || 0) / 1000, 2) + ' kJ'],
+      ['Contact', 'State', o.contact ? 'on ' + o.contact : o.air ? 'airborne' : o.inWater ? 'planing' : 'above water'],
+    ];
+    document.querySelector('#tblDiag tbody').innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td><td class="n">${r[2]}</td></tr>`).join('');
+  }
+  function render() {
+    const C = sim.carrier, R = sim.rider;
+    carrierM.position.copy(V3(C.x, C.y, PHYS.CABLE_HEIGHT - 0.35));
+    carrierM.rotation.y = Math.atan2(C.ty, C.tx);
+    // rider
+    const bz = Math.max(R.z, -0.25);
+    rider.position.copy(V3(R.x, R.y, bz + 0.03));
+    { const tgt = camMode === 'orbit' ? controls.target : null; updateWater(tgt ? tgt.x : R.x, tgt ? -tgt.z : R.y); waterPatch.visible = camMode !== 'top'; }
+    rider.rotation.y = R.psi;
+    const topView = camMode === 'top';
+    headArrow.visible = topView; cableArrow.visible = false;   // kun den røde retningspil
+    $('hudLegend').hidden = !topView;
+    if (topView) { const dAng = Math.atan2(Math.sin(R.psi - Math.atan2(C.ty, C.tx)), Math.cos(R.psi - Math.atan2(C.ty, C.tx))) / DEG; $('hudLegend').lastChild.textContent = ` board heading · ${dAng > 0 ? 'in' : 'out'} ${Math.abs(dAng).toFixed(0)}° vs. cable`; }
+    if (topView) {
+      headArrow.position.copy(V3(R.x, R.y, 0.3)); headArrow.rotation.y = R.psi;               // boardets retning (yaw)
+      const kpx = pxSize(V3(R.x, R.y, 0), ortho) * 55 / 9; headArrow.scale.setScalar(Math.max(0.25, kpx * 0.25)); cableArrow.scale.setScalar(Math.max(1, kpx * 0.9));   // ~55 px lang uanset zoom
+      cableArrow.position.copy(V3(R.x, R.y, 0.25)); cableArrow.rotation.y = Math.atan2(C.ty, C.tx);  // kablets retning
+    }
+    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow'; for (const l of mastLabels.concat(obsTags)) l.visible = camMode !== 'follow';
+    boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
+    boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
+    // line: lige i træk, hængende i slæk
+    tmpA.copy(V3(sim.tow.x, sim.tow.y, PHYS.CABLE_HEIGHT - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
+    // krop: linens retning i boardets ramme -> håndtag -> arme
+    rider.updateMatrixWorld(true);
+    bodyG.rotation.y = sim.switchStance ? Math.PI : 0; bootsG.rotation.y = bodyG.rotation.y; rider.updateMatrixWorld(true);
+    lineDirLocal.copy(bodyG.worldToLocal(tmpA.clone())).sub(bodyG.worldToLocal(V3(sim.line.hp[0], sim.line.hp[1], sim.line.hp[2])));
+    poseRider(R.leg, sim.line.F, sim.line.attached, R.phi, R.theta || 0, R.hOff || 0, R.arm || 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0, sim.switchStance, sim.grab);
+    updateSpray(R);
+    if (sim.line.attached) tmpB.copy(bodyG.localToWorld(handleLocal.clone()));
+    else tmpB.copy(V3(C.x - C.tx * 17, C.y - C.ty * 17, 0.3));   // sluppet håndtag slæbes efter carrier
+    const dist = tmpA.distanceTo(tmpB), sag = sim.line.slack && sim.line.attached ? Math.sqrt(Math.max(0, PHYS.LINE_LENGTH ** 2 - dist ** 2)) * 0.5 : 0;
+    for (let i = 0; i < LN; i++) { const u = i / (LN - 1); ropePts[i].copy(tmpA).lerp(tmpB, u); ropePts[i].y = Math.max(ropePts[i].y - sag * 4 * u * (1 - u), 0.05); }
+    const camNow = camMode === 'top' ? ortho : persp;
+    for (let i = 0; i < LN - 1; i++) { _mid.copy(ropePts[i]).add(ropePts[i + 1]).multiplyScalar(0.5); placeTube(ropeSegs[i], ropePts[i], ropePts[i + 1], Math.max(ROPE_R, 0.65 * pxSize(_mid, camNow))); }
+    placeTube(hangerM, V3(C.x, C.y, PHYS.CABLE_HEIGHT), tmpA, Math.max(0.03, 0.7 * pxSize(tmpA, camNow)));   // carrier-ophæng
+    lineMat.color.set(sim.out.warn ? 0xf08a5d : sim.line.slack ? 0xe6edf0 : 0xe9b949);   // stram: gul, slæk: lys (synlig mod vand og himmel)
+    // spor
+    if (sim.t - trailT > 0.1 || trailN === 0) {
+      trailT = sim.t;
+      if (trailN === TRAIL) { trailPos.copyWithin(0, 3); trailN--; }
+      trailPos[trailN * 3] = R.x; trailPos[trailN * 3 + 1] = 0.05; trailPos[trailN * 3 + 2] = -R.y; trailN++;
+      trailGeo.setDrawRange(0, trailN); trailGeo.attributes.position.needsUpdate = true;
+    }
+    // kamera
+    let cam = persp;
+    if (camMode === 'orbit') controls.update();
+    else if (camMode === 'follow') {
+      const hxv = Math.cos(R.psi), hyv = Math.sin(R.psi);
+      // lige bagfra langs kørselsretningen (hastighedsvektoren, glattet), let hævet
+      const vv = Math.hypot(R.vx, R.vy); if (vv > 1) { camDir.x += (R.vx / vv - camDir.x) * 0.08; camDir.y += (R.vy / vv - camDir.y) * 0.08; }
+      const cl = Math.hypot(camDir.x, camDir.y) || 1, cx = camDir.x / cl, cy = camDir.y / cl;
+      camOff.copy(V3(R.x - cx * 6.5, R.y - cy * 6.5, Math.max(R.z, 0) + 2.1));
+      persp.position.lerp(camOff, 0.2); persp.lookAt(V3(R.x + cx * 3, R.y + cy * 3, Math.max(R.z, 0) + 1.0));
+    } else cam = ortho;
+    renderer.render(scene, cam);
+    // HUD
+    $('hudT').textContent = `t ${sim.t.toFixed(2)} s`;
+    $('hudMode').textContent = (paused ? '❚❚ paused' : '▶ ' + String(timeScale) + '×');
+    const hl = $('hudLine'); hl.textContent = (sim.line.slack ? 'line slack' : `line ${sim.line.F.toFixed(0)} N / ${(sim.releaseN / 1000).toFixed(1)} kN`) + (sim.rider.arm > 0.02 ? ` · arms give ${(sim.rider.arm * 100).toFixed(0)} cm` : '');
+    hl.className = 'chip' + (sim.out.warn ? ' on-warn' : '');
+    const hp = $('hudPhase');
+    hp.textContent = sim.out.contact ? `on ${sim.out.contact}` : sim.out.air ? `airborne ${R.z.toFixed(1)} m${sim.jump ? ` · ${Math.abs(sim.jump.rot / DEG).toFixed(0)}°` : ''}${sim.grab.reach >= 1 ? (sim.grab.type > 0 ? ' · nose grab' : ' · tail grab') : ''}` : sim.windup > 0.05 ? `pre-wind ${(sim.windup * 100).toFixed(0)} %` : sim.out.inWater ? 'in water' : 'above water';
+    hp.className = 'chip' + (sim.out.contact || sim.out.air ? ' on-ok' : '');
+    // Vand: trim, våd længde, sideslip
+    $('hudWater').textContent = sim.out.inWater ? `τ ${(sim.out.trim / DEG).toFixed(1)}° · pitch ${((sim.out.pitch || 0) / DEG).toFixed(1)}° · wetted ${(sim.out.lw * 100).toFixed(0)} cm (λ ${(sim.out.lw / PHYS.BOARD_BEAM).toFixed(1)}) · C_V ${(sim.out.Cv || 0).toFixed(1)} · slip ${((sim.out.beta || 0) / DEG).toFixed(0)}°` : 'board above water';
+    // Hjørne-coach (fra instruktioner: kant udad før hjørnet, slip kanten når carrieren går om hjulet, ~1 s slæk)
+    const hc = $('hudCoach'); let msg = '';
+    if (sim.line.attached) {
+      const P_ = sim.path, cs = ((C.s % P_.length) + P_.length) % P_.length; let dArc = Infinity, inArc = false;
+      for (const g of P_.pieces) if (g.kind === 'arc') { if (cs >= g.s0 && cs <= g.s0 + g.len) inArc = true; let d = g.s0 - cs; if (d < 0) d += P_.length; dArc = Math.min(dArc, d); }
+      const tc = dArc / sim.cableSpeed, since = coachLast.arcT >= 0 ? sim.t - coachLast.arcT : 9;
+      if (inArc) coachLast.arcT = sim.t;
+      if (inArc || since < 1.2) msg = 'Release the edge: let the line pull you round';
+      else if (tc < 5) msg = `Corner in ${tc.toFixed(1)} s: edge out (Lean ▶), stay wide, elbows in`;
+    }
+    hc.hidden = !msg; hc.textContent = msg; hc.className = 'chip' + (msg.startsWith('Release') ? ' on-ok' : '');
+    if ($('diagBox').open && performance.now() - diagLast > 250) { diagLast = performance.now(); updateDiag(); }
+    const hj = $('hudJump'), la = sim.out.lastAir; hj.hidden = !la;
+    const lt = sim.out.lastTrick;
+    if (la) hj.textContent = (lt && sim.t - lt.t < 6 ? `${lt.name}${lt.switchLanding ? ' (riding switch)' : ''} · ` : '') + `last jump ${la.dur.toFixed(2)} s · ${la.hmax.toFixed(1)} m · landing ${(-la.vz).toFixed(1)} m/s`;
+    // næste obstakel foran rideren
+    const hx0 = Math.cos(R.psi), hy0 = Math.sin(R.psi); let nx = null;
+    for (const o of sim.obs) { const dx = o.x - R.x, dy = o.y - R.y, f = dx * hx0 + dy * hy0, l = -dx * hy0 + dy * hx0;
+      if (f > 2 && f < 90 && Math.abs(l) < 35 && (!nx || f < nx.f)) nx = { o, f, l }; }
+    const hn = $('hudNext'); hn.hidden = !nx || !sim.line.attached;
+    if (nx) hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}`;
+    $('hudEdge').textContent = `lean ${(R.phi / DEG).toFixed(0)}° (target ${(sim.leanCmd / DEG).toFixed(0)}°)`;
+    const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall + ' · press Reset';
+    for (const s of series) drawChart(s);
+  }
+  window.__ccpDebug = { sim, persp, controls, setCam };   // for automated screenshots/tests
+  setCam('follow'); resize(); requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
