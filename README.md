@@ -7,7 +7,8 @@ Open `dist/copenhagen_cable_park_sim.html` in a browser.
 ## What it models
 
 - **Cable and carrier**: constant speed (20–35 km/h) on the 520 m loop from the user's KML polygon (T1–T6), counter-clockwise, with a compliant carrier hanger.
-- **Line**: tension-only spring-damper, arm/body stroke that yields above ≈0.95 kN, adjustable release limit (default 1.5 kN).
+- **Cable**: deflects sideways and down under the line force as a taut string between the sheaves (pretension 20 kN assumed); stiff near a sheave, soft mid-span.
+- **Line**: sags under its own weight; tension-only spring-damper, arm/body stroke that yields above ≈0.95 kN, adjustable release limit (default 1.5 kN).
 - **Rider**: reduced-coordinate multi-body model. Knee-torque-limited legs (de Leva 1996 segments), fore–aft balance with ankle and hip strategies, arms that raise/lower the handle, pose-dependent inertia.
 - **Board and water**: Savitsky planing with trim from moment balance, rocker, ITTC-57 friction, added mass and slamming, edge/sideslip, ventilation. Water surface with fetch-limited JONSWAP chop and the board's own wake.
 - **Starts**: sliding (carpet dock), jump and sitting start.

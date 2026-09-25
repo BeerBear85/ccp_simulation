@@ -268,26 +268,26 @@
             <tr><td>Smooth coefficients without jumps (13.6)</td><td>Yes, deadrise clamp and "catching an edge" are smooth functions</td></tr>
             <tr><td>Observability: log all channels (13.7)</td><td>Yes, the "Diagnostics (live)" panel</td></tr>
             <tr><td>Sensitivity analysis (17)</td><td>Yes, in the validation script (±20 % per parameter)</td></tr>
-            <tr><td>Motor/cable compliance (10.2)</td><td>No: cable speed is constant (report: add only if measurements show deviations)</td></tr>
+            <tr><td>Motor/cable compliance (10.2)</td><td>Partly: the cable deflects sideways and down under the line force as a taut string between the sheaves (k = T₀L/(a(L−a)), with the carrier and cable mass); the drive speed is constant</td></tr>
             <tr><td>Full pitch dynamics, flexible board, strip theory, CFD (M3–M5)</td><td>No: pitch is quasi-static (τ = 0.08 s), the board is rigid</td></tr>
           </tbody>
         </table></div>
         <div class="tbl"><table>
           <thead><tr><th>Validation (headless)</th><th>Report</th><th>Simulator</th></tr></thead>
           <tbody>
-            <tr><td>Straight, 30 km/h, 18.5 m line, 10 m cable: T</td><td class="n">142 N</td><td class="n">171 N (+25 N air drag)</td></tr>
+            <tr><td>Straight, 30 km/h, 18.5 m line, 10 m cable: T</td><td class="n">142 N</td><td class="n">166 N (+25 N air drag)</td></tr>
             <tr><td>Load on the board</td><td class="n">716 N</td><td class="n">704 N</td></tr>
             <tr><td>λ / wetted length</td><td class="n">2.02 / 0.87 m</td><td class="n">2.36 / 1.01 m</td></tr>
             <tr><td>Trim (report: prescribed 5°)</td><td class="n">5°</td><td class="n">4.4° (computed)</td></tr>
             <tr><td>Progressive edge to 38° and release: peak speed</td><td class="n">44 km/h*</td><td class="n">46.1 km/h</td></tr>
-            <tr><td>Same manoeuvre: peak T</td><td class="n">706 N*</td><td class="n">1099 N (arms yield)</td></tr>
-            <tr><td>Time step 1/240 → 1/960 s (peak T)</td><td class="n">must converge</td><td class="n">1099 → 1102 N</td></tr>
+            <tr><td>Same manoeuvre: peak T</td><td class="n">706 N*</td><td class="n">950 N (arms yield, cable deflects)</td></tr>
+            <tr><td>Time step 1/240 → 1/960 s (peak T)</td><td class="n">must converge</td><td class="n">950 → 950 N</td></tr>
             <tr><td>Energy residual over a 110 s lap</td><td class="n">≈ 0</td><td class="n">≤ 2 % of line work (3.8 of 224 kJ, coached lap)</td></tr>
             <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
             <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
             <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
             <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
-            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†</td><td class="n">1.43 / 1.03 / 1.52 kN (1.8 / 1.3 / 1.9 BW)</td></tr>
+            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 / 1.54 kN (1.5 / 1.2 / 2.0 BW)</td></tr>
           </tbody>
         </table></div>
         <p>* The report's numbers come from an illustrative point-mass model, not measurements. The report itself recommends calibrating against a load cell in the handle, an IMU on the board and GNSS.</p>
@@ -479,7 +479,14 @@
     const lbl = makeLabel(m.id); lbl.position.copy(V3(w[0], w[1], PHYS.MAST_HEIGHT + 2.5)); scene.add(lbl); mastLabels.push(lbl);
   });
   const cablePts = []; for (let s0 = 0; s0 <= sim.path.length; s0 += 0.5) { const q = pathAt(sim.path, s0); cablePts.push(V3(q.x, q.y, PHYS.CABLE_HEIGHT)); }
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cablePts), new THREE.LineBasicMaterial({ color: 0x1c2328 })));
+  const cableGeo = new THREE.BufferGeometry().setFromPoints(cablePts), cableBase = cableGeo.attributes.position.array.slice();
+  scene.add(new THREE.Line(cableGeo, new THREE.LineBasicMaterial({ color: 0x1c2328 })));
+  // The loaded span bends at the carrier (triangular shape between the sheaves)
+  function updateCable() { const pos = cableGeo.attributes.position, A = pos.array, CB = sim.cable, C = sim.carrier; A.set(cableBase);
+    if (CB.s0 != null && (Math.abs(CB.dL) + Math.abs(CB.dZ)) > 0.01) { const nx = -C.ty, ny = C.tx;
+      for (let i = 0; i < cablePts.length; i++) { const s = i * 0.5 - CB.s0; if (s < 0 || s > CB.Ls) continue; const f = s <= CB.a ? s / CB.a : (CB.Ls - s) / (CB.Ls - CB.a);
+        A[3 * i] += f * CB.dL * nx; A[3 * i + 1] += f * CB.dZ; A[3 * i + 2] -= f * CB.dL * ny; } }
+    pos.needsUpdate = true; }
   function makeLabel(text) {
     const c = document.createElement('canvas'); c.width = 64; c.height = 64;
     const g = c.getContext('2d'); g.fillStyle = '#162631'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill();
@@ -989,7 +996,7 @@
   function updateDiag() {
     const o = sim.out, R = sim.rider, E = sim.energy, f = (v, d = 0) => (v ?? 0).toFixed(d);
     const rows = [
-      ['Line', 'Line tension T', f(sim.line.F) + ' N'], ['', 'Stretch (l − L₀)', f(o.stretch * 100, 1) + ' cm'], ['', 'State', sim.line.attached ? (sim.line.slack ? 'slack' : 'taut') : 'released'],
+      ['Line', 'Line tension T', f(sim.line.F) + ' N'], ['', 'Cable deflection at the carrier / stiffness', f((o.cableDefl || 0) * 100) + ' cm / ' + f(o.cableK || 0) + ' N/m'], ['', 'Stretch (l − L₀)', f(o.stretch * 100, 1) + ' cm'], ['', 'State', sim.line.attached ? (sim.line.slack ? 'slack' : 'taut') : 'released'],
       ['', 'Cable power T q·v_c', f(o.Pcable) + ' W'],
       ['Body', 'Fore–aft lean θ (back +)', f((o.theta || 0) / DEG, 1) + '°'], ['', 'Centre of pressure shift (fwd +)', f((o.cop || 0) * 100, 1) + ' cm'],
       ['', 'Handle height offset (arms)', f((R.hOff || 0) * 100, 1) + ' cm'], ['', 'Arm/body stroke used', f((R.arm || 0) * 100) + ' cm'],
@@ -1016,8 +1023,8 @@
   }
   function render() {
     const C = sim.carrier, R = sim.rider;
-    carrierM.position.copy(V3(C.x, C.y, PHYS.CABLE_HEIGHT - 0.35));
-    carrierM.rotation.y = Math.atan2(C.ty, C.tx);
+    carrierM.position.copy(V3(sim.towPt.x, sim.towPt.y, sim.towPt.z - 0.35));
+    carrierM.rotation.y = Math.atan2(C.ty, C.tx); updateCable();
     // rider
     const bz = Math.max(R.z, -0.25);
     rider.position.copy(V3(R.x, R.y, bz + 0.03));
@@ -1036,7 +1043,7 @@
     boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
     boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
     // line: lige i træk, hængende i slæk
-    tmpA.copy(V3(sim.tow.x, sim.tow.y, PHYS.CABLE_HEIGHT - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
+    tmpA.copy(V3(sim.towPt.x, sim.towPt.y, sim.towPt.z - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
     // krop: linens retning i boardets ramme -> håndtag -> arme
     rider.updateMatrixWorld(true);
     bodyG.rotation.y = sim.switchStance ? Math.PI : 0; bootsG.rotation.y = bodyG.rotation.y; rider.updateMatrixWorld(true);

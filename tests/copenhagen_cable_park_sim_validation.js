@@ -97,7 +97,7 @@ function railLab(alphaDeg, vKmh, o = {}) { const M = fresh(); M.LAYOUT.wheels = 
   const dz = M.PHYS.CABLE_HEIGHT - (H + 1.0), hor = Math.sqrt((M.PHYS.LINE_LENGTH - 0.02) ** 2 - dz * dz);
   s.carrier.s = rx + Math.sqrt(hor * hor - ry * ry) - 1; s.step(); Object.assign(s.tow, { x: s.carrier.x, y: s.carrier.y, vx: s.carrier.vx, vy: s.carrier.vy });
   Object.assign(R, { x: rx, y: ry, z: H + 0.001, vx: ob.ax * v, vy: ob.ay * v, vz: 0, psi: ob.yaw, r: 0, phi: 0, p: 0, theta: 0.1, q: 0, leg: 0.85, legv: 0, arm: 0 });
-  s.line.hp = [rx, ry, H + 1]; Object.assign(s.energy, { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, E0: null }); const vReq = s.railPreview(ob); let Tmax = 0, Eres = 0;
+  Object.assign(s.towPt, s.tow); s.line.hp = [rx, ry, H + 1]; Object.assign(s.energy, { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, E0: null }); const vReq = s.railPreview(ob); let Tmax = 0, Eres = 0;
   for (let i = 0; i < 240 * 6; i++) { s.leanCmdIn = 0; s.legCmdIn = s.legBase; s.spinIn = o.slide && s._onRail ? 1 : 0; s.step(); if (s.out.rail) Tmax = Math.max(Tmax, s.line.F);
     Eres = Math.max(Eres, Math.abs(s.out.Eres)); if (s.out.fall || (!s._railRun && s.out.lastRail)) break; }
   const lr = s.out.lastRail; return { vReq: vReq * 3.6, lr, fall: s.out.fall, Tmax, Eres }; }

@@ -18,6 +18,14 @@ const PHYS = {
   WHEEL_RADIUS: 1.0,     // m      hjørnehjul (Ø 2 m); kablet løber om hjulets yderside. Antaget
   HANGER_F:     1.5,     // Hz     carrier-ophængets egenfrekvens: trækpunktet følger kablet med 2.-ordens eftergivelighed (rapport 10). Antaget
   HANGER_ZETA:  0.9,     // –      dæmpning af carrier-ophænget. Antaget
+  // The main cable is a taut string between the sheaves: a point load P at distance a along a span Ls deflects it by
+  // δ = P·a(Ls − a)/(T0·Ls), i.e. stiffness k = T0·Ls/(a(Ls − a)): stiff near a sheave, softest mid-span (4·T0/Ls).
+  // The line force's components across the cable (sideways and down) move the tow point; the carrier and the cable
+  // around it have mass (Rayleigh: μ·Ls/3 for the triangular shape). Along the cable the drive holds the carrier.
+  CABLE_T0:     20000,   // N      cable pretension. Assumed (full-size cables are tensioned by weight/hydraulics; typical order 15–30 kN)
+  CABLE_MU:     1.0,     // kg/m   steel wire rope Ø16 mm ≈ 1.0 kg/m. Assumed diameter
+  CARRIER_MASS: 12,      // kg     carrier + hanger. Assumed
+  CABLE_ZETA:   0.15,    // –      damping of the cable's transverse motion. Assumed
   CABLE_SPEED_KMH: 30,   // km/t   standardhastighed; justerbar 20–35. Antaget (typisk fullsize 28–32 km/t)
   CABLE_SPEED_MIN: 20,   // km/t   Kilde: prompt
   CABLE_SPEED_MAX: 35,   // km/t   Kilde: prompt
@@ -28,6 +36,8 @@ const PHYS = {
   LINE_K:       800,     // N/m    effektiv serie-stivhed: PE-line (~4 % stræk ved 1 kN) + riderens arme/ben. Antaget
   LINE_C:       200,     // N·s/m  dæmpning ved stræk (ζ≈0,4). Antaget
   LINE_C_REC:   700,     // N·s/m  dæmpning når linen trækker sig sammen: arme/ben giver ikke energien tilbage (ingen slangebøsse). Antaget
+  LINE_MASS_PM: 0.04,    // kg/m   rope mass per metre (floating PE rope Ø8–10 mm ≈ 0.03–0.05 kg/m). The rope sags under its own weight:
+                         //        extra length (L − d) ≈ w⊥²·d³/(24 T²) (parabolic catenary), so it comes taut smoothly instead of at once. Assumed
   LINE_CF_MAX:  700,     // N      maks. dæmpningskraft: armene giver efter ved et ryk (kraftbegrænset). Antaget
   RELEASE_N:    1500,    // N      default release limit: above this the rider loses the cable (= fall). Adjustable in the UI (0.8–3 kN). Source: user; deep-water start loads 2.0–2.5 BW (Runciman 2011, PMC case study)
   RELEASE_TIME: 0.03,    // s      time above the limit before the handle is lost (filters single-step spikes). Assumed
@@ -439,7 +449,9 @@ function createSim(opts = {}) {
     leanCmdIn: 0,   // rad, input fra UI (før rate-begrænsning)
     leanCmd: 0,     // rad, rate-begrænset ønsket læn
     carrier: { s: 0, x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, tx: 1, ty: 0 },
-    tow: { x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, vz: 0 },   // trækpunkt under carrieren (eftergiveligt ophæng)
+    tow: { x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, vz: 0 },   // trækpunkt under carrieren (eftergiveligt ophæng), på det uudbøjede kabel
+    towPt: { x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, vz: 0 }, // actual tow point incl. the cable's deflection
+    cable: { dL: 0, dZ: 0, vL: 0, vZ: 0, f: [0, 0, 0], k: 0, a: 0, Ls: 0, s0: 0 },
     footShift: 0,   // m, fodtryk: + = vægt frem, − = vægt tilbage (styres fra UI)
     energy: { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, E0: null },
     // board-reference: x,y,z = boardets bund; phi = læn/kant (+ = højre rail ned), p = rollrate
@@ -503,6 +515,7 @@ function createSim(opts = {}) {
     sim._cop = 0; sim._thRef = undefined;
     sim.carrier.s = 0;
     placeCarrier(); Object.assign(sim.tow, { x: sim.carrier.x, y: sim.carrier.y, z: P.CABLE_HEIGHT, vx: sim.carrier.vx, vy: sim.carrier.vy, vz: 0 });
+    Object.assign(sim.cable, { dL: 0, dZ: 0, vL: 0, vZ: 0, f: [0, 0, 0] }); Object.assign(sim.towPt, sim.tow);
     Object.assign(sim.energy, { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, armWork: 0, E0: null });
     Object.assign(sim.line, { F: 0, attached: true, over: 0, slack: true, hp: [x, y, z + leg] });
     sim.legCmd = sim.legCmdIn = sim.legBase = leg;
@@ -630,6 +643,17 @@ function createSim(opts = {}) {
     { const T = sim.tow, w = 2 * Math.PI * P.HANGER_F, z = P.HANGER_ZETA;
       const ax = w * w * (C.x - T.x) + 2 * z * w * (C.vx - T.vx), ay = w * w * (C.y - T.y) + 2 * z * w * (C.vy - T.vy);
       T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; }
+    // 1c) Cable deflection under the (previous step's) line force: across the cable horizontally (dL, to the left) and down (dZ)
+    { const CB = sim.cable, sm = ((C.s % path.length) + path.length) % path.length;
+      let g = path.pieces[0]; for (const q of path.pieces) if (sm >= q.s0 && sm <= q.s0 + q.len) { g = q; break; }
+      const isLine = g.kind === 'line', Ls = isLine ? g.len : 100, a = isLine ? Math.max(2, Math.min(Ls - 2, sm - g.s0)) : 2;
+      const k = P.CABLE_T0 * Ls / (a * (Ls - a)), mE = P.CARRIER_MASS + P.CABLE_MU * Ls / 3, c = 2 * P.CABLE_ZETA * Math.sqrt(k * mE);
+      const nx = -C.ty, ny = C.tx, fL = CB.f[0] * nx + CB.f[1] * ny, fZ = CB.f[2];
+      CB.vL += (fL - k * CB.dL - c * CB.vL) / mE * dt; CB.dL += CB.vL * dt;
+      CB.vZ += (fZ - k * CB.dZ - c * CB.vZ) / mE * dt; CB.dZ += CB.vZ * dt;
+      Object.assign(CB, { k, a, Ls, s0: isLine ? g.s0 : null });
+      const T = sim.tow;
+      Object.assign(sim.towPt, { x: T.x + CB.dL * nx, y: T.y + CB.dL * ny, z: P.CABLE_HEIGHT + CB.dZ, vx: T.vx + CB.vL * nx, vy: T.vy + CB.vL * ny, vz: CB.vZ }); }
     // 2) Ønsket læn: rate-begrænset
     const maxd = P.LEAN_RATE_DEG * D2R * dt, lim = P.LEAN_MAX_DEG * D2R;
     const want = Math.max(-lim, Math.min(lim, sim.leanCmdIn * (sim.switchStance ? -1 : 1)));   // riding switch: the board frame is reversed
@@ -650,13 +674,19 @@ function createSim(opts = {}) {
     const legPrev = sim.legCmd; sim.legCmd += Math.max(-lstep, Math.min(lstep, lwant - sim.legCmd)); const legCmdV = (sim.legCmd - legPrev) / dt;
     const hH = R.leg + P.HANDLE_ABOVE_HIP + (R.hOff || 0);                   // hOff: arms raise/lower the handle (balance)
     const hp = [R.x + hH * nrm[0], R.y + hH * nrm[1], R.z + hH * nrm[2]];
-    const TW = sim.tow;
+    const TW = sim.towPt;
     let d = [TW.x - hp[0], TW.y - hp[1], TW.z - hp[2]];
     const dist = Math.hypot(d[0], d[1], d[2]); d = [d[0] / dist, d[1] / dist, d[2] / dist];
     let e = dist - P.LINE_LENGTH - R.arm;                                      // the arms extend the hands towards the carrier
     const vh = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];   // håndtagets hastighed
-    let edot = (TW.vx - vh[0]) * d[0] + (TW.vy - vh[1]) * d[1] + (0 - vh[2]) * d[2];
-    const lineF = (e, ed) => (L.attached && e > 0) ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
+    let edot = (TW.vx - vh[0]) * d[0] + (TW.vy - vh[1]) * d[1] + (TW.vz - vh[2]) * d[2];
+    // Static tension from stretch AND sag: the chord shortfall e (< 0 when "slack") is taken up by the catenary,
+    // e = T/K − w⊥²d³/(24T²). Solved for T by bisection in log T (monotone). Damping acts only when stretched, as before.
+    const wPerp = P.LINE_MASS_PM * P.G * Math.hypot(d[0], d[1]), cSag = wPerp * wPerp * dist ** 3 / 24;
+    const Tstat = e => { if (cSag <= 0) return Math.max(0, P.LINE_K * e); let lo = -6, hi = 5.5;
+      for (let k = 0; k < 40; k++) { const mid = 0.5 * (lo + hi), T = 10 ** mid; if (T / P.LINE_K - cSag / (T * T) > e) hi = mid; else lo = mid; }
+      return 10 ** (0.5 * (lo + hi)); };
+    const lineF = (e, ed) => L.attached ? Math.max(0, Tstat(e) + (e > 0 ? Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed)) : 0)) : 0;
     let F = lineF(e, edot);
     // 3a) Jump start: take off just before the line comes taut, so the jerk has a smaller Δv to deliver
     if (L.attached && sim.jumpArmed && e < 0 && edot > 0.5 && -e / edot < P.JUMP_LEAD) {
@@ -946,7 +976,8 @@ function createSim(opts = {}) {
       }
     }
     // 9) Output
-    L.F = F; L.stretch = e; L.slack = !L.attached || e <= 0; L.hp = hp;
+    sim.cable.f = L.attached ? [-F * d[0], -F * d[1], -F * d[2]] : [0, 0, 0];   // reaction on the cable, used next step
+    L.F = F; L.stretch = e; L.slack = !L.attached || e <= 0; L.hp = hp;   // stretch ≤ 0: only the sag holds the rope (a few N)
     // Rail diagnostics (rails report 12, 21, 25): v_req = (l̂·v_c)/(l̂·t), speed margin, side pull, hold ratio
     if (railMode && L.attached) {
       const ob = railC.ob, tl = Math.hypot(1, railC.sl), t3 = [ob.ax / tl, ob.ay / tl, railC.sl / tl], lt = dot(d, t3), lv = d[0] * TW.vx + d[1] * TW.vy;
@@ -974,7 +1005,7 @@ function createSim(opts = {}) {
     o.warn = F > P.WARN_FRAC * sim.releaseN; o.dock = onDock; o.arm = R.arm; if (sim.t < 15) o.startPeak = Math.max(o.startPeak || 0, F); o.contact = contactName; o.Fc = Fc; o.air = airborne; o.Fleg = Fleg; o.beta = beta; o.rCarve = rCarve; o.trim = trim; o.lw = lw; o.Df = Df; o.Dw = drag + lift * Math.sin(trim);
     o.pitch = H.pitch; o.theta = R.theta; o.cop = sim._cop; o.Ilean = BI.roll; o.beta_knee = BI.beta; o.FlegMax = legForceMax(P, R.leg, R.legv); o.lp = H.lp; o.ma = H.ma; o.slam = H.slam; o.Cv = H.Cv; o.Re = H.Re; o.Pcable = Pcable; o.Pline = Pline;
     o.Dpress = H.Dpress || 0; o.Dres = H.Dres || 0; o.Dslip = H.Dslip || 0; o.Dplow = H.Dplow || 0; o.vent = H.vent ?? 1; o.xLine = H.xLine || 0;
-    o.Fr = V / Math.sqrt(P.G * P.BOARD_LEN); o.We = P.RHO_WATER * V * V * P.BOARD_LEN / 0.072; o.stretch = e; o.ankle = R.ankle;
+    o.Fr = V / Math.sqrt(P.G * P.BOARD_LEN); o.We = P.RHO_WATER * V * V * P.BOARD_LEN / 0.072; o.stretch = e; o.ankle = R.ankle; o.cableDefl = Math.hypot(sim.cable.dL, sim.cable.dZ); o.cableK = sim.cable.k;
     // Mekanisk energi (kinetisk + potentiel + elastisk i linen) til energitjek
     const vU2 = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];
     const Ek = 0.5 * mb * (R.vx * R.vx + R.vy * R.vy + R.vz * R.vz) + 0.5 * mu * dot(vU2, vU2);
@@ -992,7 +1023,7 @@ function createSim(opts = {}) {
   };
   // v_req a feature would demand with the current line direction (approach feedback, rails report 25)
   sim.railPreview = function (ob) {
-    const hp = sim.line.hp, T = sim.tow; if (!hp) return null;
+    const hp = sim.line.hp, T = sim.towPt; if (!hp) return null;
     const d = [T.x - hp[0], T.y - hp[1], T.z - hp[2]], n = Math.hypot(...d), lt = (d[0] * ob.ax + d[1] * ob.ay) / n, lv = (d[0] * T.vx + d[1] * T.vy) / n;
     return lt > 0.05 ? lv / lt : Infinity;
   };
@@ -1269,26 +1300,26 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
             <tr><td>Smooth coefficients without jumps (13.6)</td><td>Yes, deadrise clamp and "catching an edge" are smooth functions</td></tr>
             <tr><td>Observability: log all channels (13.7)</td><td>Yes, the "Diagnostics (live)" panel</td></tr>
             <tr><td>Sensitivity analysis (17)</td><td>Yes, in the validation script (±20 % per parameter)</td></tr>
-            <tr><td>Motor/cable compliance (10.2)</td><td>No: cable speed is constant (report: add only if measurements show deviations)</td></tr>
+            <tr><td>Motor/cable compliance (10.2)</td><td>Partly: the cable deflects sideways and down under the line force as a taut string between the sheaves (k = T₀L/(a(L−a)), with the carrier and cable mass); the drive speed is constant</td></tr>
             <tr><td>Full pitch dynamics, flexible board, strip theory, CFD (M3–M5)</td><td>No: pitch is quasi-static (τ = 0.08 s), the board is rigid</td></tr>
           </tbody>
         </table></div>
         <div class="tbl"><table>
           <thead><tr><th>Validation (headless)</th><th>Report</th><th>Simulator</th></tr></thead>
           <tbody>
-            <tr><td>Straight, 30 km/h, 18.5 m line, 10 m cable: T</td><td class="n">142 N</td><td class="n">171 N (+25 N air drag)</td></tr>
+            <tr><td>Straight, 30 km/h, 18.5 m line, 10 m cable: T</td><td class="n">142 N</td><td class="n">166 N (+25 N air drag)</td></tr>
             <tr><td>Load on the board</td><td class="n">716 N</td><td class="n">704 N</td></tr>
             <tr><td>λ / wetted length</td><td class="n">2.02 / 0.87 m</td><td class="n">2.36 / 1.01 m</td></tr>
             <tr><td>Trim (report: prescribed 5°)</td><td class="n">5°</td><td class="n">4.4° (computed)</td></tr>
             <tr><td>Progressive edge to 38° and release: peak speed</td><td class="n">44 km/h*</td><td class="n">46.1 km/h</td></tr>
-            <tr><td>Same manoeuvre: peak T</td><td class="n">706 N*</td><td class="n">1099 N (arms yield)</td></tr>
-            <tr><td>Time step 1/240 → 1/960 s (peak T)</td><td class="n">must converge</td><td class="n">1099 → 1102 N</td></tr>
+            <tr><td>Same manoeuvre: peak T</td><td class="n">706 N*</td><td class="n">950 N (arms yield, cable deflects)</td></tr>
+            <tr><td>Time step 1/240 → 1/960 s (peak T)</td><td class="n">must converge</td><td class="n">950 → 950 N</td></tr>
             <tr><td>Energy residual over a 110 s lap</td><td class="n">≈ 0</td><td class="n">≤ 2 % of line work (3.8 of 224 kJ, coached lap)</td></tr>
             <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
             <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
             <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
             <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
-            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†</td><td class="n">1.43 / 1.03 / 1.52 kN (1.8 / 1.3 / 1.9 BW)</td></tr>
+            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 / 1.54 kN (1.5 / 1.2 / 2.0 BW)</td></tr>
           </tbody>
         </table></div>
         <p>* The report's numbers come from an illustrative point-mass model, not measurements. The report itself recommends calibrating against a load cell in the handle, an IMU on the board and GNSS.</p>
@@ -1480,7 +1511,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     const lbl = makeLabel(m.id); lbl.position.copy(V3(w[0], w[1], PHYS.MAST_HEIGHT + 2.5)); scene.add(lbl); mastLabels.push(lbl);
   });
   const cablePts = []; for (let s0 = 0; s0 <= sim.path.length; s0 += 0.5) { const q = pathAt(sim.path, s0); cablePts.push(V3(q.x, q.y, PHYS.CABLE_HEIGHT)); }
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cablePts), new THREE.LineBasicMaterial({ color: 0x1c2328 })));
+  const cableGeo = new THREE.BufferGeometry().setFromPoints(cablePts), cableBase = cableGeo.attributes.position.array.slice();
+  scene.add(new THREE.Line(cableGeo, new THREE.LineBasicMaterial({ color: 0x1c2328 })));
+  // The loaded span bends at the carrier (triangular shape between the sheaves)
+  function updateCable() { const pos = cableGeo.attributes.position, A = pos.array, CB = sim.cable, C = sim.carrier; A.set(cableBase);
+    if (CB.s0 != null && (Math.abs(CB.dL) + Math.abs(CB.dZ)) > 0.01) { const nx = -C.ty, ny = C.tx;
+      for (let i = 0; i < cablePts.length; i++) { const s = i * 0.5 - CB.s0; if (s < 0 || s > CB.Ls) continue; const f = s <= CB.a ? s / CB.a : (CB.Ls - s) / (CB.Ls - CB.a);
+        A[3 * i] += f * CB.dL * nx; A[3 * i + 1] += f * CB.dZ; A[3 * i + 2] -= f * CB.dL * ny; } }
+    pos.needsUpdate = true; }
   function makeLabel(text) {
     const c = document.createElement('canvas'); c.width = 64; c.height = 64;
     const g = c.getContext('2d'); g.fillStyle = '#162631'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill();
@@ -1990,7 +2028,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   function updateDiag() {
     const o = sim.out, R = sim.rider, E = sim.energy, f = (v, d = 0) => (v ?? 0).toFixed(d);
     const rows = [
-      ['Line', 'Line tension T', f(sim.line.F) + ' N'], ['', 'Stretch (l − L₀)', f(o.stretch * 100, 1) + ' cm'], ['', 'State', sim.line.attached ? (sim.line.slack ? 'slack' : 'taut') : 'released'],
+      ['Line', 'Line tension T', f(sim.line.F) + ' N'], ['', 'Cable deflection at the carrier / stiffness', f((o.cableDefl || 0) * 100) + ' cm / ' + f(o.cableK || 0) + ' N/m'], ['', 'Stretch (l − L₀)', f(o.stretch * 100, 1) + ' cm'], ['', 'State', sim.line.attached ? (sim.line.slack ? 'slack' : 'taut') : 'released'],
       ['', 'Cable power T q·v_c', f(o.Pcable) + ' W'],
       ['Body', 'Fore–aft lean θ (back +)', f((o.theta || 0) / DEG, 1) + '°'], ['', 'Centre of pressure shift (fwd +)', f((o.cop || 0) * 100, 1) + ' cm'],
       ['', 'Handle height offset (arms)', f((R.hOff || 0) * 100, 1) + ' cm'], ['', 'Arm/body stroke used', f((R.arm || 0) * 100) + ' cm'],
@@ -2017,8 +2055,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   }
   function render() {
     const C = sim.carrier, R = sim.rider;
-    carrierM.position.copy(V3(C.x, C.y, PHYS.CABLE_HEIGHT - 0.35));
-    carrierM.rotation.y = Math.atan2(C.ty, C.tx);
+    carrierM.position.copy(V3(sim.towPt.x, sim.towPt.y, sim.towPt.z - 0.35));
+    carrierM.rotation.y = Math.atan2(C.ty, C.tx); updateCable();
     // rider
     const bz = Math.max(R.z, -0.25);
     rider.position.copy(V3(R.x, R.y, bz + 0.03));
@@ -2037,7 +2075,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
     boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
     // line: lige i træk, hængende i slæk
-    tmpA.copy(V3(sim.tow.x, sim.tow.y, PHYS.CABLE_HEIGHT - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
+    tmpA.copy(V3(sim.towPt.x, sim.towPt.y, sim.towPt.z - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
     // krop: linens retning i boardets ramme -> håndtag -> arme
     rider.updateMatrixWorld(true);
     bodyG.rotation.y = sim.switchStance ? Math.PI : 0; bootsG.rotation.y = bodyG.rotation.y; rider.updateMatrixWorld(true);
