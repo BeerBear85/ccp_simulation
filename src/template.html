@@ -3,7 +3,7 @@
 /*__PHYSICS__*/
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=Bricolage+Grotesque:wght@500;800&family=Permanent+Marker&display=swap">
 <style>
   /* Enkelt, bevidst mørkt instrumentlook (havnevand om aftenen) */
   :root {
@@ -96,7 +96,80 @@
     .hud { top: 54px; max-width: calc(100% - 24px); }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* ---------- Forside (cover) ---------- */
+  .cover { --cv-bg: #C8FF00; --cv-accent: #FF3DA8; --cv-ink: #111111; --cv-water: 745px;
+    position: fixed; inset: 0; z-index: 1000; overflow: hidden; color: var(--cv-ink);
+    background: linear-gradient(to bottom, var(--cv-bg) 0 var(--cv-water), var(--cv-ink) var(--cv-water));
+    font-family: "Bricolage Grotesque", system-ui, sans-serif; transition: opacity .35s ease, visibility .35s; }
+  .cover.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+  .cv-stage { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; background: var(--cv-bg); }
+  .cv-art { position: absolute; left: 0; top: 0; }
+  .cv-sticker { position: absolute; left: 1318px; top: 78px; width: 124px; transform: rotate(12deg); text-align: center;
+    font: 30px/1 "Permanent Marker", cursive; color: var(--cv-bg); }
+  .cv-title { position: absolute; left: 80px; top: 70px; display: flex; flex-direction: column; align-items: flex-start; }
+  .cv-ccp { font-weight: 800; font-size: 380px; line-height: .8; letter-spacing: -18px; }
+  .cv-pill { margin: 28px 0 0 12px; padding: 10px 32px 16px; background: var(--cv-accent); border: 5px solid var(--cv-ink); border-radius: 999px;
+    transform: rotate(-4deg); font-weight: 800; font-size: 92px; line-height: 1; letter-spacing: -2px; }
+  .cv-tag { position: absolute; left: 96px; top: 540px; max-width: 560px; transform: rotate(-2deg); font: 40px/1.15 "Permanent Marker", cursive; }
+  .cv-foot { position: absolute; left: 80px; bottom: 36px; display: flex; gap: 16px; align-items: center; font-weight: 500; font-size: 22px; color: #fff; }
+  .cv-foot i { font-style: normal; color: var(--cv-accent); }
+  .cv-start { position: absolute; left: 626px; top: 764px; display: flex; align-items: center; gap: 22px;
+    padding: 6px 54px 14px 60px; background: var(--cv-accent); color: var(--cv-ink); border: 6px solid var(--cv-ink); border-radius: 999px;
+    font: 800 92px/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -2px; cursor: pointer;
+    box-shadow: 0 0 0 5px #fff, 12px 12px 0 5px var(--cv-bg); transform: rotate(-3deg);
+    transition: transform .15s ease, box-shadow .15s ease; animation: cvPulse 2.4s ease-in-out infinite; }
+  .cv-start span { font-size: 58px; transform: translateY(4px); }
+  .cv-start:hover { border-color: var(--cv-ink); transform: rotate(-1deg) scale(1.04); animation: none; }
+  .cv-start:active { transform: rotate(-1deg) translate(8px, 8px); box-shadow: 0 0 0 5px #fff, 4px 4px 0 5px var(--cv-bg); }
+  .cv-start:focus-visible { outline: 6px dashed #fff; outline-offset: 16px; }
+  @keyframes cvPulse { 0%, 100% { transform: rotate(-3deg) scale(1); } 50% { transform: rotate(-3deg) scale(1.035); } }
+  @media (prefers-reduced-motion: reduce) { .cv-start { animation: none; } .cover { transition: none; } }
 </style>
+
+<section class="cover" id="cover" aria-label="Start screen">
+  <div class="cv-stage" id="cvStage">
+<svg width="1600" height="900" viewBox="0 0 1600 900" class="cv-art" aria-hidden="true">
+<line x1="0" y1="40" x2="1600" y2="180" stroke="#111111" stroke-width="6"></line>
+<rect x="1428" y="160" width="44" height="30" rx="8" fill="#111111"></rect>
+<line x1="1450" y1="188" x2="1219" y2="274" stroke="#111111" stroke-width="4"></line>
+<path d="M0 730 Q 100 700 200 730 T 400 730 T 600 730 T 800 730 T 1000 730 T 1200 730 T 1400 730 T 1600 730 L1600 900 L0 900 Z" fill="#111111"></path>
+<path d="M60 800 Q 110 780 160 800 T 260 800 T 360 800" style="stroke:var(--cv-accent)" stroke-width="6" fill="none" stroke-linecap="round"></path>
+<path d="M1180 830 Q 1230 810 1280 830 T 1380 830 T 1480 830" stroke="#FFFFFF" stroke-width="6" fill="none" stroke-linecap="round"></path>
+<g fill="#FFFFFF" stroke="#111111" stroke-width="5">
+<path d="M960 720 C 930 660 980 640 1000 680 C 1010 620 1070 630 1060 690 C 1090 650 1140 680 1110 725 Z"></path>
+<circle cx="930" cy="650" r="14"></circle>
+<circle cx="900" cy="610" r="9"></circle>
+<circle cx="1140" cy="660" r="11"></circle>
+<circle cx="1045" cy="600" r="8"></circle>
+</g>
+<g transform="translate(1120 430) scale(1.9) rotate(-18)" stroke="#111111" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<line x1="0" y1="-50" x2="10" y2="2"></line>
+<polyline points="4,-42 40,-34 75,-62"></polyline>
+<polyline points="10,2 -22,36 -12,74"></polyline>
+<polyline points="10,2 34,32 38,74"></polyline>
+<circle cx="-4" cy="-72" r="15" fill="#111111" stroke="none"></circle>
+<rect x="-56" y="72" width="128" height="16" rx="8" style="fill:var(--cv-accent)" stroke="#111111" stroke-width="3"></rect>
+</g>
+<g stroke="#111111" stroke-width="5" stroke-linecap="round" fill="none">
+<line x1="930" y1="360" x2="870" y2="345"></line>
+<line x1="920" y1="420" x2="850" y2="420"></line>
+<line x1="935" y1="480" x2="875" y2="495"></line>
+<path d="M1330 330 l12 -30 l12 30 l30 12 l-30 12 l-12 30 l-12 -30 l-30 -12 Z" fill="#FFFFFF"></path>
+<path d="M1480 420 l7 -18 l7 18 l18 7 l-18 7 l-7 18 l-7 -18 l-18 -7 Z" style="fill:var(--cv-accent)"></path>
+<path d="M820 610 C 760 560 700 600 640 540" stroke-width="4"></path>
+<path d="M650 560 L 636 536 L 664 536"></path>
+</g>
+<g transform="translate(1380 110) rotate(12)">
+<polygon points="100,0 75,20 87,50 55,55 50,87 20,75 0,100 -20,75 -50,87 -55,55 -87,50 -75,20 -100,0 -75,-20 -87,-50 -55,-55 -50,-87 -20,-75 -0,-100 20,-75 50,-87 55,-55 87,-50 75,-20" fill="#111111"></polygon>
+</g>
+</svg>
+    <div class="cv-sticker">SEND IT</div>
+    <div class="cv-title"><div class="cv-ccp">CCP</div><div class="cv-pill">simulator</div></div>
+    <div class="cv-tag">ride Copenhagen Cable Park straight from your couch</div>
+    <div class="cv-foot"><span>3D</span><i>●</i><span>in your browser</span><i>●</i><span>no wetsuit needed</span></div>
+    <button class="cv-start" id="btnStart" type="button">START<span aria-hidden="true">▶</span></button>
+  </div>
+</section>
 
 <div class="app">
   <div class="view" id="view">
@@ -206,8 +279,8 @@
 
     <section class="field">
       <label for="selStart">Start technique (applies on Reset)</label>
-      <select id="selStart" aria-label="Start technique"><option value="slide" selected>Sliding start (carpet dock)</option><option value="jump">Jump start (off the dock)</option><option value="sit">Sitting start (in the water)</option></select>
-      <p class="note" style="grid-column:1/-1;margin:2px 0 0">The start jerk is set by momentum: the rider must go from 0 to cable speed (Δp ≈ m·Δv). Sliding: low carpet friction, but the full Δv. Jump: take-off just before the pull, so Δv is ≈2.6 m/s smaller. Sitting: deep squat, handle at the hips; rising to standing gives a long stroke that absorbs the jerk. In all three the arms and body yield above ≈0.95 kN.</p>
+      <select id="selStart" aria-label="Start technique"><option value="slide" selected>Sliding start (carpet dock)</option><option value="jump">Jump start (off the dock)</option></select>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">The start jerk is set by momentum: the rider must go from 0 to cable speed (Δp ≈ m·Δv). Sliding: low carpet friction, but the full Δv. Jump: take-off just before the pull, so Δv is ≈2.6 m/s smaller. In both the arms and body yield above ≈0.95 kN, and the cable deflects under the pull.</p>
     </section>
 
     <section class="field">
@@ -248,8 +321,8 @@
             <tr><td>Carrier compliance in corners</td><td>Yes, 2nd-order hanger (1.5 Hz)</td></tr>
             <tr><td>Multi-body rider (report 6: body as linked segments)</td><td>Yes (reduced coordinates): leg force = 2·τ_knee(β)/|dℓ/dβ| × hip/ankle synergy, linear force–velocity (V0 3.5 m/s); fore–aft lean with COP limited to the bindings plus hip strategy; segment inertia from de Leva (1996)</td></tr>
             <tr><td>Water surface (report 11: waves)</td><td>Yes: fetch-limited JONSWAP chop (8 components, board-length averaged) and the board's own wake at the Mach-like angle φ ≈ 0.224/Fr; heave, slamming and incidence use the vertical speed relative to the moving surface</td></tr>
-            <tr><td>Start jerk (impulse–momentum, Δp = m·Δv)</td><td>Yes: three start techniques (sliding on carpet μ 0.12, jump start, sitting start) from the start dock</td></tr>
-            <tr><td>Series compliance: rope + arms + body</td><td>Yes: rope spring plus a force-limited, dissipative arm/body stroke (yields above 0.95 kN; 0.45 m arms, +0.30 m standing / +0.85 m sitting during the start)</td></tr>
+            <tr><td>Start jerk (impulse–momentum, Δp = m·Δv)</td><td>Yes: two start techniques (sliding on carpet μ 0.12, jump start) from the start dock</td></tr>
+            <tr><td>Series compliance: rope + arms + body</td><td>Yes: rope spring plus a force-limited, dissipative arm/body stroke (yields above 0.95 kN; 0.45 m arms, +0.30 m body during the start)</td></tr>
             <tr><td>Losing the handle</td><td>Yes: adjustable release limit (default 1.5 kN, &gt;30 ms) = fall</td></tr>
             <tr><td>Savitsky C<sub>L0</sub>, λ, C<sub>V</sub></td><td>Yes, lift ⟂ to the bottom (pressure drag N·sin τ)</td></tr>
             <tr><td>ITTC-57 friction + residual (spray/3D)</td><td>Yes, S<sub>w</sub> = l<sub>w</sub>b/(cos τ·cos φ)</td></tr>
@@ -287,12 +360,12 @@
             <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
             <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
             <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
-            <tr><td>Start peak at 30 km/h: sliding / jump / sitting</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 / 1.54 kN (1.5 / 1.2 / 2.0 BW)</td></tr>
+            <tr><td>Start peak at 30 km/h: sliding / jump</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 kN (1.5 / 1.2 BW)</td></tr>
           </tbody>
         </table></div>
         <p>* The report's numbers come from an illustrative point-mass model, not measurements. The report itself recommends calibrating against a load cell in the handle, an IMU on the board and GNSS.</p>
         <p>† Measured rope tension in a boat deep-water start (PMC case study; Runciman 2011 for slalom loads), not a cable-park measurement.</p>
-        <p><strong>Start (instruction sources and model).</strong> Sitting start: elbows at the waist, handle at the hips, tense core, ~70 % weight on the back foot with the nose up; let the pull bring you up to standing (KiteSista; Miami Ski Nautique). Jump start: jump just before the line comes taut and land with bent knees and arms in (KiteSista). Measured deep-water start loads reach 2.0–2.5 × body weight (PMC case study). Headless model at 30 km/h, 80 kg: peak ≈1.43 kN sliding, ≈1.03 kN jump, ≈1.52 kN sitting (≈0.86–1.02 kN at 20 km/h).</p>
+        <p><strong>Start (instruction sources and model).</strong> Jump start: jump just before the line comes taut and land with bent knees and arms in (KiteSista). Measured deep-water start loads reach 2.0–2.5 × body weight (PMC case study). Headless model at 30 km/h, 80 kg: peak ≈1.20 kN sliding, ≈0.96 kN jump (≈0.73–0.88 kN at 20 km/h).</p>
         <p><strong>Corner technique (instruction sources).</strong> Edge out before the corner, release the edge as the carrier goes round the sheave (~1 s of slack), and let the line pull you round. The HUD shows "Corner in … s".</p>
         <p>Sources: the report above; de Leva (1996, segment inertia); knee-extension torque meta-analysis (Frontiers in Physiology 2021); Samozino et al. (jump force–velocity profiles); Horak &amp; Nashner (1986, ankle/hip balance strategies); Hasselmann et al. (1973, JONSWAP); Rabaud &amp; Moisy (2013) and Darmon, Benzaquen &amp; Raphaël (2014, wake angle at high Froude number); Savitsky (1964) and NACA TN 4187 (1958); ITTC-1957; Tveitnes (2001, added mass); Runciman (2011) and Bray-Miners et al. (2013), slalom rope loads; IWWF Cable Wakeboard World Rules 2026; KiteSista and Wakeboarding Magazine, technique.</p>
       </div>
@@ -815,6 +888,22 @@
   let paused = false, timeScale = 1, keyEdge = 0, keyLeg = 0;
   const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? 'Run' : 'Pause'; };
   $('btnPlay').onclick = () => setPlay(paused);
+  /* ---------- Forside: simuleringen står stille til START ---------- */
+  const cover = $('cover'), cvStage = $('cvStage');
+  function fitCover() {
+    const W = innerWidth, H = innerHeight, s = Math.min(W / 1600, H / 900), x = (W - 1600 * s) / 2, y = (H - 900 * s) / 2;
+    cvStage.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    cover.style.setProperty('--cv-water', (y + 745 * s).toFixed(1) + 'px');
+  }
+  const coverOpen = () => !cover.classList.contains('gone');
+  function startSim() {
+    if (!coverOpen()) return;
+    cover.classList.add('gone'); cover.setAttribute('aria-hidden', 'true');
+    setPlay(true); view.focus?.({ preventScroll: true });
+  }
+  $('btnStart').onclick = startSim;
+  addEventListener('resize', fitCover); fitCover();
+  setPlay(false); $('btnStart').focus();
   $('btnStep').onclick = () => { setPlay(false); stepN(1); };
   $('btnStep24').onclick = () => { setPlay(false); stepN(24); };
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
@@ -835,6 +924,7 @@
   $('selWin').onchange = e => { WINDOW = +e.target.value; };
   $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
   addEventListener('keydown', e => {
+    if (coverOpen()) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSim(); } return; }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.key === 'ArrowLeft' || e.key === 'a') { keyEdge = -1; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { keyEdge = 1; e.preventDefault(); }
@@ -975,7 +1065,7 @@
     for (let i = 0; i < n; i++) {
       const cmd = keyEdge ? keyEdge * PHYS.LEAN_MAX_DEG : 0;
       sim.leanCmdIn = cmd * DEG;
-      sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;   // legBase = squat during a sitting start
+      sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;
       sim.step(); sample();
     }
   }

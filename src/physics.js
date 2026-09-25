@@ -45,7 +45,6 @@ const PHYS = {
   ARM_YIELD:    950,     // N      arms give way (eccentric) above this line force. Assumed ≈1.2 BW; technique sources: elbows in, handle at the hips
   ARM_TRAVEL:   0.45,    // m      hands can travel from hip to straight arms. Assumed (arm length ≈0.6 m, bent → straight)
   STROKE_STAND: 0.30,    // m      extra stroke during a standing start: leaning back → upright over the board. Assumed
-  STROKE_SIT:   0.85,    // m      extra stroke during a sitting start: from sitting behind the heels to standing over the board. Assumed
   ARM_V_MAX:    3.0,     // m/s    max yield speed of the arms. Assumed
   ARM_RET_V:    0.35,    // m/s    rate at which the rider pulls the handle back to the hip when the load drops. Assumed
   ARM_RET_FRAC: 0.75,    // –      arms only return when F < this × ARM_YIELD. Assumed
@@ -61,9 +60,6 @@ const PHYS = {
   JUMP_VF:      2.6,     // m/s    forward speed from the jump-start take-off. Assumed (standing jump ≈2–3 m/s)
   JUMP_VZ:      1.3,     // m/s    upward speed at take-off. Assumed
   JUMP_LEAD:    0.45,    // s      jump when the line will be taut in ≈ this time (flight time ≈0.3 s). Technique: jump just before the pull
-  SIT_LEG:      0.55,    // m      hip height in the sitting start (deep squat). Technique: KiteSista, Miami Ski Nautique
-  SIT_SHIFT:   -0.12,    // m      weight on the back foot / nose up in the sitting start. Technique: ~70 % on the back foot
-  SIT_STAND_V:  3.5,     // m/s    the rider stands up above this speed (board planing). Assumed
 
   // --- Rider: board+fødder og overkrop forbundet af ben (knæ) langs kropsaksen; yaw + roll/læn ---
   RIDER_MASS:   80,      // kg     rider + board i alt. Antaget
@@ -456,7 +452,7 @@ function createSim(opts = {}) {
     rider: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, psi: 0, r: 0, phi: 0, p: 0, leg: 0.85, legv: 0, tau: 0.1, ankle: 0, arm: 0, theta: 0, q: 0 },
     wind: P.WIND_DEFAULT, chop: buildChop(P, P.WIND_DEFAULT), trail: [], _trailT: -1,
     spinIn: 0, grabIn: 0, windup: 0, windDir: 0, switchStance: false, grab: { type: 0, reach: 0 },
-    strokeMax: P.ARM_TRAVEL, startMode: 'slide', releaseN: P.RELEASE_N, legBase: P.LEG_NOM, autoStand: false, jumpArmed: false,
+    strokeMax: P.ARM_TRAVEL, startMode: 'slide', releaseN: P.RELEASE_N, legBase: P.LEG_NOM, jumpArmed: false,
     legCmdIn: 0.85, legCmd: 0.85, // m, ønsket hoftehøjde (input / rate-begrænset)
     line: { F: 0, stretch: 0, slack: true, attached: true, over: 0 },
     out: { V: 0, Vc: 0, angle: 0, inWater: true, drag: 0, lift: 0, warn: false, tau: 0, fall: '', contact: '', Fc: 0, air: false, lastAir: null },
@@ -501,15 +497,14 @@ function createSim(opts = {}) {
     return c;
   };
   const dockPt = u => [P.DOCK_C[0] + u * DK.ax, P.DOCK_C[1] + u * DK.ay];
-  sim.setStartMode = m => { sim.startMode = ['slide', 'jump', 'sit'].includes(m) ? m : 'slide'; };
+  sim.setStartMode = m => { sim.startMode = ['slide', 'jump'].includes(m) ? m : 'slide'; };
   sim.reset = function () {
     // Start at the start dock, facing along the first leg (A→F). The carrier leaves sheave A; the line tightens after ~2 s.
     const psi0 = Math.atan2(DK.ay, DK.ax), mode = sim.startMode;
     let x, y, z, leg = P.LEG_NOM;
-    if (mode === 'sit') { [x, y] = dockPt(P.DOCK_LEN / 2 + 2.0); z = -0.25; leg = P.SIT_LEG; }     // in the water just off the carpet
-    else if (mode === 'jump') { [x, y] = dockPt(P.DOCK_LEN / 2 - P.DOCK_RAMP - 0.3); z = P.DOCK_TOP; }  // at the edge before the ramp
+    if (mode === 'jump') { [x, y] = dockPt(P.DOCK_LEN / 2 - P.DOCK_RAMP - 0.3); z = P.DOCK_TOP; }  // at the edge before the ramp
     else { [x, y] = dockPt(-1.2); z = P.DOCK_TOP; }                                                   // standing on the carpet
-    Object.assign(sim.rider, { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: mode === 'sit' ? 0.35 : 0.05, q: 0, hOff: 0 });
+    Object.assign(sim.rider, { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: 0.05, q: 0, hOff: 0 });
     sim._cop = 0; sim._thRef = undefined;
     sim.carrier.s = 0;
     placeCarrier(); Object.assign(sim.tow, { x: sim.carrier.x, y: sim.carrier.y, z: P.CABLE_HEIGHT, vx: sim.carrier.vx, vy: sim.carrier.vy, vz: 0 });
@@ -517,11 +512,11 @@ function createSim(opts = {}) {
     Object.assign(sim.energy, { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, armWork: 0, E0: null });
     Object.assign(sim.line, { F: 0, attached: true, over: 0, slack: true, hp: [x, y, z + leg] });
     sim.legCmd = sim.legCmdIn = sim.legBase = leg;
-    sim.autoStand = mode === 'sit'; sim.jumpArmed = mode === 'jump'; sim.startShift = mode === 'sit' ? P.SIT_SHIFT : 0;
+    sim.jumpArmed = mode === 'jump';
     sim.out.fall = ''; sim.out.lastAir = null; sim.out.contact = ''; sim.out.startEvent = ''; sim.jump = null; sim.t = 0; sim.leanCmd = 0;
     sim.trail = []; sim._trailT = -1; sim.windup = 0; sim.windDir = 0; sim.switchStance = false; sim.grab = { type: 0, reach: 0 }; sim.out.lastTrick = null; sim._IzzPrev = null;
     sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
-    sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + (mode === 'sit' ? P.STROKE_SIT : P.STROKE_STAND); sim._onDock = mode !== 'sit';
+    sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + P.STROKE_STAND; sim._onDock = true;
     for (const ob of sim.obs) ob.inContact = false;
     placeCarrier();
   };
@@ -697,7 +692,7 @@ function createSim(opts = {}) {
     //     travel towards the carrier (eccentric work, energy is not returned); at low load the rider pulls them back to the hip.
     let dArm = 0;
     if (L.attached) {
-      // During the start the whole body adds stroke (lean-back → upright, or sitting → standing); afterwards only the arms
+      // During the start the whole body adds stroke (lean-back → upright); afterwards only the arms
       if (sim.strokeMax > P.ARM_TRAVEL && Math.hypot(R.vx, R.vy) > 0.9 * sim.cableSpeed) sim.strokeMax = P.ARM_TRAVEL;
       if (F > P.ARM_YIELD && R.arm < sim.strokeMax)
         dArm = Math.min((F - P.ARM_YIELD) / (P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
@@ -803,8 +798,6 @@ function createSim(opts = {}) {
       }
     }
     sim._onDock = onDock;
-    // Sitting start: stand up once the board is planing
-    if (sim.autoStand && L.attached && V > P.SIT_STAND_V) { sim.autoStand = false; sim.startShift = 0; sim.legBase = P.LEG_NOM; sim.out.startEvent = 'Standing up'; }
     const supported = inWater || Fc > 0;
 
     // 6) Roll (stift legeme om længdeaksen gennem tyngdepunktet)
@@ -852,7 +845,7 @@ function createSim(opts = {}) {
       const Mline = dot(cross(rH, Fl), rgt), Mw = dot(cross(rB, Fw), rgt);
       const Fperp = dot(Fl, fwd) * Math.cos(R.theta) + Fl[2] * Math.sin(R.theta);      // line force across the body axis (in the board plane)
       const Nsup = Math.max(0, dot(Fw, nrm)), Dback = Math.max(0, -dot(Fw, fwd));
-      const shift = Math.max(-P.FOOT_SHIFT_MAX, Math.min(P.FOOT_SHIFT_MAX, sim.footShift + (sim.startShift || 0)));
+      const shift = Math.max(-P.FOOT_SHIFT_MAX, Math.min(P.FOOT_SHIFT_MAX, sim.footShift));
       // Equilibrium: the water force, seen in the fore–aft plane of the rolled body, points through the centre of mass
       const nR = [cp * up[0] + sp * rgt[0], cp * up[1] + sp * rgt[1], cp], Fn = dot(Fw, nR);
       const thEq = Math.atan2(Dback, Math.max(Fn, 0.6 * m * P.G));
@@ -860,12 +853,8 @@ function createSim(opts = {}) {
       sim._thRef = (sim._thRef ?? want) + (want - (sim._thRef ?? want)) * Math.min(1, dt / P.PITCH_REF_TAU);
       const thRef = sim._thRef;
       let tp = 0;
-      // Sitting in the water before the pull: the life vest and the water behind the rider carry the body, so the
-      // balance is not limited to the bindings (no pitch fall until the rider has stood up)
-      const sitting = sim.autoStand && R.z < 0;
       const tWant = P.PITCH_KP * (thRef - R.theta) - P.PITCH_KD * R.q;
-      if (sitting) { tp = tWant; copCmd = 0; }
-      else if (supported) {
+      if (supported) {
         // Ankle strategy: move the centre of pressure along the board between the bindings (changes the board's trim);
         // the moment is COP × vertical support force. Hip strategy: swing legs and board under the body with the hip
         // muscles (Horak & Nashner 1986), limited torque.
@@ -930,7 +919,7 @@ function createSim(opts = {}) {
       L.over = F > relN ? L.over + dt : 0;
       if (L.over > P.RELEASE_TIME) { L.attached = false; sim.out.fall = `Lost the cable: ${F.toFixed(0)} N > ${(relN / 1000).toFixed(1)} kN limit${relN < sim.releaseN ? ' (one hand)' : ''}`; }
       else if (Math.abs(R.phi) > P.FALL_DEG * D2R) { L.attached = false; sim.out.fall = `Fell: lean ${(R.phi / D2R).toFixed(0)}°`; }
-      else if (R.theta > P.PITCH_FALL_BACK * D2R && !sim.autoStand) { L.attached = false; sim.out.fall = `Sat down: leaned back ${(R.theta / D2R).toFixed(0)}°`; }
+      else if (R.theta > P.PITCH_FALL_BACK * D2R) { L.attached = false; sim.out.fall = `Sat down: leaned back ${(R.theta / D2R).toFixed(0)}°`; }
       else if (R.theta < -P.PITCH_FALL_FWD * D2R) { L.attached = false; sim.out.fall = `Pulled over the nose (${(-R.theta / D2R).toFixed(0)}° forward)`; }
     }
     // 8b) Hop: luftfase = hverken i vand eller på obstakel. Mål tid og højde, tjek landing.

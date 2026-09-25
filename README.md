@@ -11,7 +11,7 @@ Open `dist/copenhagen_cable_park_sim.html` in a browser.
 - **Line**: sags under its own weight; tension-only spring-damper, arm/body stroke that yields above ≈0.95 kN, adjustable release limit (default 1.5 kN).
 - **Rider**: reduced-coordinate multi-body model. Knee-torque-limited legs (de Leva 1996 segments), fore–aft balance with ankle and hip strategies, arms that raise/lower the handle, pose-dependent inertia.
 - **Board and water**: Savitsky planing with trim from moment balance, rocker, ITTC-57 friction, added mass and slamming, edge/sideslip, ventilation. Water surface with fetch-limited JONSWAP chop and the board's own wake.
-- **Starts**: sliding (carpet dock), jump and sitting start.
+- **Starts**: sliding (carpet dock) and jump start.
 - **Obstacles**: layout "O" (Google Earth standard layer, 2023) from `analysis/CCP_obstacle_analyse.html`, with sub-contours and axes. Heights and types are assumptions.
 - **Rails and boxes** (from the rails report): off the water only contact, rail friction and the line act. Support exists while the board footprint overlaps the feature top, so a boardslide (Q/R on a rail) tolerates ≈ ±0.7 m of side drift and a 50-50 ≈ ±0.2 m. Balance torques are limited to the contact patch (automatic balance lean + 30 % of the player's lean). Being pulled off emerges from the line: v_req = (l̂·v_c)/(l̂·t); slower and the line tightens and pulls sideways, faster and it goes slack. HUD, charts and diagnostics show v_req, speed margin, side pull and offset.
 - **Tricks**: nose/tail grabs (W/S) and spins (Q/R: pre-wind before the lip, then angular momentum). A 180 lands you switch.

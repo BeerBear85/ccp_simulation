@@ -49,7 +49,7 @@ function trial(mod) { const M = fresh(); mod(M.PHYS); const s = straight(M); let
     console.log(`   ${lbl.padEnd(13)} −20 %: ${(100 * (r[0][0] / base[0] - 1)).toFixed(1).padStart(5)} % / ${(100 * (r[0][1] / base[1] - 1)).toFixed(1).padStart(5)} %   +20 %: ${(100 * (r[1][0] / base[0] - 1)).toFixed(1).padStart(5)} % / ${(100 * (r[1][1] / base[1] - 1)).toFixed(1).padStart(5)} %`); } }
 // 6) Start: spidskraft pr. teknik (impuls–bevægelsesmængde, serie-eftergivelighed, arm/krop-slag)
 for (const kmh of [20, 30, 35]) { const out = [];
-  for (const mode of ['slide', 'jump', 'sit']) { const M = fresh(), s = M.createSim({ cableKmh: kmh }); s.obstaclesOn = false; s.releaseN = 1e9; s.setWind(0); s.setStartMode(mode); s.reset();
+  for (const mode of ['slide', 'jump']) { const M = fresh(), s = M.createSim({ cableKmh: kmh }); s.obstaclesOn = false; s.releaseN = 1e9; s.setWind(0); s.setStartMode(mode); s.reset();
     let pk = 0; for (let i = 0; i < 240 * 8; i++) { s.legCmdIn = s.legBase; s.step(); pk = Math.max(pk, s.line.F); }
     out.push(`${mode} ${(pk / 1000).toFixed(2)} kN (${(pk / (80 * 9.81)).toFixed(1)} BW)`); }
   console.log(`6) Start ${kmh} km/t: ${out.join(' · ')}`); }
