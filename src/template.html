@@ -147,7 +147,7 @@
       </div>
     </section>
 
-    <section aria-label="Line tension">
+    <section aria-label="Line tension and rider speed">
       <div class="charts" id="chartsTop"></div>
     </section>
 
@@ -822,7 +822,7 @@
   for (const s of series) {
     const box = document.createElement('div'); box.className = 'chart';
     box.innerHTML = `<header><span class="t">${s.title} <span style="color:var(--muted)">(${s.unit})</span></span><span class="v">–</span></header><canvas role="img" aria-label="${s.title} over the selected time window"></canvas>`;
-    (s.key === 'F' ? $('chartsTop') : chartsEl).appendChild(box); s.cv = box.querySelector('canvas'); s.out = box.querySelector('.v'); s.hoverX = null;
+    (s.key === 'F' || s.key === 'V' ? $('chartsTop') : chartsEl).appendChild(box); s.cv = box.querySelector('canvas'); s.out = box.querySelector('.v'); s.hoverX = null;
     s.cv.addEventListener('pointermove', e => { const r = s.cv.getBoundingClientRect(); s.hoverX = (e.clientX - r.left) / r.width; });
     s.cv.addEventListener('pointerleave', () => { s.hoverX = null; });
   }
