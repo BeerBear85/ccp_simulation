@@ -106,7 +106,9 @@ const PHYS = {
   LEAN_KP:      4000,    // N·m/rad  riderens balancestyring mod ønsket læn (≈5× m·g·h). Antaget
   LEAN_KD:      300,     // N·m·s/rad  muskeldæmpning (ζ≈0,7). Antaget
   LEAN_TAU_MAX: 1500,    // N·m    maks. balancemoment (ankler/knæ/hofte + håndtag). Antaget
-  LEAN_MAX_DEG: 60,      // °      maks. ønsket læn (= kant). Antaget
+  LEAN_STOP_K:  20000,   // N·m/rad  bracing stiffness beyond LEAN_MAX_DEG. Assumed
+  LEAN_STOP_TAU: 1500,   // N·m    max. bracing torque (a hard line pull can still topple the rider). Assumed
+  LEAN_MAX_DEG: 50,      // °      max. commanded lean (= edge). Limited to 50° (user)
   LEAN_RATE_DEG: 120,    // °/s    hvor hurtigt ønsket læn kan ændres. Antaget
   FALL_DEG:     72,      // °      rideren falder over denne læn. Antaget
   CDA_AIR:      0.60,    // m²     Cd·A for rider i luft. Kilde: rapport 3.2 (0,5–0,8 m²)
@@ -230,8 +232,8 @@ const LAYOUT = {
     // Road side (T6→T1, travel towards SW)
     { id: 'O1', tag: true, name: 'O1 box',  type: 'box',    x: 116.6, y: 113.5, dir: [0.661, 0.750], L: 5.8,  W: 4.2, H: 0.45 },  // broad light end
     { id: 'O1',            name: 'O1 rail', type: 'rail',   x: 109.3, y: 105.8, dir: [0.699, 0.715], L: 15.2, W: 0.3, H: 0.55, color: 0x3a4046 },  // long dark rail/wall form
-    { id: 'O2', tag: true, name: 'O2 rail', type: 'rail',   x: 85.0,  y: 89.4,  dir: [0.660, 0.751], L: 19.8, W: 0.3, H: 0.5 },   // long narrow rail
-    { id: 'O2',            name: 'O2 side box', type: 'box', x: 86.1, y: 92.6,  dir: [0.685, 0.728], L: 6.3,  W: 1.7, H: 0.4 },   // side-offset wide section
+    { id: 'O2', tag: true, name: 'O2 rail', type: 'rail',   x: 82.85, y: 91.5,  dir: [0.660, 0.751], L: 19.8, W: 0.3, H: 0.5 },   // long narrow rail. Moved 3 m NW, away from the cable line (drawn 1.6 m from it; user: no obstacle directly under the cable)
+    { id: 'O2',            name: 'O2 side box', type: 'box', x: 83.95, y: 94.7, dir: [0.685, 0.728], L: 6.3,  W: 1.7, H: 0.4 },   // side-offset wide section (moved with the rail)
     { id: 'O3', tag: true, name: 'O3 kicker', type: 'kicker', x: 86.8, y: 79.4, dir: [0.443, 0.897], L: 11.8, W: 3.0, H: 1.2 },  // tapered, kicker-like planform
     { id: 'O3',            name: 'O3 side box', type: 'box', x: 89.4, y: 80.3,  dir: [0.416, 0.910], L: 3.6,  W: 3.2, H: 0.3 },   // short side part
     { id: 'O4', tag: true, name: 'O4 kicker', type: 'kicker', x: 54.8, y: 68.2, dir: [0.759, 0.651], L: 3.9,  W: 2.8, H: 0.6 },   // separate wide small part upstream of the rail: read as a kick-in (assumed). Moved 4 m W + 4 m N (see O4 rail)
@@ -713,6 +715,9 @@ function createSim(opts = {}) {
       const k = R.leg + P.HANDLE_ABOVE_HIP - hcg, rH = [k * nrm[0], k * nrm[1], k * nrm[2]];                               // håndtag rel. CG
       const tExt = dot(cross(rB, Fw), fwd) + dot(cross(rH, Fl), fwd);
       tau = Math.max(-P.LEAN_TAU_MAX, Math.min(P.LEAN_TAU_MAX, P.LEAN_KP * (sim.leanCmd - R.phi) - P.LEAN_KD * R.p));
+      // Lean stop at LEAN_MAX_DEG: the rider braces against leaning further (limited torque, so a hard pull can still topple him)
+      const over = Math.abs(R.phi) - P.LEAN_MAX_DEG * D2R;
+      if (over > 0) tau -= Math.sign(R.phi) * Math.min(P.LEAN_STOP_TAU, P.LEAN_STOP_K * over + P.LEAN_KD * 2 * Math.max(0, Math.sign(R.phi) * R.p));
       // I luften kan riderens muskler ikke ændre kroppens samlede impulsmoment (rapport 6.2): kun linens moment og
       // luftdæmpning virker på kroppens roll. Rideren kan i stedet kante BOARDET i forhold til kroppen med anklerne.
       const tRoll = supported ? tExt + tau - P.ROLL_C * R.p + MrollW : dot(cross(rH, Fl), fwd) - P.ROLL_C * R.p;

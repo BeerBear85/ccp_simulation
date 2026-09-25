@@ -113,7 +113,9 @@ const PHYS = {
   LEAN_KP:      4000,    // N·m/rad  riderens balancestyring mod ønsket læn (≈5× m·g·h). Antaget
   LEAN_KD:      300,     // N·m·s/rad  muskeldæmpning (ζ≈0,7). Antaget
   LEAN_TAU_MAX: 1500,    // N·m    maks. balancemoment (ankler/knæ/hofte + håndtag). Antaget
-  LEAN_MAX_DEG: 60,      // °      maks. ønsket læn (= kant). Antaget
+  LEAN_STOP_K:  20000,   // N·m/rad  bracing stiffness beyond LEAN_MAX_DEG. Assumed
+  LEAN_STOP_TAU: 1500,   // N·m    max. bracing torque (a hard line pull can still topple the rider). Assumed
+  LEAN_MAX_DEG: 50,      // °      max. commanded lean (= edge). Limited to 50° (user)
   LEAN_RATE_DEG: 120,    // °/s    hvor hurtigt ønsket læn kan ændres. Antaget
   FALL_DEG:     72,      // °      rideren falder over denne læn. Antaget
   CDA_AIR:      0.60,    // m²     Cd·A for rider i luft. Kilde: rapport 3.2 (0,5–0,8 m²)
@@ -720,6 +722,9 @@ function createSim(opts = {}) {
       const k = R.leg + P.HANDLE_ABOVE_HIP - hcg, rH = [k * nrm[0], k * nrm[1], k * nrm[2]];                               // håndtag rel. CG
       const tExt = dot(cross(rB, Fw), fwd) + dot(cross(rH, Fl), fwd);
       tau = Math.max(-P.LEAN_TAU_MAX, Math.min(P.LEAN_TAU_MAX, P.LEAN_KP * (sim.leanCmd - R.phi) - P.LEAN_KD * R.p));
+      // Lean stop at LEAN_MAX_DEG: the rider braces against leaning further (limited torque, so a hard pull can still topple him)
+      const over = Math.abs(R.phi) - P.LEAN_MAX_DEG * D2R;
+      if (over > 0) tau -= Math.sign(R.phi) * Math.min(P.LEAN_STOP_TAU, P.LEAN_STOP_K * over + P.LEAN_KD * 2 * Math.max(0, Math.sign(R.phi) * R.p));
       // I luften kan riderens muskler ikke ændre kroppens samlede impulsmoment (rapport 6.2): kun linens moment og
       // luftdæmpning virker på kroppens roll. Rideren kan i stedet kante BOARDET i forhold til kroppen med anklerne.
       const tRoll = supported ? tExt + tau - P.ROLL_C * R.p + MrollW : dot(cross(rH, Fl), fwd) - P.ROLL_C * R.p;
