@@ -179,7 +179,17 @@ const PHYS = {
   MU_SLIDE:     0.10,    // –      friktion board på vådt HDPE/glasfiber. Antaget (PE mod PE vådt ≈0,1)
   MU_RAIL:      0.15,    // –      friktion board-base på stålrail. Antaget
   STEP_MAX:     0.35,    // m      højeste kant rideren kan "træde op på" uden kollision. Antaget
-  RAIL_TOL:     0.15,    // m      halv boardbredde: rail rammes hvis |sideafstand| < rail/2 + dette. Antaget
+  // Rail/box contact (rails report: the water's side force is gone; only the contact patch, friction and the line act).
+  // Support exists while any part of the board footprint (BOARD_LEN × BOARD_BEAM, rotated) lies over the feature's top
+  // strip |v| ≤ W/2, so a boardslide (board across the rail) tolerates ≈ ±0.7 m sideways, a 50-50 only ≈ ±0.2 m.
+  // The rider's balance torques are limited to what the contact patch can carry (centre of pressure inside it).
+  RAIL_HIP_TAU: 150,     // N·m    roll balance torque from upper body/arms on a rail (hip strategy, as HIP_TAU_MAX); the rest must come from the contact patch. Assumed
+  RAIL_LEAN_GAIN: 0.3,   // –      player lean added on top of the automatic balance lean on a rail (45° input → 13.5°). Assumed
+  SLIDE_ANGLE:  90,      // °      board angle to the rail in a boardslide (Q/R held on a rail/box). Geometry
+  // --- Line model (selectable): 'spring' = the spring-damper above; 'rigid' = inextensible, tension-only constraint
+  //     (rails report 2 and 18: (L − d)T = 0, T ≥ 0), solved as a velocity constraint with Baumgarte correction.
+  LINE_MODEL:   'spring',
+  LINE_BAUMGARTE: 0.2,   // –      fraction of the length error removed per step (rigid line). Assumed (typical 0.1–0.3)
   ENTRY_LEN:    4.0,     // m      afrundet indkørsel på box/rail/funbox (maks. 45 % af længden). Antaget
   // --- Water surface: wind chop (JONSWAP, fetch-limited) + the board's own wake ---
   WIND_DEFAULT: 4.0,     // m/s    10 m wind speed (adjustable 0–10 in the UI). Assumed light breeze
@@ -214,14 +224,16 @@ const PHYS = {
 const LAYOUT = {
   // Hjulcentre = kabelbanens hjørner. MÅLT: brugerens Google Earth-polygon "ccp" (KML), omkreds 520 m, areal 15 413 m².
   // Omregnet fra lat/lon til lokale meter med origo 55.681713 N, 12.622169 Ø (mast A-området).
-  wheels: [[5.4, 4.2], [77.0, -51.5], [106.6, -45.5], [173.4, 84.6], [161.2, 130.4], [116.9, 118.4]],
+  // Sheave C moved 5 m inwards along the corner bisector (bearing 210°, symmetric between B and D) from the measured [161.2, 130.4]
+  // (user, 25 Sep 2026); mast base C unchanged, so its boom is longer (15.4 → 20.3 m).
+  wheels: [[5.4, 4.2], [77.0, -51.5], [106.6, -45.5], [173.4, 84.6], [158.7, 126.1], [116.9, 118.4]],
   // Mastfødder (A-rammer på jetty/kyst/mole), som hælder ind over vandet med en bom ud til hjulet.
   masts: [ // rækkefølge = omløbsretning (mod uret)
     { id: 'A', x: -3.0,  y: -8.0,  role: 'Drive/start',  status: 'antaget' },
     { id: 'F', x: 81.9,  y: -71.4, role: 'Jetty south',  status: 'målt' },     // jettypunkt nærmest hjul 2 (20,5 m udhæng)
     { id: 'E', x: 114.8, y: -63.3, role: 'Jetty corner', status: 'målt' },     // brugerens måling: 20 m mast→hjul
     { id: 'D', x: 188.3, y: 83.0,  role: 'East',         status: 'antaget' },  // 15 m ud fra hjulet
-    { id: 'C', x: 166.0, y: 145.0, role: 'NE by mole',   status: 'antaget' },
+    { id: 'C', x: 166.0, y: 145.0, role: 'NE by mole',   status: 'antaget' },  // base unchanged; boom 20.3 m to the moved sheave
     { id: 'B', x: 109.3, y: 131.3, role: 'North shore',  status: 'målt' },     // satellit (pæl+skygge) = 15 m ud fra hjulet
   ],
   // Vandkontur: NV-kyst og mole fra Google Earth (brugerens skærmbillede, ±3 m); syd/øst fra satellit (±15 m).
@@ -312,7 +324,7 @@ function buildObstacles(path, P) {
     let ax = best.t[0], ay = best.t[1];
     if (o.dir) { const n = Math.hypot(o.dir[0], o.dir[1]), sg = Math.sign(o.dir[0] * ax + o.dir[1] * ay) || 1; ax = sg * o.dir[0] / n; ay = sg * o.dir[1] / n; }
     const off = best.t[0] * (o.y - best.a[1]) - best.t[1] * (o.x - best.a[0]);
-    return { ...o, ax, ay, off, leg: legs.indexOf(best), yaw: Math.atan2(ay, ax), prof: obstacleProfile(o, P), halfW: o.W / 2 + (o.type === 'rail' ? P.RAIL_TOL : 0) };
+    return { ...o, ax, ay, off, leg: legs.indexOf(best), yaw: Math.atan2(ay, ax), prof: obstacleProfile(o, P), halfW: o.W / 2 };
   });
 }
 function profileAt(prof, u) {  // returnerer [h, dh/du] eller null uden for profilen
@@ -417,7 +429,7 @@ function createSim(opts = {}) {
     legCmdIn: 0.85, legCmd: 0.85, // m, ønsket hoftehøjde (input / rate-begrænset)
     line: { F: 0, stretch: 0, slack: true, attached: true, over: 0 },
     out: { V: 0, Vc: 0, angle: 0, inWater: true, drag: 0, lift: 0, warn: false, tau: 0, fall: '', contact: '', Fc: 0, air: false, lastAir: null },
-    jump: null,
+    jump: null, lineModel: P.LINE_MODEL,
   };
   // Start dock geometry: u along the carpet axis (0 = centre), v across; surface height h(u)
   const DK = { ax: P.DOCK_DIR[0], ay: P.DOCK_DIR[1] };
@@ -458,6 +470,7 @@ function createSim(opts = {}) {
     return c;
   };
   const dockPt = u => [P.DOCK_C[0] + u * DK.ax, P.DOCK_C[1] + u * DK.ay];
+  sim.setLineModel = m => { sim.lineModel = m === 'rigid' ? 'rigid' : 'spring'; };
   sim.setStartMode = m => { sim.startMode = ['slide', 'jump', 'sit'].includes(m) ? m : 'slide'; };
   sim.reset = function () {
     // Start at the start dock, facing along the first leg (A→F). The carrier leaves sheave A; the line tightens after ~2 s.
@@ -476,6 +489,7 @@ function createSim(opts = {}) {
     sim.autoStand = mode === 'sit'; sim.jumpArmed = mode === 'jump'; sim.startShift = mode === 'sit' ? P.SIT_SHIFT : 0;
     sim.out.fall = ''; sim.out.lastAir = null; sim.out.contact = ''; sim.out.startEvent = ''; sim.jump = null; sim.t = 0; sim.leanCmd = 0;
     sim.trail = []; sim._trailT = -1; sim.windup = 0; sim.windDir = 0; sim.switchStance = false; sim.grab = { type: 0, reach: 0 }; sim.out.lastTrick = null; sim._IzzPrev = null;
+    sim._aNL = null; sim._aTow = null; sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
     sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + (mode === 'sit' ? P.STROKE_SIT : P.STROKE_STAND); sim._onDock = mode !== 'sit';
     for (const ob of sim.obs) ob.inContact = false;
     placeCarrier();
@@ -595,7 +609,7 @@ function createSim(opts = {}) {
     // 1b) Trækpunkt: carrierens ophæng følger kablet med 2.-ordens eftergivelighed (ingen uendelig skarpe retningsskift)
     { const T = sim.tow, w = 2 * Math.PI * P.HANGER_F, z = P.HANGER_ZETA;
       const ax = w * w * (C.x - T.x) + 2 * z * w * (C.vx - T.vx), ay = w * w * (C.y - T.y) + 2 * z * w * (C.vy - T.vy);
-      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; }
+      T.vx += ax * dt; T.vy += ay * dt; T.x += T.vx * dt; T.y += T.vy * dt; sim._aTow = [ax, ay]; }
     // 2) Ønsket læn: rate-begrænset
     const maxd = P.LEAN_RATE_DEG * D2R * dt, lim = P.LEAN_MAX_DEG * D2R;
     const want = Math.max(-lim, Math.min(lim, sim.leanCmdIn * (sim.switchStance ? -1 : 1)));   // riding switch: the board frame is reversed
@@ -622,7 +636,16 @@ function createSim(opts = {}) {
     let e = dist - P.LINE_LENGTH - R.arm;                                      // the arms extend the hands towards the carrier
     const vh = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];   // håndtagets hastighed
     let edot = (TW.vx - vh[0]) * d[0] + (TW.vy - vh[1]) * d[1] + (0 - vh[2]) * d[2];
-    const lineF = (e, ed) => (L.attached && e > 0) ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
+    // Rigid line: T = m_eff·(ė + (a_tow − a_hand,other)·dt + β·e/dt)/dt, clamped to T ≥ 0 (tension only). a_hand,other is the
+    // hand acceleration from all non-line forces, lagged one step. m_eff: across the body axis the whole rider moves,
+    // along it only the upper body (the legs are a force element).
+    const rigid = sim.lineModel === 'rigid', cN = dot(d, nrm), meff = 1 / ((1 - cN * cN) / m + cN * cN / (m - P.BOARD_MASS));
+    const aTd = sim._aTow ? d[0] * sim._aTow[0] + d[1] * sim._aTow[1] : 0, aNd = sim._aNL ? dot(d, sim._aNL) : 0, bG = P.LINE_BAUMGARTE;
+    const lineF = (e, ed) => {
+      if (!L.attached) return 0;
+      if (rigid) return e + ed * dt > 0 ? Math.max(0, meff * (ed + (aTd - aNd) * dt + bG * Math.max(0, e) / dt) / dt) : 0;
+      return e > 0 ? Math.max(0, P.LINE_K * e + Math.max(-P.LINE_CF_MAX, Math.min(P.LINE_CF_MAX, (ed > 0 ? P.LINE_C : P.LINE_C_REC) * ed))) : 0;
+    };
     let F = lineF(e, edot);
     // 3a) Jump start: take off just before the line comes taut, so the jerk has a smaller Δv to deliver
     if (L.attached && sim.jumpArmed && e < 0 && edot > 0.5 && -e / edot < P.JUMP_LEAD) {
@@ -638,7 +661,7 @@ function createSim(opts = {}) {
       // During the start the whole body adds stroke (lean-back → upright, or sitting → standing); afterwards only the arms
       if (sim.strokeMax > P.ARM_TRAVEL && Math.hypot(R.vx, R.vy) > 0.9 * sim.cableSpeed) sim.strokeMax = P.ARM_TRAVEL;
       if (F > P.ARM_YIELD && R.arm < sim.strokeMax)
-        dArm = Math.min((F - P.ARM_YIELD) / (P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
+        dArm = Math.min((F - P.ARM_YIELD) / (rigid ? meff * (1 + bG) / (dt * dt) : P.LINE_K + (edot > 0 ? P.LINE_C : P.LINE_C_REC) / dt), P.ARM_V_MAX * dt, sim.strokeMax - R.arm);
       else if ((F < P.ARM_RET_FRAC * P.ARM_YIELD || R.arm > sim.strokeMax) && R.arm > 0) dArm = -Math.min(R.arm, P.ARM_RET_V * dt);
       if (dArm) { R.arm += dArm; e -= dArm; edot -= dArm / dt; F = lineF(e, edot); sim.energy.armWork = (sim.energy.armWork || 0) + F * dArm; }
       // (work the line does on the hands relative to the body; absorbed by the arms, never reaches the body's kinetic energy)
@@ -664,7 +687,7 @@ function createSim(opts = {}) {
     const MrollW = inWater ? -P.ROLL_C_W * V * R.p : 0;
     const { lift, drag, beta, rCarve, trim, lw, Df } = H;
     // 5a) I luften: rideren drejer boardet ind mod flyveretningen før landing (fødder/hofter)
-    if (!inWater && L.attached && V > 2) {
+    if (!inWater && L.attached && V > 2 && !sim._onRail) {
       // heading error to the nearest of straight or switch (twin-tip board): + = nose left of the flight direction
       const e0 = Math.atan2(Math.sin(R.psi - Math.atan2(R.vy, R.vx)), Math.cos(R.psi - Math.atan2(R.vy, R.vx)));
       const ba = Math.abs(e0) <= Math.PI / 2 ? e0 : e0 - Math.PI * Math.sign(e0);
@@ -675,11 +698,14 @@ function createSim(opts = {}) {
     // Spin in the air: the only external yaw torque available is the line, via the handle held off to the side
     if (sim.jump && L.attached && sim.spinIn) Mz += sim.spinIn * Math.min(P.SPIN_TAU_MAX, F * P.SPIN_LEVER);
     // 5b) Obstakler: penalty-kontakt med normalkraft + Coulomb-friktion (angriber i boardet)
-    let contactName = '', Fc = 0;
+    let contactName = '', Fc = 0, railC = null;
     if (L.attached && sim.obstaclesOn) for (const ob of sim.obs) {
       const rx = R.x - ob.x, ry = R.y - ob.y;
       const u = rx * ob.ax + ry * ob.ay, v = -rx * ob.ay + ry * ob.ax;
-      const hp_ = Math.abs(v) <= ob.halfW ? profileAt(ob.prof, u) : null;
+      // Board footprint over the top strip: cA/sA = cos/sin of the board heading relative to the feature axis
+      const cA = hx * ob.ax + hy * ob.ay, sA = hy * ob.ax - hx * ob.ay;
+      const span = 0.5 * P.BOARD_LEN * Math.abs(sA) + 0.5 * P.BOARD_BEAM * Math.abs(cA);
+      const hp_ = Math.abs(v) <= ob.halfW + span ? profileAt(ob.prof, u) : null;
       if (!hp_ || R.z >= hp_[0]) { ob.inContact = false; continue; }
       const pen = hp_[0] - R.z;
       if (!ob.inContact && pen > P.STEP_MAX) {   // ramte en kant/side: kollision
@@ -694,7 +720,35 @@ function createSim(opts = {}) {
       const mu = ob.type === 'rail' ? P.MU_RAIL : P.MU_SLIDE;
       for (let i = 0; i < 3; i++) Fw[i] += N * n[i] - (vtl > 1e-3 ? mu * N * vt[i] / vtl : 0);
       contactName = ob.name; Fc += N;
+      if (N > 0 && (!railC || N > railC.N)) railC = { ob, N, u, v, cA, sA, sl, mu };
     }
+    // Contact patch = board rectangle ∩ top strip (board frame: f along the board, r to its right). Its extents limit
+    // where the centre of pressure can be, i.e. which roll/pitch torques the rider can get from the feature.
+    if (railC) {
+      const { ob, v, cA, sA } = railC, hw = ob.halfW, Lh = P.BOARD_LEN / 2, Bh = P.BOARD_BEAM / 2;
+      let poly = [[-Lh, -Bh], [Lh, -Bh], [Lh, Bh], [-Lh, Bh]];
+      const vOf = p => v + p[0] * sA - p[1] * cA;                           // lateral position of a board point relative to the feature axis
+      for (const sg of [1, -1]) {                                           // clip by sg·v ≤ W/2
+        const out = [], g = p => sg * vOf(p) - hw;
+        for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length], ga = g(a), gb = g(b);
+          if (ga <= 0) out.push(a); if ((ga < 0) !== (gb < 0)) { const t = ga / (ga - gb); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); } }
+        poly = out; if (!poly.length) break;
+      }
+      if (!poly.length) poly = [[0, 0]];
+      const fs = poly.map(p => p[0]), rs = poly.map(p => p[1]), ls = poly.map(p => p[0] * cA + p[1] * sA);
+      Object.assign(railC, { fLo: Math.min(...fs), fHi: Math.max(...fs), rLo: Math.min(...rs), rHi: Math.max(...rs), len: Math.max(...ls) - Math.min(...ls), span: hw + 0.5 * P.BOARD_LEN * Math.abs(sA) + 0.5 * P.BOARD_BEAM * Math.abs(cA) });
+    }
+    const railMode = !!railC && !inWater;                                   // supported only by a feature: no water forces
+    const onRail = railMode && railC.ob.type !== 'kicker';
+    if (onRail) {
+      // Board orientation on the rail: the feet hold 50-50 (along the rail) or, with Q/R held, a boardslide (90°).
+      // Coulomb friction of a line contact resists pivoting with μN·ℓ/4 (ℓ = patch length along the rail).
+      const rel = Math.atan2(railC.sA, railC.cA);
+      if (!sim._onRail) sim._railBase = Math.abs(rel) < Math.PI / 2 ? 0 : Math.PI;
+      const tgt = sim._railBase + (sim.spinIn || 0) * P.SLIDE_ANGLE * D2R, err = Math.atan2(Math.sin(tgt - rel), Math.cos(tgt - rel));
+      Mz += Math.max(-P.PIVOT_TAU_MAX, Math.min(P.PIVOT_TAU_MAX, P.PIVOT_K * err)) - 20 * R.r - railC.mu * railC.N * railC.len / 4 * Math.tanh(R.r / 0.2);
+    }
+    sim._onRail = onRail; sim._rail = railC;
     // 5c) Start dock: carpet on a floating pontoon, low sliding friction (sliding start)
     let onDock = false;
     if (L.attached) {
@@ -721,10 +775,26 @@ function createSim(opts = {}) {
       const rB = [-hcg * nrm[0], -hcg * nrm[1], -hcg * nrm[2]];                                     // board rel. CG
       const k = R.leg + P.HANDLE_ABOVE_HIP - hcg, rH = [k * nrm[0], k * nrm[1], k * nrm[2]];                               // håndtag rel. CG
       const tExt = dot(cross(rB, Fw), fwd) + dot(cross(rH, Fl), fwd);
-      tau = Math.max(-P.LEAN_TAU_MAX, Math.min(P.LEAN_TAU_MAX, P.LEAN_KP * (sim.leanCmd - R.phi) - P.LEAN_KD * R.p));
-      // Lean stop at LEAN_MAX_DEG: the rider braces against leaning further (limited torque, so a hard pull can still topple him)
-      const over = Math.abs(R.phi) - P.LEAN_MAX_DEG * D2R;
-      if (over > 0) tau -= Math.sign(R.phi) * Math.min(P.LEAN_STOP_TAU, P.LEAN_STOP_K * over + P.LEAN_KD * 2 * Math.max(0, Math.sign(R.phi) * R.p));
+      let leanRef = sim.leanCmd;
+      if (railMode) {
+        // Automatic balance on a feature: aim for the lean at which the external roll torque about the CoM vanishes
+        // (support at the patch centre + friction + line; pendulum term N·h·sin φ) = CoM over the patch, plus a fraction of the player's lean.
+        const Nh = Math.max(50, railC.N) * hcg, Tpatch = -railC.N * 0.5 * (railC.rLo + railC.rHi);   // support at the patch centre, not the board centre
+        const sb = Math.max(-0.95, Math.min(0.95, Math.sin(R.phi) - (tExt + Tpatch) / Nh));
+        const want = Math.asin(sb) + P.RAIL_LEAN_GAIN * sim.leanCmd;
+        sim._phiRef = (sim._phiRef ?? want) + (want - (sim._phiRef ?? want)) * Math.min(1, dt / P.PITCH_REF_TAU); leanRef = sim._phiRef;
+      } else sim._phiRef = undefined;
+      const tWantR = Math.max(-P.LEAN_TAU_MAX, Math.min(P.LEAN_TAU_MAX, P.LEAN_KP * (leanRef - R.phi) - P.LEAN_KD * R.p));
+      if (railMode) {
+        // Only the contact patch can carry a roll torque: vertical support N at r (to the right) gives −N·r about fwd
+        const Nn = railC.N, lo = -Nn * railC.rHi, hi = -Nn * railC.rLo, tc = Math.max(lo, Math.min(hi, tWantR));
+        tau = tc + Math.max(-P.RAIL_HIP_TAU, Math.min(P.RAIL_HIP_TAU, tWantR - tc));
+      } else {
+        tau = tWantR;
+        // Lean stop at LEAN_MAX_DEG: the rider braces against leaning further (limited torque, so a hard pull can still topple him)
+        const over = Math.abs(R.phi) - P.LEAN_MAX_DEG * D2R;
+        if (over > 0) tau -= Math.sign(R.phi) * Math.min(P.LEAN_STOP_TAU, P.LEAN_STOP_K * over + P.LEAN_KD * 2 * Math.max(0, Math.sign(R.phi) * R.p));
+      }
       // I luften kan riderens muskler ikke ændre kroppens samlede impulsmoment (rapport 6.2): kun linens moment og
       // luftdæmpning virker på kroppens roll. Rideren kan i stedet kante BOARDET i forhold til kroppen med anklerne.
       const tRoll = supported ? tExt + tau - P.ROLL_C * R.p + MrollW : dot(cross(rH, Fl), fwd) - P.ROLL_C * R.p;
@@ -761,7 +831,12 @@ function createSim(opts = {}) {
         // the moment is COP × vertical support force. Hip strategy: swing legs and board under the body with the hip
         // muscles (Horak & Nashner 1986), limited torque.
         const Nc = Math.max(0, Fw[2]);
-        const tc = Math.max(-Nc * P.COP_MAX, Math.min(Nc * P.COP_MAX, tWant)); copCmd = Nc > 30 ? tc / Nc : 0;
+        let fLo = -P.COP_MAX, fHi = P.COP_MAX;
+        if (railMode) {                                                    // COP between the bindings AND on the contact patch
+          fLo = Math.max(railC.fLo, -P.COP_MAX); fHi = Math.min(railC.fHi, P.COP_MAX);
+          if (fLo > fHi) fLo = fHi = railC.fLo > P.COP_MAX ? railC.fLo : railC.fHi;
+        }
+        const tc = Math.max(Nc * fLo, Math.min(Nc * fHi, tWant)); copCmd = Nc > 30 && !railMode ? tc / Nc : 0;
         tp = tc + Math.max(-P.HIP_TAU_MAX, Math.min(P.HIP_TAU_MAX, tWant - tc));
       }
       // What the feet cannot deliver, the arms try with the line: raise the handle to tip forward, lower it to tip back
@@ -801,6 +876,8 @@ function createSim(opts = {}) {
     const Pline = dot(Fl, vU), Pwater = (Fw[0]) * R.vx + (Fw[1]) * R.vy + (Fw[2] + mb * P.G) * R.vz;
     const Pair = (Fo[0]) * vU[0] + (Fo[1]) * vU[1] + (Fo[2] + mu * P.G) * vU[2], Pmus = Fleg * R.legv;
     const EN = sim.energy; EN.lineWork += Pline * dt; EN.waterWork += Pwater * dt; EN.airWork += Pair * dt; EN.muscleWork += Pmus * dt;
+    { const aU = [0, 1, 2].map(i => aPerp[i] + (aN_b + legAcc) * nrm[i]), fn = dot(Fl, nrm);
+      sim._aNL = [0, 1, 2].map(i => aU[i] - (Fl[i] - fn * nrm[i]) / m - fn * nrm[i] / mu); }
     R.vx += (aPerp[0] + aN_b * nrm[0]) * dt; R.vy += (aPerp[1] + aN_b * nrm[1]) * dt; R.vz += (aPerp[2] + aN_b * nrm[2]) * dt;
     R.legv += legAcc * dt; R.leg += R.legv * dt;
     R.x += R.vx * dt; R.y += R.vy * dt; R.z += R.vz * dt;
@@ -823,7 +900,7 @@ function createSim(opts = {}) {
     const airborne = L.attached && !supported && R.z - WS.eta > 0.02;
     // Pre-wind while still supported (Q/R held before the lip)
     if (!airborne) {
-      if (sim.spinIn && supported) { sim.windDir = sim.spinIn; sim.windup = Math.min(1, sim.windup + dt / P.SPIN_WIND_T); }
+      if (sim.spinIn && supported && !sim._onRail) { sim.windDir = sim.spinIn; sim.windup = Math.min(1, sim.windup + dt / P.SPIN_WIND_T); }
       else sim.windup = Math.max(0, sim.windup - dt / 0.3);
     }
     if (airborne && !sim.jump) {
@@ -860,7 +937,27 @@ function createSim(opts = {}) {
       }
     }
     // 9) Output
-    L.F = F; L.stretch = e; L.slack = !L.attached || e <= 0; L.hp = hp;
+    L.F = F; L.stretch = e; L.slack = !L.attached || (rigid ? F < 1 : e <= 0); L.hp = hp;
+    // Rail diagnostics (rails report 12, 21, 25): v_req = (l̂·v_c)/(l̂·t), speed margin, side pull, hold ratio
+    if (railMode && L.attached) {
+      const ob = railC.ob, tl = Math.hypot(1, railC.sl), t3 = [ob.ax / tl, ob.ay / tl, railC.sl / tl], lt = dot(d, t3), lv = d[0] * TW.vx + d[1] * TW.vy;
+      const vReq = lt > 0.05 ? lv / lt : Infinity, vRail = R.vx * t3[0] + R.vy * t3[1] + R.vz * t3[2];
+      const Fside = F * (-d[0] * ob.ay + d[1] * ob.ax), Fhold = railC.mu * railC.N;          // + = towards the feature's left
+      const rel = Math.atan2(railC.sA, railC.cA), slide = Math.abs(Math.sin(rel)) > 0.7;
+      sim.out.rail = { name: ob.name, vReq, vRail, margin: vRail - vReq, Fside, toCable: Fside * ob.off < 0, Fhold, ratio: Math.abs(Fside) / Math.max(1, Fhold),
+        offset: railC.v, span: railC.span, gamma: rel / D2R, stance: slide ? 'boardslide' : '50-50', N: railC.N, slack: L.slack };
+      const RR = sim._railRun && sim._railRun.name === ob.name ? sim._railRun : (sim._railRun = { name: ob.name, t0: sim.t, uIn: railC.u, minMargin: Infinity, maxSide: 0, maxRatio: 0, vIn: vRail, vReqIn: vReq, L: ob.L, slide: 0 });
+      RR.minMargin = Math.min(RR.minMargin, vRail - vReq); RR.maxSide = Math.max(RR.maxSide, Math.abs(Fside)); RR.maxRatio = Math.max(RR.maxRatio, sim.out.rail.ratio);
+      RR.u = railC.u; RR.offset = railC.v; RR.span = railC.span; if (slide) RR.slide += dt;
+    } else {
+      sim.out.rail = null;
+      if (sim._railRun && (!railC || !L.attached)) {
+        const RR = sim._railRun, dur = sim.t - RR.t0;
+        if (dur > 0.1) sim.out.lastRail = { name: RR.name, dur, vIn: RR.vIn, vReqIn: RR.vReqIn, minMargin: RR.minMargin, maxSide: RR.maxSide, maxRatio: RR.maxRatio, slide: RR.slide, t: sim.t,
+          result: !L.attached ? 'fell: ' + sim.out.fall : RR.u > RR.L / 2 - 0.5 ? 'rode to the end' : 'pulled off the side' };
+        sim._railRun = null;
+      }
+    }
     const o = sim.out;
     o.V = Math.hypot(R.vx, R.vy, R.vz); o.Vc = Math.hypot(C.vx, C.vy);
     o.angle = Math.acos(Math.max(-1, Math.min(1, d[0] * C.tx + d[1] * C.ty))) / D2R; // 0° = lige bag carrier (3D)
@@ -872,7 +969,7 @@ function createSim(opts = {}) {
     // Mekanisk energi (kinetisk + potentiel + elastisk i linen) til energitjek
     const vU2 = [R.vx + R.legv * nrm[0], R.vy + R.legv * nrm[1], R.vz + R.legv * nrm[2]];
     const Ek = 0.5 * mb * (R.vx * R.vx + R.vy * R.vy + R.vz * R.vz) + 0.5 * mu * dot(vU2, vU2);
-    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
+    const Ep = mb * P.G * R.z + mu * P.G * (R.z + R.leg * nrm[2]), Ee = e > 0 && L.attached && !rigid ? 0.5 * P.LINE_K * e * e : 0;   // e already includes the arm extension
     o.E = Ek + Ep + Ee; if (EN.E0 === null) EN.E0 = o.E;
     o.Eres = o.E - EN.E0 - (EN.lineWork + EN.waterWork + EN.airWork + EN.muscleWork);
     // Wake sampling (planing only)
@@ -883,6 +980,12 @@ function createSim(opts = {}) {
     }
     o.eta = WS.eta; o.wrel = wrel; o.Hs = sim.chop.Hs; o.Tp = sim.chop.Tp;
     sim.t += dt;
+  };
+  // v_req a feature would demand with the current line direction (approach feedback, rails report 25)
+  sim.railPreview = function (ob) {
+    const hp = sim.line.hp, T = sim.tow; if (!hp) return null;
+    const d = [T.x - hp[0], T.y - hp[1], T.z - hp[2]], n = Math.hypot(...d), lt = (d[0] * ob.ax + d[1] * ob.ay) / n, lv = (d[0] * T.vx + d[1] * T.vy) / n;
+    return lt > 0.05 ? lv / lt : Infinity;
   };
   sim.reset();
   return sim;
@@ -997,6 +1100,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       <span class="chip on-warn" id="hudFall" hidden>fall</span>
       <span class="chip" id="hudJump" hidden>jump</span>
       <span class="chip" id="hudNext" hidden>next</span>
+      <span class="chip" id="hudRail" hidden>rail</span>
       <span class="chip" id="hudLegend" hidden><span style="color:#e23b2e">▶</span> board heading</span>
     </div>
     <div class="camsw" role="group" aria-label="Camera">
@@ -1058,6 +1162,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     <section class="field">
       <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
       <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
+      <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Rails and boxes.</strong> Off the water there is no side force from the board; only the contact, rail friction and the line act. The line locks your speed component along the line, so a rail pointing away from the cable needs v_req = (l̂·v_c)/(l̂·t), often well above cable speed: build speed with an edge before the feature. Too slow and the line tightens and pulls you sideways towards the cable; faster than v_req and the line goes slack. The rider balances automatically over the contact patch (your lean adds 30 %). Hold <kbd>Q</kbd>/<kbd>R</kbd> on a rail for a boardslide: the board across the rail tolerates ±0.7 m of side drift instead of ±0.2 m, but turn back before the end or you land sideways. Approach with a little sideways speed away from the cable so the side pull has the whole width to slow it.</p>
     </section>
 
     <section class="field">
@@ -1078,6 +1183,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       <input type="range" id="rngRelease" min="0.8" max="3" step="0.1" value="1.5">
       <div class="ticks"><span>0.8</span><span>1.5</span><span>2.2</span><span>3.0 kN</span></div>
       <p class="note" style="grid-column:1/-1;margin:2px 0 0">If the line force stays above this limit for more than 30 ms, you lose the handle, which counts as a fall (as when you hit an obstacle). The warning level is 80 % of the limit.</p>
+    </section>
+
+    <section class="field">
+      <label for="selLine">Line model</label>
+      <select id="selLine" aria-label="Line model"><option value="spring" selected>Spring-damper (line stretch + arms/legs)</option><option value="rigid">Inextensible, tension only (rails report)</option></select>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Switch any time, also while riding. The inextensible line locks the velocity component along the line, T·(L − d) = 0 with T ≥ 0; only the arms yield. It has no stretch to spread a jerk over, so a dock start and every slack-to-taut moment give very high single-step peaks: a real line needs its ≈4 % stretch.</p>
     </section>
 
     <section class="field">
@@ -1642,6 +1753,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   $('btnReset').onclick = () => { sim.reset(); clearHistory(); trailN = 0; };
   $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
   $('chkObs').onchange = e => { sim.obstaclesOn = e.target.checked; };
+  $('selLine').onchange = e => { sim.setLineModel(e.target.value); };
   const windNote = () => { $('outWind').textContent = sim.wind.toFixed(0) + ' m/s'; $('noteWind').textContent = `Wind from WSW over ≈${PHYS.FETCH} m of open water: significant wave height ${(sim.chop.Hs * 100).toFixed(1)} cm, peak period ${sim.chop.Tp.toFixed(2)} s, wavelength ${sim.chop.lp.toFixed(2)} m (fetch-limited JONSWAP). The board spans the short waves, so they are felt as small bumps.`; };
   $('rngWind').oninput = e => { sim.setWind(+e.target.value); windNote(); }; windNote();
   $('selStart').onchange = e => { sim.setStartMode(e.target.value); sim.reset(); clearHistory(); trailN = 0; };
@@ -1697,6 +1809,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     { key: 'W', title: 'Water drag (pressure + friction + slip)', unit: 'N', fmt: v => v.toFixed(0), get: () => sim.out.inWater ? (sim.out.Dw || 0) : 0, floor: 0, minTop: 300 },
     { key: 'Z', title: 'Board height above water', unit: 'm', fmt: v => v.toFixed(2), get: () => sim.rider.z, floor: -0.5, minTop: 1 },
     { key: 'H', title: 'Hip height ℓ (knees)', unit: 'm', fmt: v => v.toFixed(2), get: () => sim.rider.leg, floor: 0.4, minTop: 1 },
+    { key: 'M', title: 'Rail speed margin v − v_req (0 off a feature)', unit: 'km/h', fmt: v => v.toFixed(1), get: () => { const r = sim.out.rail; return r && isFinite(r.margin) ? Math.max(-30, r.margin * 3.6) : 0; }, floor: -20, minTop: 20, sym: true, grid: 10 },
+    { key: 'S', title: 'Rail side pull from the line |T·(l̂·b)|', unit: 'N', fmt: v => v.toFixed(0), get: () => sim.out.rail ? Math.abs(sim.out.rail.Fside) : 0, floor: 0, minTop: 200 },
     { key: 'L', title: 'Lean / edge (+ = right)', unit: '°', fmt: v => v.toFixed(0), get: () => sim.rider.phi / DEG, floor: -90, minTop: 90, sym: true },
   ];
   const hist = { t: new Float64Array(N), n: 0, head: 0 };
@@ -1731,7 +1845,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     const idx = i => (hist.head - hist.n + i + N) % N;
     let i0 = 0; { let lo = 0, hi = hist.n - 1; while (lo < hi) { const md = (lo + hi) >> 1; if (hist.t[idx(md)] < t0) lo = md + 1; else hi = md; } i0 = lo; }
     for (let i = i0; i < hist.n; i++) max = Math.max(max, s.buf[idx(i)]);
-    const step = s.sym ? 30 : niceStep(max - s.floor); const top = Math.ceil(max / step) * step;
+    const step = s.grid || (s.sym ? 30 : niceStep(max - s.floor)); const top = Math.ceil(max / step) * step;
     const X = t => padL + (t - t0) / WINDOW * pw, Y = v => padT + ph - (v - s.floor) / (top - s.floor) * ph;
     g.font = '10px ' + css.getPropertyValue('--mono'); g.textAlign = 'right'; g.textBaseline = 'middle';
     for (let v = s.floor; v <= top + 1e-9; v += step) {
@@ -1775,12 +1889,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   const tb = document.querySelector('#tblMasts tbody');
   for (const m of LAYOUT.masts) tb.insertAdjacentHTML('beforeend', `<tr><td>${m.id}</td><td>${m.role}</td><td class="n">${m.x.toFixed(0)}</td><td class="n">${m.y.toFixed(0)}</td><td><span class="tag ${m.status === 'målt' ? 'm' : 'a'}">${m.status === 'målt' ? 'measured' : 'assumed'}</span></td></tr>`);
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Cable length (computed)</td><td class="n" colspan="2">${sim.path.length.toFixed(0)} m</td><td></td></tr>`);
-  sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td><span class="tag m">measured</span></td></tr>`); });
+  sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td>${m.id === 'C' ? '<span class="tag a">moved 5 m</span>' : '<span class="tag m">measured</span>'}</td></tr>`); });
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Sheave diameter</td><td class="n" colspan="2">${2 * PHYS.WHEEL_RADIUS} m</td><td><span class="tag a">assumed</span></td></tr>`);
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Direction of travel</td><td class="n" colspan="2">counter-clockwise</td><td><span class="tag m">confirmed</span></td></tr>`);
   for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W} m, height ${o.H} m assumed)</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
   const tp = document.querySelector('#tblPhys tbody');
-  for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : +Number(v).toPrecision(4)}</td></tr>`);
+  for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : typeof v === 'number' ? +v.toPrecision(4) : String(v)}</td></tr>`);
 
   /* ---------- Simloop: fast tidsskridt, adskilt fra rendering ---------- */
   function stepN(n) {
@@ -1825,6 +1939,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       ['Energy', 'Line work', f(E.lineWork / 1000, 1) + ' kJ'], ['', 'Water + air', f((E.waterWork + E.airWork) / 1000, 1) + ' kJ'], ['', 'Muscle work', f(E.muscleWork / 1000, 2) + ' kJ'],
       ['', 'Mechanical energy', f(o.E / 1000, 2) + ' kJ'], ['', 'Energy residual (should be ≈ 0)', f((o.Eres || 0) / 1000, 2) + ' kJ'],
       ['Contact', 'State', o.contact ? 'on ' + o.contact : o.air ? 'airborne' : o.inWater ? 'planing' : 'above water'],
+      ['Rail', 'Required speed v_req = (l̂·v_c)/(l̂·t)', o.rail ? (isFinite(o.rail.vReq) ? f(o.rail.vReq * 3.6, 1) + ' km/h' : '∞ (line ⊥ rail)') : '–'],
+      ['', 'Speed along rail / margin', o.rail ? f(o.rail.vRail * 3.6, 1) + ' / ' + f(o.rail.margin * 3.6, 1) + ' km/h' : '–'],
+      ['', 'Side pull / friction μN / ratio', o.rail ? f(o.rail.Fside) + ' N / ' + f(o.rail.Fhold) + ' N / ' + f(o.rail.ratio, 2) : '–'],
+      ['', 'Offset from rail axis / support limit', o.rail ? f(o.rail.offset, 2) + ' / ±' + f(o.rail.span, 2) + ' m' : '–'],
+      ['', 'Board angle to rail / stance', o.rail ? f(o.rail.gamma) + '° / ' + o.rail.stance : '–'],
+      ['', 'Line model', sim.lineModel === 'rigid' ? 'inextensible' : 'spring-damper'],
     ];
     document.querySelector('#tblDiag tbody').innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td><td class="n">${r[2]}</td></tr>`).join('');
   }
@@ -1914,7 +2034,18 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     for (const o of sim.obs) { const dx = o.x - R.x, dy = o.y - R.y, f = dx * hx0 + dy * hy0, l = -dx * hy0 + dy * hx0;
       if (f > 2 && f < 90 && Math.abs(l) < 35 && (!nx || f < nx.f)) nx = { o, f, l }; }
     const hn = $('hudNext'); hn.hidden = !nx || !sim.line.attached;
-    if (nx) hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}`;
+    if (nx) { const vr = nx.o.type !== 'kicker' ? sim.railPreview(nx.o) : null;
+      hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}` + (vr != null ? ` · needs ≈ ${isFinite(vr) ? (vr * 3.6).toFixed(0) : '∞'} km/h (now ${(sim.out.V * 3.6).toFixed(0)})` : ''); }
+    // Rail chip: live on a feature, then a summary of the last slide for 6 s
+    const hr = $('hudRail'), rr = sim.out.rail, lr = sim.out.lastRail;
+    if (rr && sim.line.attached) {
+      const kmh = v => (v * 3.6).toFixed(1), req = isFinite(rr.vReq) ? kmh(rr.vReq) : '∞';
+      hr.hidden = false; hr.className = 'chip' + (rr.margin >= 0 || rr.slack ? ' on-ok' : rr.margin < -1.5 ? ' on-warn' : '');
+      hr.textContent = `${rr.stance} · ${kmh(rr.vRail)} / need ${req} km/h (${rr.margin >= 0 ? '+' : ''}${isFinite(rr.margin) ? kmh(rr.margin) : '−∞'}) · ${rr.slack ? 'line slack' : `side pull ${Math.abs(rr.Fside).toFixed(0)} N${rr.toCable ? ' → cable' : ''}`} · off-centre ${(Math.abs(rr.offset) * 100).toFixed(0)}/${(rr.span * 100).toFixed(0)} cm`;
+    } else if (lr && sim.t - lr.t < 6) {
+      hr.hidden = false; hr.className = 'chip' + (lr.result === 'rode to the end' ? ' on-ok' : ' on-warn');
+      hr.textContent = `${lr.name}: ${lr.result} (${lr.dur.toFixed(1)} s) · in ${(lr.vIn * 3.6).toFixed(0)} / need ${isFinite(lr.vReqIn) ? (lr.vReqIn * 3.6).toFixed(0) : '∞'} km/h` + (lr.minMargin < -0.4 && lr.result !== 'rode to the end' ? ' · more speed needed before the feature' : '');
+    } else hr.hidden = true;
     $('hudEdge').textContent = `lean ${(R.phi / DEG).toFixed(0)}° (target ${(sim.leanCmd / DEG).toFixed(0)}°)`;
     const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall + ' · press Reset';
     for (const s of series) drawChart(s);

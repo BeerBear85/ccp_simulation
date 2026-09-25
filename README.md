@@ -12,6 +12,8 @@ Open `dist/copenhagen_cable_park_sim.html` in a browser.
 - **Board and water**: Savitsky planing with trim from moment balance, rocker, ITTC-57 friction, added mass and slamming, edge/sideslip, ventilation. Water surface with fetch-limited JONSWAP chop and the board's own wake.
 - **Starts**: sliding (carpet dock), jump and sitting start.
 - **Obstacles**: layout "O" (Google Earth standard layer, 2023) from `analysis/CCP_obstacle_analyse.html`, with sub-contours and axes. Heights and types are assumptions.
+- **Rails and boxes** (from the rails report): off the water only contact, rail friction and the line act. Support exists while the board footprint overlaps the feature top, so a boardslide (Q/R on a rail) tolerates ≈ ±0.7 m of side drift and a 50-50 ≈ ±0.2 m. Balance torques are limited to the contact patch (automatic balance lean + 30 % of the player's lean). Being pulled off emerges from the line: v_req = (l̂·v_c)/(l̂·t); slower and the line tightens and pulls sideways, faster and it goes slack. HUD, charts and diagnostics show v_req, speed margin, side pull and offset.
+- **Line model**: spring-damper (default) or inextensible tension-only constraint, selectable in the UI.
 - **Tricks**: nose/tail grabs (W/S) and spins (Q/R: pre-wind before the lip, then angular momentum). A 180 lands you switch.
 - Fixed 240 Hz time step, live charts, energy bookkeeping.
 
@@ -25,7 +27,7 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 | `src/template.html` | UI, rendering and controls. `/*__PHYSICS__*/` is replaced by `physics.js` at build. |
 | `build.py` | Builds `dist/copenhagen_cable_park_sim.html` (standalone) and `.frag.html` (artifact body). |
 | `dist/` | Built simulator. |
-| `tests/copenhagen_cable_park_sim_validation.js` | Headless validation against the physics report (straight case, edge manoeuvre, time-step convergence, energy residual, pop, sensitivity, starts, release limit, corners, wind, tricks). |
+| `tests/copenhagen_cable_park_sim_validation.js` | Headless validation against the physics report (straight case, edge manoeuvre, time-step convergence, energy residual, pop, sensitivity, starts, release limit, corners, wind, tricks, rails). |
 | `analysis/` | CCP layout and obstacle analyses (source material). |
 | `docs/` | "Physics and Simulation of a Cable-Park Wakeboard Rider" report. |
 
