@@ -35,8 +35,49 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 
 ```bash
 python3 build.py
+python3 tests/test_build.py
+node --test tests/simulation_lifecycle.test.js tests/build_smoke.test.js
 node tests/copenhagen_cable_park_sim_validation.js
 ```
+
+On Windows, use `python` if `python3` is unavailable. The build reads and writes UTF-8 explicitly.
+The physics validation imports `src/physics.js` directly and exits with an error on failed checks.
+It checks finite state and non-negative tension at every step, steady planing, time-step convergence
+(2% peak speed / 5% peak tension), a 5% energy-residual budget, starts, release, corners, wind,
+tricks and rail exits. These are regression limits, not measured accuracy claims. The built-file
+smoke test separately rejects stale artifacts and checks that their embedded physics matches source.
+
+## Simulation setup and reset
+
+`createSim(options)` owns an independent copy of its physics constants and layout. Supported options:
+`physics` and `layout` (partial overrides), `cableKmh`, `wind`, `obstaclesOn`, `releaseN`,
+`footShift`, `startMode` (`slide` or `jump`), and optional `initial` physical conditions.
+Arrays in overrides replace the default arrays; they are copied, not shared between runs.
+
+```js
+const { createSim } = require('./src/physics.js');
+const sim = createSim({
+  wind: 0,
+  obstaclesOn: false,
+  physics: { DT: 1 / 480 },
+});
+sim.step();
+sim.reset();
+```
+
+Construction and `reset()` use the same initialization path. Reset keeps live settings, clears
+held simulation commands, run history, contact state and diagnostics, and returns time to zero
+without taking a hidden physics step. The browser also clears its input and display history.
+Run records such as `rider`, `line` and `out` are replaced; read them from `sim` after resetting.
+
+For a headless scenario, pass `initial: { carrierS, rider: { x, y, z, vx, vy, vz, psi, ... } }`
+to construction, or pass that same object to `sim.reset(initial)`. Rider fields are physical
+positions, velocities, angles and pose values in the model's SI coordinates. Omitted fields
+use the dock pose defaults. The simulator initializes the carrier, tow point, line geometry,
+controls, contact memory and energy bookkeeping together. Custom scenarios disable the automatic
+dock jump and extra start stroke. Forces/work start at zero and are evaluated on the first step.
+Calling `reset()` again replays the copied scenario. `setStartMode('slide' | 'jump')` clears the
+custom scenario; the following reset starts from the selected dock position.
 
 ## Controls
 

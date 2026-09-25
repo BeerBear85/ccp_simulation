@@ -337,9 +337,9 @@ function obstacleProfile(o, P) {
   else pts.push([b, o.H]);
   return pts;
 }
-function buildObstacles(path, P) {
+function buildObstacles(path, P, layout) {
   const legs = path.pieces.filter(g => g.kind === 'line');
-  return LAYOUT.obstacles.map(o => {
+  return layout.obstacles.map(o => {
     let best = null, bd = 1e9, bu = 0;
     for (const g of legs) {
       const u = Math.max(0, Math.min(g.len, (o.x - g.a[0]) * g.t[0] + (o.y - g.a[1]) * g.t[1]));
@@ -435,29 +435,20 @@ function chopAt(ch, x, y, t, ux, uy, Lavg) {      // elevation, gradient and ∂
 
 /* ---------------- Simulator ---------------- */
 function createSim(opts = {}) {
-  const P = PHYS, D2R = Math.PI / 180;
-  const path = buildPath(LAYOUT.wheels, P);
+  // Own a copy of nested constants and geometry; concurrent scenarios never
+  // change each other's physics, even if callers reuse their option objects.
+  const P = structuredClone({ ...PHYS, ...opts.physics }), D2R = Math.PI / 180;
+  const layout = structuredClone({ ...LAYOUT, ...opts.layout });
+  const path = buildPath(layout.wheels, P);
+  let initialState = structuredClone(opts.initial ?? null);
   const sim = {
-    path, t: 0, obs: buildObstacles(path, P), obstaclesOn: true,
-    cableSpeed: (opts.cableKmh ?? P.CABLE_SPEED_KMH) / 3.6, // m/s
-    leanCmdIn: 0,   // rad, input fra UI (før rate-begrænsning)
-    leanCmd: 0,     // rad, rate-begrænset ønsket læn
-    carrier: { s: 0, x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, tx: 1, ty: 0 },
-    tow: { x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, vz: 0 },   // trækpunkt under carrieren (eftergiveligt ophæng), på det uudbøjede kabel
-    towPt: { x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, vz: 0 }, // actual tow point incl. the cable's deflection
-    cable: { dL: 0, dZ: 0, vL: 0, vZ: 0, f: [0, 0, 0], k: 0, a: 0, Ls: 0, s0: 0 },
-    footShift: 0,   // m, fodtryk: + = vægt frem, − = vægt tilbage (styres fra UI)
-    energy: { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, E0: null },
-    // board-reference: x,y,z = boardets bund; phi = læn/kant (+ = højre rail ned), p = rollrate
-    rider: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, psi: 0, r: 0, phi: 0, p: 0, leg: 0.85, legv: 0, tau: 0.1, ankle: 0, arm: 0, theta: 0, q: 0 },
-    wind: P.WIND_DEFAULT, chop: buildChop(P, P.WIND_DEFAULT), trail: [], _trailT: -1,
-    spinIn: 0, grabIn: 0, windup: 0, windDir: 0, switchStance: false, grab: { type: 0, reach: 0 },
-    strokeMax: P.ARM_TRAVEL, startMode: 'slide', releaseN: P.RELEASE_N, legBase: P.LEG_NOM, jumpArmed: false,
-    legCmdIn: 0.85, legCmd: 0.85, // m, ønsket hoftehøjde (input / rate-begrænset)
-    line: { F: 0, stretch: 0, slack: true, attached: true, over: 0 },
-    out: { V: 0, Vc: 0, angle: 0, inWater: true, drag: 0, lift: 0, warn: false, tau: 0, fall: '', contact: '', Fc: 0, air: false, lastAir: null },
-    jump: null,
+    path, obs: buildObstacles(path, P, layout), obstaclesOn: opts.obstaclesOn ?? true,
+    cableSpeed: (opts.cableKmh ?? P.CABLE_SPEED_KMH) / 3.6,
+    footShift: opts.footShift ?? 0,
+    wind: Math.max(0, opts.wind ?? P.WIND_DEFAULT),
+    startMode: opts.startMode === 'jump' ? 'jump' : 'slide', releaseN: opts.releaseN ?? P.RELEASE_N,
   };
+  sim.chop = buildChop(P, sim.wind);
   // Start dock geometry: u along the carpet axis (0 = centre), v across; surface height h(u)
   const DK = { ax: P.DOCK_DIR[0], ay: P.DOCK_DIR[1] };
   function dockAt(x, y) {
@@ -497,28 +488,64 @@ function createSim(opts = {}) {
     return c;
   };
   const dockPt = u => [P.DOCK_C[0] + u * DK.ax, P.DOCK_C[1] + u * DK.ay];
-  sim.setStartMode = m => { sim.startMode = ['slide', 'jump'].includes(m) ? m : 'slide'; };
-  sim.reset = function () {
+  sim.setStartMode = m => { sim.startMode = ['slide', 'jump'].includes(m) ? m : 'slide'; initialState = null; };
+  // Optional physical initial conditions, not an internal-state snapshot.
+  // No argument replays the same scenario; setStartMode returns to dock starts.
+  sim.reset = function (initial = initialState) {
+    initialState = structuredClone(initial);
     // Start at the start dock, facing along the first leg (A→F). The carrier leaves sheave A; the line tightens after ~2 s.
     const psi0 = Math.atan2(DK.ay, DK.ax), mode = sim.startMode;
     let x, y, z, leg = P.LEG_NOM;
     if (mode === 'jump') { [x, y] = dockPt(P.DOCK_LEN / 2 - P.DOCK_RAMP - 0.3); z = P.DOCK_TOP; }  // at the edge before the ramp
     else { [x, y] = dockPt(-1.2); z = P.DOCK_TOP; }                                                   // standing on the carpet
-    Object.assign(sim.rider, { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: 0.05, q: 0, hOff: 0 });
-    sim._cop = 0; sim._thRef = undefined;
-    sim.carrier.s = 0;
-    placeCarrier(); Object.assign(sim.tow, { x: sim.carrier.x, y: sim.carrier.y, z: P.CABLE_HEIGHT, vx: sim.carrier.vx, vy: sim.carrier.vy, vz: 0 });
-    Object.assign(sim.cable, { dL: 0, dZ: 0, vL: 0, vZ: 0, f: [0, 0, 0] }); Object.assign(sim.towPt, sim.tow);
-    Object.assign(sim.energy, { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, armWork: 0, E0: null });
-    Object.assign(sim.line, { F: 0, attached: true, over: 0, slack: true, hp: [x, y, z + leg] });
-    sim.legCmd = sim.legCmdIn = sim.legBase = leg;
-    sim.jumpArmed = mode === 'jump';
-    sim.out.fall = ''; sim.out.lastAir = null; sim.out.contact = ''; sim.out.startEvent = ''; sim.jump = null; sim.t = 0; sim.leanCmd = 0;
-    sim.trail = []; sim._trailT = -1; sim.windup = 0; sim.windDir = 0; sim.switchStance = false; sim.grab = { type: 0, reach: 0 }; sim.out.lastTrick = null; sim._IzzPrev = null;
-    sim._rail = null; sim._railRun = null; sim._phiRef = undefined; sim.out.rail = null; sim.out.lastRail = null;
-    sim.out.startPeak = 0; sim.strokeMax = P.ARM_TRAVEL + P.STROKE_STAND; sim._onDock = true;
-    for (const ob of sim.obs) ob.inContact = false;
+    // Sole owner of run state: construction and reset use this same path.
+    // Replace records so fields added during stepping cannot survive reset.
+    Object.assign(sim, {
+      t: 0, leanCmdIn: 0, leanCmd: 0, spinIn: 0, grabIn: 0,
+      rider: { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: 0.05, q: 0, hOff: 0 },
+      carrier: { s: 0, x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, tx: 1, ty: 0 },
+      cable: { dL: 0, dZ: 0, vL: 0, vZ: 0, f: [0, 0, 0], k: 0, a: 0, Ls: 0, s0: 0 },
+      energy: { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, armWork: 0, E0: null },
+      legCmd: leg, legCmdIn: leg, legBase: leg, jumpArmed: mode === 'jump',
+      strokeMax: P.ARM_TRAVEL + P.STROKE_STAND,
+      jump: null, trail: [], _trailT: -1, windup: 0, windDir: 0, switchStance: false, grab: { type: 0, reach: 0 },
+      _cop: 0, _thRef: undefined, _phiRef: undefined, _Nprev: 0, _Izz: null, _IzzPrev: null,
+      _rail: null, _railRun: null, _railBase: 0, _onRail: false, _onDock: true,
+    });
+    if (initialState) {
+      for (const [key, value] of Object.entries(initialState.rider ?? {})) {
+        if (!(key in sim.rider) || !Number.isFinite(value)) throw new TypeError(`Invalid initial rider field: ${key}`);
+        sim.rider[key] = value;
+      }
+      sim.carrier.s = initialState.carrierS ?? 0;
+      if (!Number.isFinite(sim.carrier.s)) throw new TypeError('initial.carrierS must be finite');
+      sim.legCmd = sim.legCmdIn = sim.legBase = sim.rider.leg;
+      sim.jumpArmed = false;
+      sim.strokeMax = P.ARM_TRAVEL;
+      sim._onDock = false;
+    }
     placeCarrier();
+    sim.tow = { x: sim.carrier.x, y: sim.carrier.y, z: P.CABLE_HEIGHT, vx: sim.carrier.vx, vy: sim.carrier.vy, vz: 0 };
+    sim.towPt = { ...sim.tow };
+    const R = sim.rider, ct = Math.cos(R.theta), st = Math.sin(R.theta), h = R.leg + P.HANDLE_ABOVE_HIP + R.hOff;
+    const hx = Math.cos(R.psi), hy = Math.sin(R.psi), sp = Math.sin(R.phi), cp = Math.cos(R.phi);
+    const nrm = [ct * sp * hy - st * hx, -ct * sp * hx - st * hy, ct * cp];
+    const hp = [R.x + h * nrm[0], R.y + h * nrm[1], R.z + h * nrm[2]];
+    const d = [sim.tow.x - hp[0], sim.tow.y - hp[1], sim.tow.z - hp[2]], dist = Math.hypot(...d), stretch = dist - P.LINE_LENGTH - R.arm;
+    sim.line = { F: 0, stretch, attached: true, over: 0, slack: stretch <= 0, hp };
+    const WS = sim.waterAt(R.x, R.y, 0, Math.cos(R.psi), Math.sin(R.psi), 1);
+    const BI = bodyInertia(P, R.leg, P.RIDER_MASS - P.BOARD_MASS);
+    sim.out = {
+      V: Math.hypot(R.vx, R.vy, R.vz), Vc: sim.cableSpeed, angle: Math.acos(Math.max(-1, Math.min(1, (d[0] * sim.carrier.tx + d[1] * sim.carrier.ty) / Math.max(dist, 1e-9)))) / D2R,
+      inWater: R.z < WS.eta, air: false, dock: sim._onDock, contact: '', fall: '', warn: false,
+      lastAir: null, lastTrick: null, rail: null, lastRail: null, startEvent: '', startPeak: 0,
+      drag: 0, lift: 0, tau: 0, Fc: 0, arm: R.arm, Fleg: 0, beta: 0, rCarve: 0, trim: 0, lw: 0, Df: 0, Dw: 0,
+      pitch: R.tau, theta: R.theta, cop: 0, Ilean: BI.roll, beta_knee: BI.beta, FlegMax: legForceMax(P, R.leg, R.legv),
+      lp: 0, ma: 0, slam: 0, Cv: 0, Re: 0, Pcable: 0, Pline: 0, Dpress: 0, Dres: 0, Dslip: 0, Dplow: 0, vent: 1, xLine: 0,
+      Fr: 0, We: 0, stretch, ankle: R.ankle, cableDefl: 0, cableK: 0, E: 0, Eres: 0,
+      eta: WS.eta, wrel: R.vz - WS.et - R.vx * WS.gx - R.vy * WS.gy, Hs: sim.chop.Hs, Tp: sim.chop.Tp,
+    };
+    for (const ob of sim.obs) ob.inContact = false;
   };
   function placeCarrier() {
     const c = sim.carrier, p = pathAt(path, c.s);

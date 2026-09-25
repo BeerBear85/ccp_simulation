@@ -907,7 +907,16 @@
   $('btnStep').onclick = () => { setPlay(false); stepN(1); };
   $('btnStep24').onclick = () => { setPlay(false); stepN(24); };
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
-  $('btnReset').onclick = () => { sim.reset(); clearHistory(); trailN = 0; };
+  function resetRide() {
+    sim.reset();
+    keyEdge = keyLeg = 0;
+    for (const id of ['edgeL', 'edgeR', 'legDn', 'legUp', 'trSpinL', 'trSpinR', 'trNose', 'trTail']) setHeld(id, false);
+    clearHistory(); trailN = 0; trailT = -1; trailGeo.setDrawRange(0, 0);
+    acc = 0; last = performance.now(); coachLast.arcT = -1; diagLast = -Infinity;
+    wLast = -1; spHead = 0; spLastT = 0; spAge.fill(9);
+    updateDiag();
+  }
+  $('btnReset').onclick = resetRide;
   $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
   // Panel tabs: Ride (time, charts, diagnostics) · Settings (all configuration) · Guide (how to ride, physics/validation)
   const TABS = ['ride', 'settings', 'guide'];
@@ -919,7 +928,7 @@
   $('chkObs').onchange = e => { sim.obstaclesOn = e.target.checked; };
   const windNote = () => { $('outWind').textContent = sim.wind.toFixed(0) + ' m/s'; $('noteWind').textContent = `Wind from WSW over ≈${PHYS.FETCH} m of open water: significant wave height ${(sim.chop.Hs * 100).toFixed(1)} cm, peak period ${sim.chop.Tp.toFixed(2)} s, wavelength ${sim.chop.lp.toFixed(2)} m (fetch-limited JONSWAP). The board spans the short waves, so they are felt as small bumps.`; };
   $('rngWind').oninput = e => { sim.setWind(+e.target.value); windNote(); }; windNote();
-  $('selStart').onchange = e => { sim.setStartMode(e.target.value); sim.reset(); clearHistory(); trailN = 0; };
+  $('selStart').onchange = e => { sim.setStartMode(e.target.value); resetRide(); };
   $('rngRelease').oninput = e => { sim.releaseN = +e.target.value * 1000; $('outRelease').textContent = (+e.target.value).toFixed(1) + ' kN'; };
   $('selWin').onchange = e => { WINDOW = +e.target.value; };
   $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
