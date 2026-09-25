@@ -102,7 +102,7 @@
     background: linear-gradient(to bottom, var(--cv-bg) 0 var(--cv-water), var(--cv-ink) var(--cv-water));
     font-family: "Bricolage Grotesque", system-ui, sans-serif; transition: opacity .35s ease, visibility .35s; }
   .cover.gone { opacity: 0; visibility: hidden; pointer-events: none; }
-  .cv-stage { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; background: var(--cv-bg); }
+  .cv-stage { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
   .cv-art { position: absolute; left: 0; top: 0; }
   .cv-sticker { position: absolute; left: 1318px; top: 78px; width: 124px; transform: rotate(12deg); text-align: center;
     font: 30px/1 "Permanent Marker", cursive; color: var(--cv-bg); }
@@ -113,15 +113,15 @@
   .cv-tag { position: absolute; left: 96px; top: 540px; max-width: 560px; transform: rotate(-2deg); font: 40px/1.15 "Permanent Marker", cursive; }
   .cv-foot { position: absolute; left: 80px; bottom: 36px; display: flex; gap: 16px; align-items: center; font-weight: 500; font-size: 22px; color: #fff; }
   .cv-foot i { font-style: normal; color: var(--cv-accent); }
-  .cv-start { position: absolute; left: 626px; top: 764px; display: flex; align-items: center; gap: 22px;
+  .cv-start { position: absolute; left: 640px; top: 756px; display: flex; align-items: center; gap: 22px;
     padding: 6px 54px 14px 60px; background: var(--cv-accent); color: var(--cv-ink); border: 6px solid var(--cv-ink); border-radius: 999px;
-    font: 800 92px/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -2px; cursor: pointer;
+    font: 800 84px/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -2px; cursor: pointer;
     box-shadow: 0 0 0 5px #fff, 12px 12px 0 5px var(--cv-bg); transform: rotate(-3deg);
     transition: transform .15s ease, box-shadow .15s ease; animation: cvPulse 2.4s ease-in-out infinite; }
-  .cv-start span { font-size: 58px; transform: translateY(4px); }
+  .cv-start span { font-size: 52px; transform: translateY(4px); }
   .cv-start:hover { border-color: var(--cv-ink); transform: rotate(-1deg) scale(1.04); animation: none; }
   .cv-start:active { transform: rotate(-1deg) translate(8px, 8px); box-shadow: 0 0 0 5px #fff, 4px 4px 0 5px var(--cv-bg); }
-  .cv-start:focus-visible { outline: 6px dashed #fff; outline-offset: 16px; }
+  .cv-start:focus-visible { outline: 4px dashed #fff; outline-offset: 12px; }
   @keyframes cvPulse { 0%, 100% { transform: rotate(-3deg) scale(1); } 50% { transform: rotate(-3deg) scale(1.035); } }
   @media (prefers-reduced-motion: reduce) { .cv-start { animation: none; } .cover { transition: none; } }
 </style>
@@ -903,7 +903,7 @@
   }
   $('btnStart').onclick = startSim;
   addEventListener('resize', fitCover); fitCover();
-  setPlay(false); $('btnStart').focus();
+  setPlay(false);   // Enter/Space eller klik på START starter
   $('btnStep').onclick = () => { setPlay(false); stepN(1); };
   $('btnStep24').onclick = () => { setPlay(false); stepN(24); };
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
