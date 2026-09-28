@@ -101,8 +101,8 @@ for (const U of [0, 4, 8]) { const s = straight(); s.setWind(U); let n = 0, z = 
 { const s = createSim({ cableKmh: 30, obstaclesOn: false, releaseN: 1e9, wind: 0 }); let cross = 0;
   for (let i = 0; i < 240 * 70 && !s.out.fall; i++) { lapCtl(s); step(s); if (Math.abs(s.out.eta) > 0.01) cross++; }
   console.log(`9) Eget kølvand (vindstille, én runde): boardet står i kølvand > 1 cm i ${(cross / 240).toFixed(1)} s${s.out.fall ? ' · FALD: ' + s.out.fall : ''}`); }
-// 10) Tricks på O3-kickeren (30 km/t): pre-wind + linemoment + grab. Spin følger impulsmomentet (I·ω bevares i luften)
-function trick(plan) { const s = createSim({ cableKmh: 30, wind: 0 }); const ob = s.obs.find(o => o.name === 'O3 kicker'), g = s.path.pieces.filter(g => g.kind === 'line')[ob.leg];
+// 10) Tricks på O4a-kickeren (30 km/t): pre-wind + linemoment + grab. Spin følger impulsmomentet (I·ω bevares i luften)
+function trick(plan) { const s = createSim({ cableKmh: 30, wind: 0 }); const ob = s.obs.find(o => o.name === 'O4a kicker'), g = s.path.pieces.filter(g => g.kind === 'line')[ob.leg];
   const uu = (ob.x - g.a[0]) * g.t[0] + (ob.y - g.a[1]) * g.t[1];
   s.reset({ carrierS: g.s0 + uu - 40 + Math.sqrt(Math.max(1, 19.6 ** 2 - 8.1 ** 2 - ob.off ** 2)),
     rider: { x: ob.x - ob.ax * 40, y: ob.y - ob.ay * 40, z: -0.03, vx: ob.ax * 8.33, vy: ob.ay * 8.33, psi: ob.yaw, theta: 0.1 } });
@@ -117,7 +117,7 @@ for (const [n, p, expected] of [['lige hop', () => ({}), /^Straight air/],
   ['nose grab 0,15–0,65 s', (d, ta) => ({ grab: ta !== null && ta > 0.15 && ta < 0.65 ? 1 : 0 }), /^Nose grab/],
   ['nose grab holdt til landing', (d, ta) => ({ grab: ta !== null && ta > 0.1 ? 1 : 0 }), /^FALD: Landed still holding the nose/],
   ['Q pre-wind 3,5 m før kanten', (d, ta) => ({ spin: d > -3.5 && ta === null ? 1 : 0 }), /^180 left.*lander switch/],
-  ['Q pre-wind + i luften + nose grab', (d, ta) => ({ spin: d > -3.5 && (ta === null || ta < 0.8) ? 1 : 0, grab: ta !== null && ta > 0.15 && ta < 0.6 ? 1 : 0 }), /^FALD: Landed sideways/]]) {
+  ['Q pre-wind + i luften + nose grab', (d, ta) => ({ spin: d > -3.5 && (ta === null || ta < 0.8) ? 1 : 0, grab: ta !== null && ta > 0.15 && ta < 0.6 ? 1 : 0 }), /^360 left \+ Nose grab/]]) {
   const result = trick(p);
   assert.match(result, expected, n);
   console.log(`10) ${n}: ${result}`);
@@ -128,7 +128,7 @@ for (const [n, p, expected] of [['lige hop', () => ({}), /^Straight air/],
 function railLab(alphaDeg, vKmh, o = {}) {
   const a = alphaDeg * D, L = 16, H = 0.5, y0 = 4, xs = 300;
   const s = createSim({ cableKmh: 30, wind: 0, releaseN: o.rel ?? PHYS.RELEASE_N,
-    physics: { ENTRY_LEN: 0.01 },
+    physics: { ENTRY_LEN: 0.01, ENTRY_ANGLE_MAX: 89.9 },   // flat-topped lab rail: no entry ramp
     layout: { wheels: [[0, 0], [3000, 0], [3000, -400], [0, -400]],
       obstacles: [{ id: 'T', name: 'lab rail', type: 'rail', x: xs + Math.cos(a) * L / 2, y: y0 + Math.sin(a) * L / 2, dir: [Math.cos(a), Math.sin(a)], L, W: 0.1, H }] },
   });
@@ -151,6 +151,25 @@ function railLab(alphaDeg, vKmh, o = {}) {
   console.log('11) Rail-lab, kabel 30 km/t, rail 16 m, 4 m fra kablet, indgangsfart (km/t) → udfald:\n' + rows.join('\n')); }
 for (const [lbl, o] of [['50-50', {}], ['boardslide', { slide: 1 }]]) { const r = railLab(20, 36, o);
   console.log(`11) α 20°, 36 km/t, ${lbl}: ${r.lr ? r.lr.result + ` efter ${r.lr.dur.toFixed(2)} s, maks sidetræk ${r.lr.maxSide.toFixed(0)} N` : 'fald: ' + r.fall}`); }
+// 12) Kalibrering (bruger, 28.09.2026): en flade på ≈35° (UNIT Bump-geometri 3,8 × 2,3 × 0,7 m) køres i virkeligheden over 30 km/t.
+//     Lige kabel, feature 4 m til siden. Pitch-grænsen gælder kun med støtte; i luften vurderes pitch ved landing.
+//     I luften holder rideren boardet vandret (benene svinges op til AIR_SWING_MAX under kroppen).
+//     Forventet: 32 km/t neutral → over; 34 km/t neutral med sammensynkning før fladen → lander på næsen; 34 km/t vægten bagud → over.
+function faceLab(kmh, footShift, absorb = false) {
+  const s = createSim({ cableKmh: kmh, wind: 0, footShift, releaseN: 1e9,
+    layout: { wheels: [[0, 0], [3000, 0], [3000, -400], [0, -400]], obstacles: [{ id: 'B', name: 'lab face 35°', type: 'bump', x: 300, y: 4, dir: [1, 0], L: 3.8, W: 2.3, H: 0.7 }] } });
+  const ob = s.obs[0], v = kmh / 3.6, x0 = ob.x - 30, dz = PHYS.CABLE_HEIGHT - 1.0, hor = Math.sqrt((PHYS.LINE_LENGTH - 0.3) ** 2 - dz * dz);
+  s.reset({ carrierS: x0 + Math.sqrt(hor * hor - ob.y * ob.y), rider: { x: x0, y: ob.y, z: -0.03, vx: v, vy: 0, psi: 0, theta: 0.1 } });
+  const R = s.rider; let pv = 0;
+  for (let i = 0; i < 240 * 6; i++) { const u = R.x - ob.x, w = R.y - ob.y, vd = (w - pv) * 240; pv = w;
+    s.leanCmdIn = (u < ob.L / 2 && R.z < 0.05 && !s.jump ? Math.max(-55, Math.min(55, 40 * w + 25 * vd)) : 0) * D; s.legCmdIn = absorb && u + ob.L / 2 > -2 && u + ob.L / 2 < 0.3 ? 0.7 : s.legBase; step(s);
+    if (s.out.fall) return 'FALD: ' + s.out.fall; if (u > ob.L / 2 + 6 && !s.jump && R.z < 0.1) return 'over'; }
+  return 'ingen afslutning'; }
+{ const neutral = faceLab(32, 0), absorbed = faceLab(34, 0, true), back = faceLab(34, -0.15);
+  assert.equal(neutral, 'over', '35° face: neutral weight at 32 km/h, board held level in the air');
+  assert.match(absorbed, /^FALD: Landed on the nose/, '35° face: crouched with neutral weight at 34 km/h lands on the nose');
+  assert.equal(back, 'over', '35° face: weight back at 34 km/h rides over');
+  console.log(`12) Flade 35°: 32 km/t neutral → ${neutral} · 34 km/t neutral + sammensynkning → ${absorbed} · 34 km/t vægt bagud → ${back}`); }
 console.log('* Rapportens tal stammer fra en illustrativ punktmassemodel, ikke fra målinger.');
 
 console.log(`PASS: all behavioral and numerical checks (${checkedSteps} physics steps).`);

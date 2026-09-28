@@ -46,6 +46,19 @@
   .trickpad button { padding: 9px 11px; background: rgba(16,28,36,.88); user-select: none; -webkit-user-select: none; font-size: 13px; }
   .trickpad button.held { background: var(--accent); color: var(--accent-ink); }
   .edgepad button.held { background: var(--accent); color: var(--accent-ink); }
+  /* Lean builds up while held: bar under the button shows how far (0-100 % of max lean) */
+  .edgepad #edgeL, .edgepad #edgeR { position: relative; overflow: hidden; }
+  .edgepad #edgeL::after, .edgepad #edgeR::after { content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: var(--fill, 0%); background: var(--accent); }
+  .edgepad #edgeL.held::after, .edgepad #edgeR.held::after { background: var(--accent-ink); opacity: .75; }
+  .edgepad #edgeL::after { left: auto; right: 0; }
+  /* Fall dialog, centred in the 3D view (shown regardless of the Info toggle) */
+  .fallbox { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 5; }
+  .fallbox .card { pointer-events: auto; min-width: 260px; max-width: min(420px, calc(100% - 32px)); text-align: center; padding: 20px 24px 18px;
+    background: rgba(16,28,36,.94); border: 1px solid var(--warn); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+  .fallbox h2 { font: 600 20px/1.2 var(--font); letter-spacing: 0; text-transform: none; color: var(--ink); margin: 0 0 6px; }
+  .fallbox p { margin: 0 0 16px; color: var(--ink-2); font-size: 13.5px; }
+  .fallbox button { font-size: 16px; padding: 11px 28px; }
+  .fallbox .hint { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
   .scalebar { position: absolute; left: 12px; bottom: 64px; font: 11px var(--mono); color: var(--ink-2); background: rgba(16,28,36,.82); padding: 6px 8px; border-radius: 3px; }
   .scalebar i { display: block; height: 4px; border: 1px solid var(--ink-2); border-top: 0; margin-bottom: 3px; }
 
@@ -197,6 +210,14 @@
     <div class="trickpad" aria-label="Tricks">
       <button id="trSpinL" aria-label="Spin left (hold, Q)">⟲ Q</button><button id="trNose" aria-label="Nose grab (hold, W)">Nose W</button><button id="trTail" aria-label="Tail grab (hold, S)">Tail S</button><button id="trSpinR" aria-label="Spin right (hold, R)">R ⟳</button>
     </div>
+    <div class="fallbox" id="fallBox" hidden>
+      <div class="card" role="alertdialog" aria-modal="false" aria-labelledby="fallTitle" aria-describedby="fallWhy">
+        <h2 id="fallTitle">You fell</h2>
+        <p id="fallWhy">–</p>
+        <button class="primary" id="btnRestart" type="button">Restart</button>
+        <p class="hint">or press <kbd>Enter</kbd></p>
+      </div>
+    </div>
     <div class="edgepad">
       <button id="edgeL" aria-label="Lean left (hold)">◀ Lean</button>
       <span class="kneepad"><button id="legDn" aria-label="Bend knees (hold)">▼ Crouch</button><button id="legUp" aria-label="Extend/pop (hold)">▲ Pop</button></span>
@@ -303,7 +324,7 @@
     <div class="pane" role="tabpanel" id="pane-guide" aria-labelledby="tab-guide" hidden>
     <section class="field">
       <h2 style="grid-column:1/-1;margin:0">How to ride</h2>
-      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean: a tap gives a small edge (10°), and the lean builds up the longer you hold, to the maximum 45° after ≈1.2 s (the bar under the button shows how far). Let go to ride flat again. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
       <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
       <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Rails and boxes.</strong> Off the water there is no side force from the board; only the contact, rail friction and the line act. The line locks your speed component along the line, so a rail pointing away from the cable needs v_req = (l̂·v_c)/(l̂·t), often well above cable speed: build speed with an edge before the feature. Too slow and the line tightens and pulls you sideways towards the cable; faster than v_req and the line goes slack. The rider balances automatically over the contact patch (your lean adds 30 %). Hold <kbd>Q</kbd>/<kbd>R</kbd> on a rail for a boardslide: the board across the rail tolerates ±0.7 m of side drift instead of ±0.2 m, but turn back before the end or you land sideways. Approach with a little sideways speed away from the cable so the side pull has the whole width to slow it.</p>
     </section>
@@ -897,6 +918,16 @@
 
   /* ---------- Kontroller ---------- */
   let paused = false, timeScale = 1, keyEdge = 0, keyLeg = 0;
+  // Lean builds up while ←/→ (or the Lean buttons) are held: a tap gives a small edge, holding ramps to the maximum.
+  // Release returns the command to 0; switching side restarts from LEAN_START. Runs in sim time, so slow motion slows it too.
+  const LEAN_START = 10, LEAN_GROW = 30;   // °, °/s  (10° → 45° in ≈1.2 s). UI tuning, assumed
+  let leanHold = 0, leanDir = 0;
+  function leanRamp(dt) {
+    if (!keyEdge) { leanHold = 0; leanDir = 0; return 0; }
+    if (keyEdge !== leanDir) { leanDir = keyEdge; leanHold = Math.min(LEAN_START, PHYS.LEAN_MAX_DEG); }
+    else leanHold = Math.min(PHYS.LEAN_MAX_DEG, leanHold + LEAN_GROW * dt);
+    return keyEdge * leanHold;
+  }
   const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? 'Run' : 'Pause'; };
   $('btnPlay').onclick = () => setPlay(paused);
   /* ---------- Forside: simuleringen står stille til START ---------- */
@@ -920,7 +951,7 @@
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
   function resetRide() {
     sim.reset();
-    keyEdge = keyLeg = 0;
+    keyEdge = keyLeg = 0; leanHold = 0; leanDir = 0; fallAt = 0; $('fallBox').hidden = true;
     for (const id of ['edgeL', 'edgeR', 'legDn', 'legUp', 'trSpinL', 'trSpinR', 'trNose', 'trTail']) setHeld(id, false);
     clearHistory(); trailN = 0; trailT = -1; trailGeo.setDrawRange(0, 0);
     acc = 0; last = performance.now(); coachLast.arcT = -1; diagLast = -Infinity;
@@ -928,6 +959,17 @@
     updateDiag();
   }
   $('btnReset').onclick = resetRide;
+  // Fall dialog: appears ~0.7 s after the fall (so the fall itself is visible), Restart = Reset
+  let fallAt = 0;
+  $('btnRestart').onclick = () => { resetRide(); view.focus?.({ preventScroll: true }); };
+  function updateFallBox() {
+    const box = $('fallBox');
+    if (!sim.out.fall) { fallAt = 0; if (!box.hidden) box.hidden = true; return; }
+    if (!fallAt) fallAt = performance.now();
+    if (box.hidden && performance.now() - fallAt > 700) {
+      $('fallWhy').textContent = sim.out.fall; box.hidden = false; $('btnRestart').focus({ preventScroll: true });
+    }
+  }
   $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
   // Panel tabs: Ride (time, charts, diagnostics) · Settings (all configuration) · Guide (how to ride, physics/validation)
   const TABS = ['ride', 'settings', 'guide'];
@@ -945,6 +987,7 @@
   $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
   addEventListener('keydown', e => {
     if (coverOpen()) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSim(); } return; }
+    if (!$('fallBox').hidden && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); resetRide(); return; }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.key === 'ArrowLeft' || e.key === 'a') { keyEdge = -1; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { keyEdge = 1; e.preventDefault(); }
@@ -1083,8 +1126,7 @@
   /* ---------- Simloop: fast tidsskridt, adskilt fra rendering ---------- */
   function stepN(n) {
     for (let i = 0; i < n; i++) {
-      const cmd = keyEdge ? keyEdge * PHYS.LEAN_MAX_DEG : 0;
-      sim.leanCmdIn = cmd * DEG;
+      sim.leanCmdIn = leanRamp(PHYS.DT) * DEG;
       sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;
       sim.step(); sample();
     }
@@ -1230,8 +1272,11 @@
       hr.textContent = `${lr.name}: ${lr.result} (${lr.dur.toFixed(1)} s) · in ${(lr.vIn * 3.6).toFixed(0)} / need ${isFinite(lr.vReqIn) ? (lr.vReqIn * 3.6).toFixed(0) : '∞'} km/h` + (lr.minMargin < -0.4 && lr.result !== 'rode to the end' ? ' · more speed needed before the feature' : '');
     } else hr.hidden = true;
     $('hudEdge').textContent = `lean ${(R.phi / DEG).toFixed(0)}° (target ${(sim.leanCmd / DEG).toFixed(0)}°)`;
-    const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall + ' · press Reset';
+    const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall;
     for (const s of series) drawChart(s);
+    updateFallBox();
+    const fill = (leanHold / PHYS.LEAN_MAX_DEG * 100).toFixed(0) + '%';
+    $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
   window.__ccpDebug = { sim, persp, controls, setCam };   // for automated screenshots/tests
   setCam('follow'); resize(); requestAnimationFrame(frame);
