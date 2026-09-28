@@ -246,7 +246,7 @@
     <details>
       <summary>Park layout · measured vs. assumed</summary>
       <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> (Google Earth standard layer dated 6/9/2023) from the obstacle analysis of 25 Sep 2026: O1–O7 with their sub-contours and measured axes (O1 20.8 m, O2 19.6 m, O5 14.7 m, O7 21.2 m in Earth). Positions have ≈5–10 m absolute uncertainty. O4 is moved 4 m W + 4 m N and O2 3 m NW, away from the cable line (user: no obstacle lies directly under the cable). The unconfirmed dark candidate X1 is left out. The analysis gives no heights or product types, so types follow its planform reading (e.g. O3 kicker-like, O6 ramp section) and all heights are assumed typical values. The 2026 history layer (H1–H7) is not used. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> as revised in the detailed course analysis of 26 Sep 2026: each part's ends are read from the user's Google Earth image 9628.jpg, registered to the six KML corners (0.31 m/px, RMS 0.23 m). Types follow the user's local knowledge: O2 is a rooftop rail with a very flat side plate on its right, O3 a self-built wedge (tapered, narrow tip upstream, 0.4 m flat ridge with faces sloping down to each side; the UNIT Bump beside it is left out), O4 a standard kicker with a wedge side by side (0.5 m apart), run-ups on one line across the direction of travel. O5 is a straight rail; O6 and O7 are funboxes with a narrow side rail that runs past their end. Sizes use the report's catalogue references where it gives one (UNIT Rooftop Box BO004, Shape Straight Rail 16 m, Shape Funbox 12-110, UNIT TR002); catalogue heights are product heights, not verified freeboard above the water; for O6 and O7 a freeboard of 1.2 m is assumed instead of the catalogue 1.6 m, which does not fit a rideable entry in the observed length. O1, the O2 plate, the wedges and the O4 kicker size are assumed. Tall box/rail/funbox entries are lengthened so the steepest point stays ≤ 22°. O2 (3 m) and O4 (5.7 m) are moved outwards, away from the cable line (user: no obstacle lies directly under the cable). Positions have ≈5–10 m absolute uncertainty. The unresolved dark structure X1 is left out. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.42 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
     </details>
 
     <details id="diagBox">
@@ -359,7 +359,7 @@
             <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
             <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
             <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
-            <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
+            <tr><td>Tricks on the O4a kicker (4.2 × 1.05 m, size ref. UNIT Kicker M), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">1.00 s air: nose grab, pre-wound 180 (lands switch); spin held into the air + nose grab gives a 360</td></tr>
             <tr><td>Start peak at 30 km/h: sliding / jump</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 kN (1.5 / 1.2 BW)</td></tr>
           </tbody>
         </table></div>
@@ -572,8 +572,19 @@
   for (const o of sim.obs) {
     const pts = o.prof.map(([u, h]) => new THREE.Vector2(u, h));
     pts.push(new THREE.Vector2(o.prof[o.prof.length - 1][0], -0.4), new THREE.Vector2(o.prof[0][0], -0.4));
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2);
-    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef) }));
+    let g;
+    if (o.W0 == null) { g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2); }
+    else {   // tapered planform (width from halfWAt, same as the contact physics); with o.ridge a sloped cross-section
+      const P_ = o.prof, n = P_.length, V = [], lo = P_[0][1], tri = (a, b, c) => V.push(...a, ...b, ...c);
+      const ring = ([u, h]) => { const w = halfWAt(o, u), r = o.ridge != null ? Math.min(o.ridge / 2, w) : w;
+        const top = o.ridge != null && w - r > 1e-3 ? [[-w, Math.min(lo, h)], [-r, h], [r, h], [w, Math.min(lo, h)]] : [[-w, h], [w, h]];
+        return top.concat([[w, -0.4], [-w, -0.4]]).map(([z, y]) => [u, y, z]); };
+      const R_ = P_.map(ring), m = R_[0].length;
+      for (let i = 0; i < n - 1; i++) for (let j = 0; j < m; j++) { const a = R_[i][j], b = R_[i][(j + 1) % m], c = R_[i + 1][(j + 1) % m], d = R_[i + 1][j]; tri(a, b, c); tri(a, c, d); }
+      for (const [rr, k] of [[R_[0], 0], [R_[n - 1], 1]]) for (let j = 1; j < m - 1; j++) k ? tri(rr[0], rr[j], rr[j + 1]) : tri(rr[0], rr[j + 1], rr[j]);
+      g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.computeVertexNormals();
+    }
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef), side: o.W0 == null ? THREE.FrontSide : THREE.DoubleSide }));
     mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; scene.add(mesh);
     if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
   }
@@ -1065,7 +1076,7 @@
   sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td>${m.id === 'C' ? '<span class="tag a">moved 5 m</span>' : '<span class="tag m">measured</span>'}</td></tr>`); });
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Sheave diameter</td><td class="n" colspan="2">${2 * PHYS.WHEEL_RADIUS} m</td><td><span class="tag a">assumed</span></td></tr>`);
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Direction of travel</td><td class="n" colspan="2">counter-clockwise</td><td><span class="tag m">confirmed</span></td></tr>`);
-  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W} m, height ${o.H} m assumed)</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
+  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W0 != null ? o.W0 + '–' : ''}${o.W} m, height ${o.H} m ${o.Hsrc === 'cat' ? 'catalogue, not freeboard' : 'assumed'})</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
   const tp = document.querySelector('#tblPhys tbody');
   for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : typeof v === 'number' ? +v.toPrecision(4) : String(v)}</td></tr>`);
 
@@ -1206,7 +1217,7 @@
     for (const o of sim.obs) { const dx = o.x - R.x, dy = o.y - R.y, f = dx * hx0 + dy * hy0, l = -dx * hy0 + dy * hx0;
       if (f > 2 && f < 90 && Math.abs(l) < 35 && (!nx || f < nx.f)) nx = { o, f, l }; }
     const hn = $('hudNext'); hn.hidden = !nx || !sim.line.attached;
-    if (nx) { const vr0 = nx.o.type !== 'kicker' && nx.f < 40 ? sim.railPreview(nx.o) : null, vr = vr0 != null && isFinite(vr0) ? vr0 : null;   // only close to the feature
+    if (nx) { const vr0 = !LAUNCH_TYPES.includes(nx.o.type) && nx.f < 40 ? sim.railPreview(nx.o) : null, vr = vr0 != null && isFinite(vr0) ? vr0 : null;   // only close to the feature
       hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}` + (vr != null ? ` · needs ≈ ${(vr * 3.6).toFixed(0)} km/h (now ${(sim.out.V * 3.6).toFixed(0)})` : ''); }
     // Rail chip: live on a feature, then a summary of the last slide for 6 s
     const hr = $('hudRail'), rr = sim.out.rail, lr = sim.out.lastRail;

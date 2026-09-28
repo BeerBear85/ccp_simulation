@@ -108,6 +108,9 @@ const PHYS = {
   HIP_TAU_MAX:  150,     // N·m    hip strategy: extra fore–aft balance torque from swinging the legs/board under the body. Assumed (hip extensor/flexor capacity ≈200–300 N·m)
   HANDLE_RATE:  2.5,     // m/s    how fast the arms move the handle up/down. Assumed
   PITCH_REF_MAX: 40,     // °      largest intended lean-back. Assumed
+  AIR_SWING_MAX: 35,     // °      in the air the legs/board can swing this far relative to the body to hold the board level (hip + knee flexion; feet ≈0.6 m fore–aft at ≈0.9 m leg). Assumed
+  AIR_SWING_RATE: 200,   // °/s    how fast the legs swing in the air. Assumed (limb reorientation ≈0.2 s)
+  AIR_LEVEL:    5,       // °      target feet→CoM axis in the air: board level, slight lean back for landing. Assumed
   PITCH_REF_TAU: 0.15,   // s      reaction time of the balance target. Assumed (postural reactions ≈ 0.1–0.2 s)
   PITCH_FALL_BACK: 60,   // °      sat down behind the board. Assumed
   PITCH_FALL_FWD:  35,   // °      pulled over the nose. Assumed
@@ -193,6 +196,8 @@ const PHYS = {
   RAIL_LEAN_GAIN: 0.3,   // –      player lean added on top of the automatic balance lean on a rail (45° input → 13.5°). Assumed
   SLIDE_ANGLE:  90,      // °      board angle to the rail in a boardslide (Q/R held on a rail/box). Geometry
   ENTRY_LEN:    4.0,     // m      afrundet indkørsel på box/rail/funbox (maks. 45 % af længden). Antaget
+  BUMP_FACE:    0.3,     // –      share of a bump's length taken by each sloped face (flat top between). Read from the UNIT Bump product illustration
+  ENTRY_ANGLE_MAX: 22,   // °      steepest point of a box/rail/funbox entry: tall features get a longer entry than ENTRY_LEN (capped at 45 % of L for a funbox, 60 % otherwise). Assumed; above ≈30° the rider is pulled over the nose
   // --- Water surface: wind chop (JONSWAP, fetch-limited) + the board's own wake ---
   WIND_DEFAULT: 4.0,     // m/s    10 m wind speed (adjustable 0–10 in the UI). Assumed light breeze
   WIND_FROM:    250,     // °      wind direction (from), WSW — prevailing in Copenhagen. Assumed
@@ -243,28 +248,32 @@ const LAYOUT = {
           [212.8,72.4],[246,19.4],[264.5,-67.6],[260.2,-171],[-37.2,-171],[-97.5,-102]],
   jetty: [[-6.7,6.2],[1.1,-10.6],[58.5,-74.7],[112.8,-65.0],[143.5,-23.0]],   // Google Earth 2D (brugerens skærmbillede, 0,22 m/px)
   jettyLand: [[1.1,-10.6],[-51.7,-60.3]],
-  // Obstacles: layout "O" (Google Earth standard layer, 6/9/2023) from the user's obstacle analysis (25 Sep 2026).
-  // Each feature is drawn as its sub-contours with their own axis (planform read from the analysis' north-up model,
-  // 3.7 px/m, relative to T1). Positions carry ≈5–10 m absolute uncertainty. X1 (unconfirmed dark linear candidate)
-  // is not included. The analysis gives NO heights or types: types follow its planform interpretation, heights are
-  // typical values and marked as assumed. Direction of travel along each part follows the nearest cable leg.
-  obstacleLayout: 'O (2023 standard layer)',
+  // Obstacles: layout "O" as revised in "CCP - detaljeret baneanalyse" (26 Sep 2026, analysis/CCP_detaljeret_analyse_2).
+  // Positions and axes: each part's ends read from the user's Google Earth image 9628.jpg, registered to the six KML corners
+  // (similarity fit, 0.312 m/px, RMS 0.23 m); the report's group centres agree within ≈1 m. Absolute uncertainty stays
+  // ≈5–10 m (unknown image date, features move). Types and splits (O2a/b, O3b, O4a/b) are the user's local knowledge. The O3a UNIT Bump is left out (user, 28 Sep).
+  // L × W × H: the report's catalogue references where it gives one (marked "cat."; a catalogue height is the product's
+  // height, NOT verified freeboard above the water line), otherwise image length and assumed width/height ("assumed").
+  // Where the image length is within ≈1 m of the catalogue length the catalogue length is used.
+  // Rule kept from the user (25 Sep 2026): no obstacle lies directly under the cable, so O2 is moved 3 m and O4 5.7 m
+  // outwards (NW) from their image positions. X1 (dark structure between O6 and O7, possibly a shadow) is left out.
+  // W0 = width at the upstream end for a tapered planform (W is the downstream width).
+  obstacleLayout: 'O (analysis rev. 26 Sep 2026)',
   obstacles: [
-    // Road side (T6→T1, travel towards SW)
-    { id: 'O1', tag: true, name: 'O1 box',  type: 'box',    x: 116.6, y: 113.5, dir: [0.661, 0.750], L: 5.8,  W: 4.2, H: 0.45 },  // broad light end
-    { id: 'O1',            name: 'O1 rail', type: 'rail',   x: 109.3, y: 105.8, dir: [0.699, 0.715], L: 15.2, W: 0.3, H: 0.55, color: 0x3a4046 },  // long dark rail/wall form
-    { id: 'O2', tag: true, name: 'O2 rail', type: 'rail',   x: 82.85, y: 91.5,  dir: [0.660, 0.751], L: 19.8, W: 0.3, H: 0.5 },   // long narrow rail. Moved 3 m NW, away from the cable line (drawn 1.6 m from it; user: no obstacle directly under the cable)
-    { id: 'O2',            name: 'O2 side box', type: 'box', x: 83.95, y: 94.7, dir: [0.685, 0.728], L: 6.3,  W: 1.7, H: 0.4 },   // side-offset wide section (moved with the rail)
-    { id: 'O3', tag: true, name: 'O3 kicker', type: 'kicker', x: 86.8, y: 79.4, dir: [0.443, 0.897], L: 11.8, W: 3.0, H: 1.2 },  // tapered, kicker-like planform
-    { id: 'O3',            name: 'O3 side box', type: 'box', x: 89.4, y: 80.3,  dir: [0.416, 0.910], L: 3.6,  W: 3.2, H: 0.3 },   // short side part
-    { id: 'O4', tag: true, name: 'O4 kicker', type: 'kicker', x: 54.8, y: 68.2, dir: [0.759, 0.651], L: 3.9,  W: 2.8, H: 0.6 },   // separate wide small part upstream of the rail: read as a kick-in (assumed). Moved 4 m W + 4 m N (see O4 rail)
-    { id: 'O4',            name: 'O4 rail', type: 'rail',   x: 54.3,  y: 63.5,  dir: [0.665, 0.747], L: 7.9,  W: 0.3, H: 0.5 },   // short rail. Drawn 0.2 m from the cable line; moved 4 m W + 4 m N as the analysis did for H4 (user: no obstacle lies directly under the cable)
-    // East side (T3→T4, travel towards NNE)
-    { id: 'O5', tag: true, name: 'O5 rail/box', type: 'box', x: 137.9, y: 27.4, dir: [0.420, 0.908], L: 15.2, W: 1.1, H: 0.45 },  // narrow, almost straight
-    { id: 'O6', tag: true, name: 'O6 box',  type: 'box',    x: 137.4, y: 4.4,   dir: [0.494, 0.869], L: 14.7, W: 0.9, H: 0.45 },  // narrow long part
-    { id: 'O6',            name: 'O6 ramp', type: 'funbox', x: 136.0, y: 4.3,   dir: [0.501, 0.866], L: 8.7,  W: 2.4, H: 0.8 },   // broad side/ramp section
-    { id: 'O7', tag: true, name: 'O7 box',  type: 'box',    x: 107.6, y: -36.0, dir: [0.380, 0.925], L: 14.9, W: 3.1, H: 0.45 },  // broad southern part
-    { id: 'O7',            name: 'O7 rail/box', type: 'box', x: 110.1, y: -33.3, dir: [0.441, 0.897], L: 21.9, W: 1.1, H: 0.45 },  // full length incl. narrow extension
+    // Road side (T6→T1, travel towards SW). Right side of travel = NW = road side.
+    { id: 'O1', tag: true, name: 'O1 box',  type: 'box',    x: 116.6, y: 113.5, dir: [0.661, 0.750], L: 5.8,  W: 4.2, H: 0.45 },  // broad light end (image; partly under the T6 marker). Height assumed
+    { id: 'O1',            name: 'O1 rail', type: 'rail',   x: 109.3, y: 105.8, dir: [0.699, 0.715], L: 15.2, W: 0.3, H: 0.55, color: 0x3a4046 },  // long dark rail/wall. Image 21 m in all (report 18–24 m); product unknown, height assumed
+    { id: 'O2', tag: true, name: 'O2a rooftop rail', type: 'rooftop', x: 82.68, y: 91.28, dir: [0.657, 0.754], L: 20, W: 0.4, H: 1.15, Hsrc: 'cat' },  // user: rooftop rail (up, ridge, down). Image 19.7 m; cat. UNIT Rooftop Box BO004 20 × 0.40 × 1.15 m
+    { id: 'O2',            name: 'O2b side plate', type: 'wedge', x: 84.15, y: 94.64, dir: [0.657, 0.754], L: 6.3, W: 1.8, H: 0.3 },  // user: very flat plate/kicker on the rail's right side (image: upstream half, NW side). Height assumed
+    { id: 'O3', tag: true, name: 'O3b wedge', type: 'wedge', x: 86.83, y: 79.42, dir: [0.580, 0.815], L: 11.7, W0: 1.0, W: 3.7, H: 1.2, ridge: 0.4 },  // user: self-built large wedge whose faces slope down to each side (28 Sep): 0.4 m flat ridge, sides down to the water line at the edges (user). Image: narrow upstream tip, 3.7 m at the lip. Height assumed
+    { id: 'O4', tag: true, name: 'O4a kicker', type: 'kicker', x: 55.61, y: 67.97, dir: [0.699, 0.715], L: 4.2, W: 2.0, H: 1.05 },  // user: standard white kicker on the group's SW side. Size ref. only: UNIT Kicker M 4.20 × 2.00 × 1.05 m
+    { id: 'O4',            name: 'O4b wedge', type: 'wedge', x: 57.78, y: 66.05, dir: [0.699, 0.715], L: 3.9, W: 2.8, H: 0.6 },  // user (28 Sep): side by side with the kicker, both run-ups on one line across the direction of travel; wedge on the inner side, 0.5 m gap assumed. Size and height assumed. O4 is hidden by a marker in 9628.jpg: centre from the report
+    // East side (T3→T4, travel towards NNE). Right side of travel = ESE = outside the loop.
+    { id: 'O5', tag: true, name: 'O5 rail', type: 'rail',   x: 137.75, y: 27.32, dir: [0.430, 0.903], L: 16, W: 0.38, H: 0.83, Hsrc: 'cat' },  // narrow, constant width. Image 15.5 m; cat. Shape Straight Rail 16 m 16 × 0.38 × 0.83 m (alt. UNIT Box BO001 13 m)
+    { id: 'O6', tag: true, name: 'O6 funbox', type: 'funbox', x: 136.10, y: 3.16, dir: [0.534, 0.846], L: 9.6, W: 2.0, H: 1.2 },  // broad part (image 9.6 m). Cat. Shape Funbox 12-110-V2 18 × 2.40 × 1.60 m for the whole feature; 1.6 m does not fit a rideable entry in 9.6 m, so freeboard 1.2 m is assumed
+    { id: 'O6',            name: 'O6 side rail', type: 'rail', x: 138.76, y: 5.03, dir: [0.534, 0.846], L: 16, W: 0.4, H: 1.2 },  // narrow part alongside the broad part's right edge, 6 m past its end (image 16.2 m in all)
+    { id: 'O7', tag: true, name: 'O7 funbox', type: 'funbox', x: 107.71, y: -36.39, dir: [0.485, 0.875], L: 15, W: 2.0, H: 1.2 },  // broad main part (upstream end hidden by the T3 marker). Cat. UNIT Rooftop Funbox TR002 20.8 × 2.40 × 1.60 m; rooftop top not verified, drawn flat; freeboard 1.2 m assumed as for O6
+    { id: 'O7',            name: 'O7 side rail', type: 'rail', x: 110.38, y: -34.15, dir: [0.485, 0.875], L: 21.5, W: 0.4, H: 1.2 },  // long side component / narrow extension, 6.5 m past the broad part (image ≥ 22 m in all)
   ],
 
   // Surroundings (visual only, no physics). Read from Google Maps satellite (z15–z17, calibrated on the jetty, ±10–20 m) and
@@ -335,15 +344,68 @@ function pathAt(path, s) {
 function obstacleProfile(o, P) {
   // Afrundede overgange (som rigtige obstakler): kicker = parabel (flad ved vandet, ~30° ved lip),
   // box/rail/funbox = smoothstep-indkørsel (vandret i begge ender).
+  // wedge = plan rampe (lige flade fra vandet til læben, selvbyggede kiler), bump = afskåret pyramide (plane flader, flad top),
+  // rooftop = indkørsel, lige stigning til toppen midt på, lige fald til enden (tagryg-profil).
   const a = -o.L / 2, b = o.L / 2, lo = -0.15, N = 12, pts = [];
   const ss = x => x * x * (3 - 2 * x);
   if (o.type === 'kicker') { for (let i = 0; i <= N; i++) { const x = i / N; pts.push([a + x * o.L, lo + (o.H - lo) * x * x]); } return pts; }
-  const e = Math.min(P.ENTRY_LEN, o.L * 0.45);
+  if (o.type === 'wedge') { const t = Math.min(0.6, o.L * 0.15);   // kort afrundet tå ved vandlinjen, derefter plan flade
+    const k = (o.H - lo) / (o.L - t / 2);
+    for (let i = 0; i <= 4; i++) { const x = i / 4 * t; pts.push([a + x, lo + k * x * x / (2 * t)]); }
+    pts.push([b, o.H]); return pts; }
+  if (o.type === 'bump') {   // truncated pyramid (UNIT Bump illustration): planar faces over BUMP_FACE of the length each, flat top between; toe rounded like the wedge
+    const f = P.BUMP_FACE * o.L, t = Math.min(0.3, f * 0.3), k = (o.H - lo) / (f - t / 2);
+    for (let i = 0; i <= 4; i++) { const x = i / 4 * t; pts.push([a + x, lo + k * x * x / (2 * t)]); }
+    pts.push([a + f, o.H], [b - f, o.H]);
+    for (let i = 4; i >= 0; i--) { const x = i / 4 * t; pts.push([b - x, lo + k * x * x / (2 * t)]); }
+    return pts; }
+  // Entry: at least ENTRY_LEN, longer for tall features so the smoothstep's steepest slope (1.5 × mean) stays ≤ ENTRY_ANGLE_MAX
+  const hRamp = (o.type === 'rooftop' ? (o.Hend ?? 0.4 * o.H) : o.H) - lo;
+  const need = 1.5 * hRamp / Math.tan(P.ENTRY_ANGLE_MAX * Math.PI / 180);
+  const e = need <= P.ENTRY_LEN ? Math.min(P.ENTRY_LEN, o.L * 0.45) : Math.min(need, o.L * (o.type === 'box' || o.type === 'rail' ? 0.6 : 0.45));
+  if (o.type === 'rooftop') { const hE = o.Hend ?? 0.4 * o.H;   // højde ved start/slut af tagryggen
+    for (let i = 0; i <= N; i++) { const x = i / N; pts.push([a + x * e, lo + (hE - lo) * ss(x)]); }
+    pts.push([0, o.H], [b, hE]); return pts; }
   for (let i = 0; i <= N; i++) { const x = i / N; pts.push([a + x * e, lo + (o.H - lo) * ss(x)]); }
   if (o.type === 'funbox') { for (let i = 0; i <= N; i++) { const x = i / N; pts.push([b - e + x * e, o.H - (o.H - lo) * ss(x)]); } }
   else pts.push([b, o.H]);
   return pts;
 }
+// Half width of a feature's top at u (tapered planform: W0 at the upstream end u = −L/2, W at the downstream end)
+function halfWAt(ob, u) {
+  if (ob.W0 == null) return ob.W / 2;
+  const x = Math.max(0, Math.min(1, (u + ob.L / 2) / ob.L));
+  return 0.5 * (ob.W0 + (ob.W - ob.W0) * x);
+}
+// Surface under the board, seen by a rigid plank (report: board 1.42 m). The board centre rests on the plank's two
+// ends: z = max over s ≤ reach of ½·(h(u−s) + h(u+s)), and never below h(u) itself. This spreads the toe of a steep
+// face (bump, kicker) over the board length instead of hitting the board centre as a step, and lets the board bridge a
+// crest. Upstream of the feature the tail rests on the water (height of the profile start); downstream of an abrupt
+// end there is no support, so the board tips off the edge. With ob.ridge (flat ridge width) the cross-section slopes
+// from the ridge down to the water line at the edges ("faces sloping down to each side").
+function surfaceAt(ob, u, v, reach, spanV) {
+  const pr = ob.prof, u0 = pr[0][0], u1 = pr[pr.length - 1][0];
+  if (u < u0 - reach || u > u1 + reach) return null;
+  const hb = x => { if (x < u0) return pr[0][1]; const q = profileAt(pr, x); return q ? q[0] : null; };
+  let off = 0;   // along-axis offset of the feature's reaction from the board centre: centroid of the plank part over the feature while the tail is off it (+ = nose)
+  const hEff = (x, keep) => {
+    let h = x >= u0 && x <= u1 ? hb(x) : null, o = 0;
+    for (let k = 1; k <= 6 && reach > 0.01; k++) { const sk = reach * k / 6, a = hb(x - sk), b = hb(x + sk);
+      if (a != null && b != null && (x - sk >= u0 || x + sk >= u0)) { const m = 0.5 * (a + b); if (h == null || m > h) { h = m; o = x - sk < u0 ? Math.max(0, (u0 + sk - x) / 2) : 0; } } }
+    if (keep) off = o;
+    return h;
+  };
+  const h = hEff(u, true); if (h == null) return null;
+  const e = 0.05, hp = hEff(u + e), hm = hEff(u - e);
+  const hu = hp != null && hm != null ? (hp - hm) / (2 * e) : hp != null ? (hp - h) / e : hm != null ? (h - hm) / e : 0;
+  if (ob.ridge == null) return [h, hu, 0, off];
+  const hw = halfWAt(ob, u), r = Math.min(ob.ridge / 2, hw), ve = Math.max(0, Math.abs(v) - spanV), lo = pr[0][1];
+  if (ve <= r || hw - r < 1e-3) return [h, hu, 0, off];
+  const g = (h - lo) / (hw - r), f = Math.max(0, 1 - (ve - r) / (hw - r));
+  return [lo + (h - lo) * f, hu * f, -Math.sign(v) * g, off];
+}
+// Features that are ridden up and launched from (no rail/box slide state)
+const LAUNCH_TYPES = ['kicker', 'wedge', 'bump'];
 function buildObstacles(path, P, layout) {
   const legs = path.pieces.filter(g => g.kind === 'line');
   return layout.obstacles.map(o => {
@@ -509,7 +571,7 @@ function createSim(opts = {}) {
     // Replace records so fields added during stepping cannot survive reset.
     Object.assign(sim, {
       t: 0, leanCmdIn: 0, leanCmd: 0, spinIn: 0, grabIn: 0,
-      rider: { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: 0.05, q: 0, hOff: 0 },
+      rider: { x, y, z, vx: 0, vy: 0, vz: 0, r: 0, phi: 0, p: 0, leg, legv: 0, ankle: 0, tau: 0.1, arm: 0, psi: psi0, theta: 0.05, q: 0, hOff: 0, swing: 0 },
       carrier: { s: 0, x: 0, y: 0, z: P.CABLE_HEIGHT, vx: 0, vy: 0, tx: 1, ty: 0 },
       cable: { dL: 0, dZ: 0, vL: 0, vZ: 0, f: [0, 0, 0], k: 0, a: 0, Ls: 0, s0: 0 },
       energy: { lineWork: 0, waterWork: 0, airWork: 0, muscleWork: 0, armWork: 0, E0: null },
@@ -766,34 +828,38 @@ function createSim(opts = {}) {
     // Spin in the air: the only external yaw torque available is the line, via the handle held off to the side
     if (sim.jump && L.attached && sim.spinIn) Mz += sim.spinIn * Math.min(P.SPIN_TAU_MAX, F * P.SPIN_LEVER);
     // 5b) Obstakler: penalty-kontakt med normalkraft + Coulomb-friktion (angriber i boardet)
-    let contactName = '', Fc = 0, railC = null;
+    let contactName = '', Fc = 0, railC = null, Mobs = 0;   // Mobs: pitch moment of a feature reaction acting off the board centre (+ = back)
     if (L.attached && sim.obstaclesOn) for (const ob of sim.obs) {
       const rx = R.x - ob.x, ry = R.y - ob.y;
       const u = rx * ob.ax + ry * ob.ay, v = -rx * ob.ay + ry * ob.ax;
       // Board footprint over the top strip: cA/sA = cos/sin of the board heading relative to the feature axis
       const cA = hx * ob.ax + hy * ob.ay, sA = hy * ob.ax - hx * ob.ay;
       const span = 0.5 * P.BOARD_LEN * Math.abs(sA) + 0.5 * P.BOARD_BEAM * Math.abs(cA);
-      const hp_ = Math.abs(v) <= ob.halfW + span ? profileAt(ob.prof, u) : null;
+      const reach = 0.5 * P.BOARD_LEN * Math.abs(cA), spanV = 0.5 * P.BOARD_LEN * Math.abs(sA) + 0.5 * P.BOARD_BEAM * Math.abs(cA);
+      const hp_ = Math.abs(v) <= halfWAt(ob, u) + span ? surfaceAt(ob, u, v, reach, spanV) : null;
       if (!hp_ || R.z >= hp_[0]) { ob.inContact = false; continue; }
       const pen = hp_[0] - R.z;
       if (!ob.inContact && pen > P.STEP_MAX) {   // ramte en kant/side: kollision
         L.attached = false; sim.out.fall = `Collision with ${ob.name}`; ob.inContact = false; break;
       }
       ob.inContact = true;
-      const sl = hp_[1], nl = Math.hypot(sl, 1);
-      const n = [-sl * ob.ax / nl, -sl * ob.ay / nl, 1 / nl];
+      const sl = hp_[1], sv = hp_[2], nl = Math.hypot(sl, sv, 1);        // along-axis and lateral (to the left) slope
+      const n = [(-sl * ob.ax + sv * ob.ay) / nl, (-sl * ob.ay - sv * ob.ax) / nl, 1 / nl];
       const vn = R.vx * n[0] + R.vy * n[1] + R.vz * n[2];
       const N = Math.max(0, P.OBS_K * pen / nl - P.OBS_C * vn);
       const vt = [R.vx - vn * n[0], R.vy - vn * n[1], R.vz - vn * n[2]], vtl = Math.hypot(vt[0], vt[1], vt[2]);
       const mu = ob.type === 'rail' ? P.MU_RAIL : P.MU_SLIDE;
       for (let i = 0; i < 3; i++) Fw[i] += N * n[i] - (vtl > 1e-3 ? mu * N * vt[i] / vtl : 0);
+      // Reaction at the nose while the tail is still on the water: it acts hp_[3]·sign(cA) ahead of the feet (board frame)
+      if (hp_[3]) { const d = hp_[3] * Math.sign(cA || 1), r = [d * hx, d * hy, 0], Fn_ = [N * n[0], N * n[1], N * n[2]];
+        Mobs += dot(cross(r, Fn_), [hy, -hx, 0]); }
       contactName = ob.name; Fc += N;
       if (N > 0 && (!railC || N > railC.N)) railC = { ob, N, u, v, cA, sA, sl, mu };
     }
     // Contact patch = board rectangle ∩ top strip (board frame: f along the board, r to its right). Its extents limit
     // where the centre of pressure can be, i.e. which roll/pitch torques the rider can get from the feature.
     if (railC) {
-      const { ob, v, cA, sA } = railC, hw = ob.halfW, Lh = P.BOARD_LEN / 2, Bh = P.BOARD_BEAM / 2;
+      const { ob, v, cA, sA } = railC, hw = halfWAt(ob, railC.u), Lh = P.BOARD_LEN / 2, Bh = P.BOARD_BEAM / 2;
       let poly = [[-Lh, -Bh], [Lh, -Bh], [Lh, Bh], [-Lh, Bh]];
       const vOf = p => v + p[0] * sA - p[1] * cA;                           // lateral position of a board point relative to the feature axis
       for (const sg of [1, -1]) {                                           // clip by sg·v ≤ W/2
@@ -807,7 +873,7 @@ function createSim(opts = {}) {
       Object.assign(railC, { fLo: Math.min(...fs), fHi: Math.max(...fs), rLo: Math.min(...rs), rHi: Math.max(...rs), len: Math.max(...ls) - Math.min(...ls), span: hw + 0.5 * P.BOARD_LEN * Math.abs(sA) + 0.5 * P.BOARD_BEAM * Math.abs(cA) });
     }
     const railMode = !!railC && !inWater;                                   // supported only by a feature: no water forces
-    const onRail = railMode && railC.ob.type !== 'kicker';
+    const onRail = railMode && !LAUNCH_TYPES.includes(railC.ob.type);
     if (onRail) {
       // Board orientation on the rail: the feet hold 50-50 (along the rail) or, with Q/R held, a boardslide (90°).
       // Coulomb friction of a line contact resists pivoting with μN·ℓ/4 (ℓ = patch length along the rail).
@@ -876,7 +942,7 @@ function createSim(opts = {}) {
     if (L.attached) {
       const hcg = mu * (R.leg + P.UPPER_CG) / m;
       const rB = [-hcg * nrm[0], -hcg * nrm[1], -hcg * nrm[2]], k = hH - hcg, rH = [k * nrm[0], k * nrm[1], k * nrm[2]];
-      const Mline = dot(cross(rH, Fl), rgt), Mw = dot(cross(rB, Fw), rgt);
+      const Mline = dot(cross(rH, Fl), rgt), Mw = dot(cross(rB, Fw), rgt) + Mobs;
       const Fperp = dot(Fl, fwd) * Math.cos(R.theta) + Fl[2] * Math.sin(R.theta);      // line force across the body axis (in the board plane)
       const Nsup = Math.max(0, dot(Fw, nrm)), Dback = Math.max(0, -dot(Fw, fwd));
       const shift = Math.max(-P.FOOT_SHIFT_MAX, Math.min(P.FOOT_SHIFT_MAX, sim.footShift));
@@ -905,8 +971,14 @@ function createSim(opts = {}) {
       const rest = tWant - tp, hWant = Math.abs(Fperp) > 50 ? Math.max(-P.HANDLE_RANGE, Math.min(P.HANDLE_RANGE, -rest / Fperp)) : 0;
       R.hOff = (R.hOff || 0) + Math.max(-P.HANDLE_RATE * dt, Math.min(P.HANDLE_RATE * dt, hWant - (R.hOff || 0)));
       const Mp = (supported ? Mline + Mw + tp : Mline) - P.PITCH_C * R.q;
-      R.q += Mp / (BI.pitch + P.PITCH_I_BOARD) * dt; R.theta += R.q * dt;
-      if (!supported) R.theta += (0 - R.theta) * 0;                          // in the air: angular momentum is kept (report 6.2)
+      R.q += Mp / (BI.pitch + P.PITCH_I_BOARD) * dt; R.theta += R.q * dt;     // in the air: angular momentum is kept (report 6.2)
+      if (!supported) {
+        // In the air the rider holds the board level: hips and knees swing the legs (board) under the body, so the
+        // feet→CoM axis θ moves towards AIR_LEVEL relative to the rotating body, within ±AIR_SWING_MAX at AIR_SWING_RATE.
+        const lim = P.AIR_SWING_MAX * D2R, sw0 = R.swing || 0;
+        const dS = Math.max(-P.AIR_SWING_RATE * D2R * dt, Math.min(P.AIR_SWING_RATE * D2R * dt, P.AIR_LEVEL * D2R - R.theta));
+        const sw = Math.max(-lim, Math.min(lim, sw0 + dS)); R.theta += sw - sw0; R.swing = sw;
+      } else R.swing = 0;                                                   // on landing the legs absorb the offset
     } else { R.q = 0; R.theta *= 1 - Math.min(1, 3 * dt); }
     sim._cop = copCmd;
     // 7) Translation + yaw (semi-implicit Euler)
@@ -953,8 +1025,9 @@ function createSim(opts = {}) {
       L.over = F > relN ? L.over + dt : 0;
       if (L.over > P.RELEASE_TIME) { L.attached = false; sim.out.fall = `Lost the cable: ${F.toFixed(0)} N > ${(relN / 1000).toFixed(1)} kN limit${relN < sim.releaseN ? ' (one hand)' : ''}`; }
       else if (Math.abs(R.phi) > P.FALL_DEG * D2R) { L.attached = false; sim.out.fall = `Fell: lean ${(R.phi / D2R).toFixed(0)}°`; }
-      else if (R.theta > P.PITCH_FALL_BACK * D2R) { L.attached = false; sim.out.fall = `Sat down: leaned back ${(R.theta / D2R).toFixed(0)}°`; }
-      else if (R.theta < -P.PITCH_FALL_FWD * D2R) { L.attached = false; sim.out.fall = `Pulled over the nose (${(-R.theta / D2R).toFixed(0)}° forward)`; }
+      // Pitch limits apply while supported; in the air body and board rotate together, and the pitch is judged at touchdown (8b)
+      else if (!sim.jump && R.theta > P.PITCH_FALL_BACK * D2R) { L.attached = false; sim.out.fall = `Sat down: leaned back ${(R.theta / D2R).toFixed(0)}°`; }
+      else if (!sim.jump && R.theta < -P.PITCH_FALL_FWD * D2R) { L.attached = false; sim.out.fall = `Pulled over the nose (${(-R.theta / D2R).toFixed(0)}° forward)`; }
     }
     // 8b) Hop: luftfase = hverken i vand eller på obstakel. Mål tid og højde, tjek landing.
     const airborne = L.attached && !supported && R.z - WS.eta > 0.02;
@@ -983,6 +1056,8 @@ function createSim(opts = {}) {
           if (R.vz < -P.LAND_VZ_MAX) { L.attached = false; sim.out.fall = `Hard landing: ${(-R.vz).toFixed(1)} m/s vertical`; }
           else if (G.reach > 0.3) { L.attached = false; sim.out.fall = `Landed still holding the ${G.type > 0 ? 'nose' : 'tail'}`; }
           else if (Math.hypot(R.vx, R.vy) > 2 && off > P.LAND_TWIST_MAX * D2R) { L.attached = false; sim.out.fall = `Landed sideways (${(off / D2R).toFixed(0)}° off)`; }
+          else if (R.theta < -P.PITCH_FALL_FWD * D2R) { L.attached = false; sim.out.fall = `Landed on the nose (${(-R.theta / D2R).toFixed(0)}° forward)`; }
+          else if (R.theta > P.PITCH_FALL_BACK * D2R) { L.attached = false; sim.out.fall = `Landed on the tail (${(R.theta / D2R).toFixed(0)}° back)`; }
           else {
             if (Math.abs(e) > Math.PI / 2) {                                        // landed switch: twin-tip board, flip the board frame
               R.psi += Math.PI; sim.switchStance = !sim.switchStance;
@@ -1052,7 +1127,7 @@ function createSim(opts = {}) {
   return sim;
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, buildPath, pathAt, profileAt, bodyInertia, legForceMax, kneeGeom };
+if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, buildPath, pathAt, profileAt, halfWAt, surfaceAt, LAUNCH_TYPES, bodyInertia, legForceMax, kneeGeom };
 
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1099,6 +1174,19 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   .trickpad button { padding: 9px 11px; background: rgba(16,28,36,.88); user-select: none; -webkit-user-select: none; font-size: 13px; }
   .trickpad button.held { background: var(--accent); color: var(--accent-ink); }
   .edgepad button.held { background: var(--accent); color: var(--accent-ink); }
+  /* Lean builds up while held: bar under the button shows how far (0-100 % of max lean) */
+  .edgepad #edgeL, .edgepad #edgeR { position: relative; overflow: hidden; }
+  .edgepad #edgeL::after, .edgepad #edgeR::after { content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: var(--fill, 0%); background: var(--accent); }
+  .edgepad #edgeL.held::after, .edgepad #edgeR.held::after { background: var(--accent-ink); opacity: .75; }
+  .edgepad #edgeL::after { left: auto; right: 0; }
+  /* Fall dialog, centred in the 3D view (shown regardless of the Info toggle) */
+  .fallbox { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 5; }
+  .fallbox .card { pointer-events: auto; min-width: 260px; max-width: min(420px, calc(100% - 32px)); text-align: center; padding: 20px 24px 18px;
+    background: rgba(16,28,36,.94); border: 1px solid var(--warn); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+  .fallbox h2 { font: 600 20px/1.2 var(--font); letter-spacing: 0; text-transform: none; color: var(--ink); margin: 0 0 6px; }
+  .fallbox p { margin: 0 0 16px; color: var(--ink-2); font-size: 13.5px; }
+  .fallbox button { font-size: 16px; padding: 11px 28px; }
+  .fallbox .hint { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
   .scalebar { position: absolute; left: 12px; bottom: 64px; font: 11px var(--mono); color: var(--ink-2); background: rgba(16,28,36,.82); padding: 6px 8px; border-radius: 3px; }
   .scalebar i { display: block; height: 4px; border: 1px solid var(--ink-2); border-top: 0; margin-bottom: 3px; }
 
@@ -1252,6 +1340,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     <div class="trickpad" aria-label="Tricks">
       <button id="trSpinL" aria-label="Spin left (hold, Q)">⟲ Q</button><button id="trNose" aria-label="Nose grab (hold, W)">Nose W</button><button id="trTail" aria-label="Tail grab (hold, S)">Tail S</button><button id="trSpinR" aria-label="Spin right (hold, R)">R ⟳</button>
     </div>
+    <div class="fallbox" id="fallBox" hidden>
+      <div class="card" role="alertdialog" aria-modal="false" aria-labelledby="fallTitle" aria-describedby="fallWhy">
+        <h2 id="fallTitle">You fell</h2>
+        <p id="fallWhy">–</p>
+        <button class="primary" id="btnRestart" type="button">Restart</button>
+        <p class="hint">or press <kbd>Enter</kbd></p>
+      </div>
+    </div>
     <div class="edgepad">
       <button id="edgeL" aria-label="Lean left (hold)">◀ Lean</button>
       <span class="kneepad"><button id="legDn" aria-label="Bend knees (hold)">▼ Crouch</button><button id="legUp" aria-label="Extend/pop (hold)">▲ Pop</button></span>
@@ -1301,7 +1397,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     <details>
       <summary>Park layout · measured vs. assumed</summary>
       <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> (Google Earth standard layer dated 6/9/2023) from the obstacle analysis of 25 Sep 2026: O1–O7 with their sub-contours and measured axes (O1 20.8 m, O2 19.6 m, O5 14.7 m, O7 21.2 m in Earth). Positions have ≈5–10 m absolute uncertainty. O4 is moved 4 m W + 4 m N and O2 3 m NW, away from the cable line (user: no obstacle lies directly under the cable). The unconfirmed dark candidate X1 is left out. The analysis gives no heights or product types, so types follow its planform reading (e.g. O3 kicker-like, O6 ramp section) and all heights are assumed typical values. The 2026 history layer (H1–H7) is not used. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> as revised in the detailed course analysis of 26 Sep 2026: each part's ends are read from the user's Google Earth image 9628.jpg, registered to the six KML corners (0.31 m/px, RMS 0.23 m). Types follow the user's local knowledge: O2 is a rooftop rail with a very flat side plate on its right, O3 a self-built wedge (tapered, narrow tip upstream, 0.4 m flat ridge with faces sloping down to each side; the UNIT Bump beside it is left out), O4 a standard kicker with a wedge side by side (0.5 m apart), run-ups on one line across the direction of travel. O5 is a straight rail; O6 and O7 are funboxes with a narrow side rail that runs past their end. Sizes use the report's catalogue references where it gives one (UNIT Rooftop Box BO004, Shape Straight Rail 16 m, Shape Funbox 12-110, UNIT TR002); catalogue heights are product heights, not verified freeboard above the water; for O6 and O7 a freeboard of 1.2 m is assumed instead of the catalogue 1.6 m, which does not fit a rideable entry in the observed length. O1, the O2 plate, the wedges and the O4 kicker size are assumed. Tall box/rail/funbox entries are lengthened so the steepest point stays ≤ 22°. O2 (3 m) and O4 (5.7 m) are moved outwards, away from the cable line (user: no obstacle lies directly under the cable). Positions have ≈5–10 m absolute uncertainty. The unresolved dark structure X1 is left out. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.42 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
     </details>
 
     <details id="diagBox">
@@ -1358,7 +1454,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     <div class="pane" role="tabpanel" id="pane-guide" aria-labelledby="tab-guide" hidden>
     <section class="field">
       <h2 style="grid-column:1/-1;margin:0">How to ride</h2>
-      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean fully to one side. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean: a tap gives a small edge (10°), and the lean builds up the longer you hold, to the maximum 45° after ≈1.2 s (the bar under the button shows how far). Let go to ride flat again. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
       <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Tricks.</strong> Hold <kbd>Q</kbd> (left) or <kbd>R</kbd> (right) on the kicker before the lip to pre-wind: the twist against the ramp starts the spin (≈0.4 s for a full wind-up). In the air, keep holding to add a little rotation through the line; the spin is otherwise fixed by angular momentum, and a grab tucks you and speeds it up. Hold <kbd>W</kbd> for a nose grab or <kbd>S</kbd> for a tail grab (in the air only; one hand leaves the handle, so the release limit drops to 60 %). Let go of the grab before touchdown and land within 40° of straight or switch; a 180 lands you switch. The buttons above Crouch/Pop do the same on touch screens.</p>
       <p class="note" style="grid-column:1/-1;margin:6px 0 0"><strong>Rails and boxes.</strong> Off the water there is no side force from the board; only the contact, rail friction and the line act. The line locks your speed component along the line, so a rail pointing away from the cable needs v_req = (l̂·v_c)/(l̂·t), often well above cable speed: build speed with an edge before the feature. Too slow and the line tightens and pulls you sideways towards the cable; faster than v_req and the line goes slack. The rider balances automatically over the contact patch (your lean adds 30 %). Hold <kbd>Q</kbd>/<kbd>R</kbd> on a rail for a boardslide: the board across the rail tolerates ±0.7 m of side drift instead of ±0.2 m, but turn back before the end or you land sideways. Approach with a little sideways speed away from the cable so the side pull has the whole width to slow it.</p>
     </section>
@@ -1414,7 +1510,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
             <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
             <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
             <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
-            <tr><td>Tricks on the O3 kicker (1.2 m assumed), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.75 s air: nose grab and pre-wound 180 (lands switch); a 360 needs more air</td></tr>
+            <tr><td>Tricks on the O4a kicker (4.2 × 1.05 m, size ref. UNIT Kicker M), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">1.00 s air: nose grab, pre-wound 180 (lands switch); spin held into the air + nose grab gives a 360</td></tr>
             <tr><td>Start peak at 30 km/h: sliding / jump</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 kN (1.5 / 1.2 BW)</td></tr>
           </tbody>
         </table></div>
@@ -1627,8 +1723,19 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   for (const o of sim.obs) {
     const pts = o.prof.map(([u, h]) => new THREE.Vector2(u, h));
     pts.push(new THREE.Vector2(o.prof[o.prof.length - 1][0], -0.4), new THREE.Vector2(o.prof[0][0], -0.4));
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2);
-    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef) }));
+    let g;
+    if (o.W0 == null) { g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2); }
+    else {   // tapered planform (width from halfWAt, same as the contact physics); with o.ridge a sloped cross-section
+      const P_ = o.prof, n = P_.length, V = [], lo = P_[0][1], tri = (a, b, c) => V.push(...a, ...b, ...c);
+      const ring = ([u, h]) => { const w = halfWAt(o, u), r = o.ridge != null ? Math.min(o.ridge / 2, w) : w;
+        const top = o.ridge != null && w - r > 1e-3 ? [[-w, Math.min(lo, h)], [-r, h], [r, h], [w, Math.min(lo, h)]] : [[-w, h], [w, h]];
+        return top.concat([[w, -0.4], [-w, -0.4]]).map(([z, y]) => [u, y, z]); };
+      const R_ = P_.map(ring), m = R_[0].length;
+      for (let i = 0; i < n - 1; i++) for (let j = 0; j < m; j++) { const a = R_[i][j], b = R_[i][(j + 1) % m], c = R_[i + 1][(j + 1) % m], d = R_[i + 1][j]; tri(a, b, c); tri(a, c, d); }
+      for (const [rr, k] of [[R_[0], 0], [R_[n - 1], 1]]) for (let j = 1; j < m - 1; j++) k ? tri(rr[0], rr[j], rr[j + 1]) : tri(rr[0], rr[j + 1], rr[j]);
+      g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.computeVertexNormals();
+    }
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef), side: o.W0 == null ? THREE.FrontSide : THREE.DoubleSide }));
     mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; scene.add(mesh);
     if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
   }
@@ -1941,6 +2048,16 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
 
   /* ---------- Kontroller ---------- */
   let paused = false, timeScale = 1, keyEdge = 0, keyLeg = 0;
+  // Lean builds up while ←/→ (or the Lean buttons) are held: a tap gives a small edge, holding ramps to the maximum.
+  // Release returns the command to 0; switching side restarts from LEAN_START. Runs in sim time, so slow motion slows it too.
+  const LEAN_START = 10, LEAN_GROW = 30;   // °, °/s  (10° → 45° in ≈1.2 s). UI tuning, assumed
+  let leanHold = 0, leanDir = 0;
+  function leanRamp(dt) {
+    if (!keyEdge) { leanHold = 0; leanDir = 0; return 0; }
+    if (keyEdge !== leanDir) { leanDir = keyEdge; leanHold = Math.min(LEAN_START, PHYS.LEAN_MAX_DEG); }
+    else leanHold = Math.min(PHYS.LEAN_MAX_DEG, leanHold + LEAN_GROW * dt);
+    return keyEdge * leanHold;
+  }
   const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? 'Run' : 'Pause'; };
   $('btnPlay').onclick = () => setPlay(paused);
   /* ---------- Forside: simuleringen står stille til START ---------- */
@@ -1964,7 +2081,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
   function resetRide() {
     sim.reset();
-    keyEdge = keyLeg = 0;
+    keyEdge = keyLeg = 0; leanHold = 0; leanDir = 0; fallAt = 0; $('fallBox').hidden = true;
     for (const id of ['edgeL', 'edgeR', 'legDn', 'legUp', 'trSpinL', 'trSpinR', 'trNose', 'trTail']) setHeld(id, false);
     clearHistory(); trailN = 0; trailT = -1; trailGeo.setDrawRange(0, 0);
     acc = 0; last = performance.now(); coachLast.arcT = -1; diagLast = -Infinity;
@@ -1972,6 +2089,17 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     updateDiag();
   }
   $('btnReset').onclick = resetRide;
+  // Fall dialog: appears ~0.7 s after the fall (so the fall itself is visible), Restart = Reset
+  let fallAt = 0;
+  $('btnRestart').onclick = () => { resetRide(); view.focus?.({ preventScroll: true }); };
+  function updateFallBox() {
+    const box = $('fallBox');
+    if (!sim.out.fall) { fallAt = 0; if (!box.hidden) box.hidden = true; return; }
+    if (!fallAt) fallAt = performance.now();
+    if (box.hidden && performance.now() - fallAt > 700) {
+      $('fallWhy').textContent = sim.out.fall; box.hidden = false; $('btnRestart').focus({ preventScroll: true });
+    }
+  }
   $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
   // Panel tabs: Ride (time, charts, diagnostics) · Settings (all configuration) · Guide (how to ride, physics/validation)
   const TABS = ['ride', 'settings', 'guide'];
@@ -1989,6 +2117,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
   addEventListener('keydown', e => {
     if (coverOpen()) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSim(); } return; }
+    if (!$('fallBox').hidden && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); resetRide(); return; }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.key === 'ArrowLeft' || e.key === 'a') { keyEdge = -1; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { keyEdge = 1; e.preventDefault(); }
@@ -2120,15 +2249,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
   sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td>${m.id === 'C' ? '<span class="tag a">moved 5 m</span>' : '<span class="tag m">measured</span>'}</td></tr>`); });
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Sheave diameter</td><td class="n" colspan="2">${2 * PHYS.WHEEL_RADIUS} m</td><td><span class="tag a">assumed</span></td></tr>`);
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Direction of travel</td><td class="n" colspan="2">counter-clockwise</td><td><span class="tag m">confirmed</span></td></tr>`);
-  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W} m, height ${o.H} m assumed)</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
+  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W0 != null ? o.W0 + '–' : ''}${o.W} m, height ${o.H} m ${o.Hsrc === 'cat' ? 'catalogue, not freeboard' : 'assumed'})</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
   const tp = document.querySelector('#tblPhys tbody');
   for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : typeof v === 'number' ? +v.toPrecision(4) : String(v)}</td></tr>`);
 
   /* ---------- Simloop: fast tidsskridt, adskilt fra rendering ---------- */
   function stepN(n) {
     for (let i = 0; i < n; i++) {
-      const cmd = keyEdge ? keyEdge * PHYS.LEAN_MAX_DEG : 0;
-      sim.leanCmdIn = cmd * DEG;
+      sim.leanCmdIn = leanRamp(PHYS.DT) * DEG;
       sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;
       sim.step(); sample();
     }
@@ -2261,7 +2389,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
     for (const o of sim.obs) { const dx = o.x - R.x, dy = o.y - R.y, f = dx * hx0 + dy * hy0, l = -dx * hy0 + dy * hx0;
       if (f > 2 && f < 90 && Math.abs(l) < 35 && (!nx || f < nx.f)) nx = { o, f, l }; }
     const hn = $('hudNext'); hn.hidden = !nx || !sim.line.attached;
-    if (nx) { const vr0 = nx.o.type !== 'kicker' && nx.f < 40 ? sim.railPreview(nx.o) : null, vr = vr0 != null && isFinite(vr0) ? vr0 : null;   // only close to the feature
+    if (nx) { const vr0 = !LAUNCH_TYPES.includes(nx.o.type) && nx.f < 40 ? sim.railPreview(nx.o) : null, vr = vr0 != null && isFinite(vr0) ? vr0 : null;   // only close to the feature
       hn.textContent = `→ ${nx.o.name}: ${nx.f.toFixed(0)} m ahead, ${Math.abs(nx.l).toFixed(0)} m ${nx.l > 0 ? 'left' : 'right'}` + (vr != null ? ` · needs ≈ ${(vr * 3.6).toFixed(0)} km/h (now ${(sim.out.V * 3.6).toFixed(0)})` : ''); }
     // Rail chip: live on a feature, then a summary of the last slide for 6 s
     const hr = $('hudRail'), rr = sim.out.rail, lr = sim.out.lastRail;
@@ -2274,8 +2402,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LA
       hr.textContent = `${lr.name}: ${lr.result} (${lr.dur.toFixed(1)} s) · in ${(lr.vIn * 3.6).toFixed(0)} / need ${isFinite(lr.vReqIn) ? (lr.vReqIn * 3.6).toFixed(0) : '∞'} km/h` + (lr.minMargin < -0.4 && lr.result !== 'rode to the end' ? ' · more speed needed before the feature' : '');
     } else hr.hidden = true;
     $('hudEdge').textContent = `lean ${(R.phi / DEG).toFixed(0)}° (target ${(sim.leanCmd / DEG).toFixed(0)}°)`;
-    const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall + ' · press Reset';
+    const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall;
     for (const s of series) drawChart(s);
+    updateFallBox();
+    const fill = (leanHold / PHYS.LEAN_MAX_DEG * 100).toFixed(0) + '%';
+    $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
   window.__ccpDebug = { sim, persp, controls, setCam };   // for automated screenshots/tests
   setCam('follow'); resize(); requestAnimationFrame(frame);
