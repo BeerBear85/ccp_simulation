@@ -167,7 +167,7 @@ const PHYS = {
   YAW_C_AIR:    0.5,     // N·m·s  yaw damping in the air (aerodynamic, spinning body). Assumed
   YAW_C_W:      10,      // N·m·s per m/s  yaw-dæmpning fra vandet, ∝ fart. Antaget
   // Carving: et kantet board med rocker følger sin skrå rail. Kurveradius R = (L²/8h)·CARVE_SLIP / sin(kant).
-  CARVE_SLIP:   1.91,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 15 % mindre radius ved samme kant (bruger, 25/9-2026)
+  CARVE_SLIP:   1.70,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 1,91 (bruger, 25/9-2026) → 1,70: 11 % mindre radius ved samme kant (bruger, 28/9-2026)
   CARVE_TAU:    0.25,    // s      hvor hurtigt vandet drejer boardet ind på railens kurve. Antaget
   PIVOT_K:      400,     // N·m/rad  riderens aktive drej af boardet med fødderne ved stor sideslip. Antaget
   PIVOT_TAU_MAX: 180,    // N·m    maks. drejemoment fra fødderne. Antaget
