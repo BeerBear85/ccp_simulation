@@ -21,12 +21,22 @@ Open `dist/copenhagen_cable_park_sim.html` in a browser.
 
 All constants are in the `PHYS` block at the top of `src/physics.js`, with unit and source or assumption per line.
 
+## Graphics
+
+- **Sky and sun**: gradient sky with sun disc, halo and drifting clouds, drawn at the far plane in one pass. Sun from the south-west, 26° up (late afternoon); the directional light and fog match it.
+- **Water**: Fresnel mix of the body colour and a planar reflection of the scene (mirror camera with an oblique near plane, as three.js `Reflector`), tiled ripple normals scaled with the wind, sun glitter, wake foam and the rider's shadow as a soft ellipse along the sun. With the reflection pass off, the water reflects the analytic sky.
+- **Shadows**: one 1024² shadow map in a 24 m box that follows the rider; only the rider casts, the dock, jetty, obstacles and grass receive.
+- **Ground**: generated grass texture and a bank along the water edge.
+- **Quality** (Settings → Graphics quality): High (pixel ratio ≤ 2, reflection at ½ resolution, shadows), Medium (≤ 1.5, ⅓ resolution, shadows), Low (1, no reflection pass, no shadows). Auto starts at Medium on phones and High elsewhere and steps down one level after 3 s below ≈40 fps. A fixed choice is kept in `localStorage`.
+
 ## Repository layout
 
 | Path | Content |
 |---|---|
 | `src/physics.js` | Physics core (constants, layout, simulator). Runs in Node and in the browser. |
 | `src/template.html` | UI, rendering and controls. `/*__PHYSICS__*/` is replaced by `physics.js` at build. |
+| `src/vest_texture.jpg` | Print of the rider's vest (Follow, photo of the back); inlined as a data URI by `build.py`. |
+| `src/face_texture.jpg` | The rider's face (photo of the user, cropped and feathered to skin colour); projected onto the front of the head, inlined by `build.py`. |
 | `build.py` | Builds `dist/copenhagen_cable_park_sim.html` (standalone) and `.frag.html` (artifact body). |
 | `dist/` | Built simulator. |
 | `tests/copenhagen_cable_park_sim_validation.js` | Headless validation against the physics report (straight case, edge manoeuvre, time-step convergence, energy residual, pop, sensitivity, starts, release limit, corners, wind, tricks, rails). |

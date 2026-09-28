@@ -634,7 +634,15 @@
   const boardG = new THREE.Group(); rider.add(boardG);
   const boardOnly = new THREE.Group(); boardG.add(boardOnly);   // boardet kan kantes i forhold til kroppen (ankler)
   const M = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, metalness: 0.05 });
-  const suit = M(0x1b1f23), suit2 = M(0x2b3238), skin = M(0xd9a88a), vestM = M(0xf08a5d), helmM = M(0xf2f2ee);
+  const suit = M(0x1b1f23), suit2 = M(0x2b3238), skin = M(0xd9a88a), bootStrapM = M(0xf08a5d);
+  // Helmet: Mystic Vandal Pro, red (skate-style shell, no visor, removable ear pads). Matte finish.
+  const helmM = new THREE.MeshStandardMaterial({ color: 0xc4161c, roughness: 0.55, metalness: 0.05 });
+  // Vest: the user's Follow impact vest (sticker-collage print). Texture = photo of the vest back (src/vest_texture.jpg,
+  // inlined by build.py), wrapped twice around the trunk so front and back each show the print centred.
+  const vestTex = new THREE.TextureLoader().load('/*__VEST_TEX__*/');
+  vestTex.wrapS = THREE.RepeatWrapping; vestTex.repeat.set(2, 1); vestTex.offset.set(0.5, 0); vestTex.anisotropy = 4;
+  const vestM = new THREE.MeshStandardMaterial({ map: vestTex, roughness: 0.8, metalness: 0.0 });
+  const vestTrim = M(0x121416);   // black binding, collar and panel seams
   const boardTop = M(0x1d6f8f), boardBot = M(0xe8eef0), bindM = M(0x111416), handleM = M(0x2a2f33);
   { // board: afrundet planform 140 × 43 cm, 3 cm tyk, med fire finner
     const Lb = 1.40, Wb = 0.43, r = Wb / 2, sh = new THREE.Shape();
@@ -656,8 +664,8 @@
   const up = new THREE.Vector3(0, 1, 0);
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const neo = M(0x16191c), neoPanel = M(0x2f5d73), shortsM = M(0x3a4f63), gloveM = M(0x0f1113), kneePadM = M(0x23282d);
-  const hairM = M(0x5a3b22), eyeM = M(0x0d0d0d), eyeW = M(0xf3f1ec), lipM = M(0xb9786a), strapM = M(0x111416), buckleM = M(0xc9ccce);
-  const skinM = new THREE.MeshStandardMaterial({ color: 0xd9a88a, roughness: 0.6, metalness: 0.0 });
+  const hairM = M(0x8a6848), strapM = M(0x111416), buckleM = M(0xc9ccce);
+  const skinM = new THREE.MeshStandardMaterial({ color: 0xb37264, roughness: 0.6, metalness: 0.0 });
   function limb(profile, mat, sx = 1, sz = 1) {   // lathed limb, length 1 along +y; profile = [radius, t] from the proximal joint
     const g = new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), 18); g.scale(sx, 1, sz);
     const m = new THREE.Mesh(g, mat); bodyG.add(m); return m;
@@ -676,51 +684,61 @@
   // Trunk (frame: y = spine, z = chest forward, x = towards the left shoulder)
   const torsoG = new THREE.Group(); bodyG.add(torsoG);
   torsoG.add(lathe([[0.001, 0], [0.128, 0.01], [0.136, 0.06], [0.124, 0.16], [0.132, 0.24], [0.155, 0.33], [0.172, 0.41], [0.182, 0.46], [0.16, 0.5], [0.1, 0.535], [0.055, 0.55], [0.001, 0.555]], neo, 0.64));
-  torsoG.add(lathe([[0.16, 0.44], [0.183, 0.46], [0.162, 0.5], [0.1, 0.535]], neoPanel, 0.66));                       // shoulder panel
-  for (const sx of [-1, 1]) { const tr = ball(1, neo, 0.075, 0.05, 0.06, torsoG); tr.position.set(0.075 * sx, 0.525, -0.02); tr.rotation.z = 0.5 * sx; }  // trapezius
-  const vestGroove = M(0xb35d3a);
-  // Life vest: foam panels with grooves, collar, three straps with buckles
-  torsoG.add(lathe([[0.001, 0.12], [0.148, 0.12], [0.152, 0.2], [0.158, 0.3], [0.178, 0.4], [0.176, 0.455], [0.13, 0.48], [0.001, 0.485]], vestM, 0.74));
-  for (let i = 0; i < 14; i++) {                          // vertical grooves between foam panels
-    const a = (i / 14) * Math.PI * 2, rr = 0.166, g = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.3, 0.004), vestGroove);
-    g.position.set(Math.sin(a) * rr, 0.29, Math.cos(a) * rr * 0.745); g.rotation.y = a; torsoG.add(g);
-  }
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 24), vestM); collar.scale.set(1, 0.8, 1); collar.rotation.x = Math.PI / 2; collar.position.y = 0.49; torsoG.add(collar);
-  for (const hh of [0.17, 0.27, 0.37]) {
-    const strap = new THREE.Mesh(new THREE.TorusGeometry(1, 0.011, 6, 32), strapM);
-    const rr = hh < 0.3 ? 0.16 : 0.176; strap.scale.set(rr, rr * 0.745, 1); strap.rotation.x = Math.PI / 2; strap.position.y = hh; torsoG.add(strap);
-    const bk = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.028, 0.014), buckleM); bk.position.set(0, hh, rr * 0.745 + 0.008); torsoG.add(bk);
-  }
-  const zipM = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.34, 0.01), buckleM); zipM.position.set(0, 0.3, 0.13); torsoG.add(zipM);
+  // Impact vest (Follow): printed foam panels up over the shoulders, neoprene collar at the neck, front zip; no belts
+  torsoG.add(lathe([[0.001, 0.12], [0.148, 0.12], [0.152, 0.2], [0.158, 0.3], [0.178, 0.4], [0.188, 0.46], [0.17, 0.505], [0.11, 0.54], [0.072, 0.556], [0.066, 0.562]], vestM, 0.74));
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.016, 8, 24), vestTrim); collar.scale.set(1, 0.8, 1); collar.rotation.x = Math.PI / 2; collar.position.y = 0.558; torsoG.add(collar);
+  const zipM = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.34, 0.01), vestTrim); zipM.position.set(0, 0.3, 0.13); torsoG.add(zipM);
   // Pelvis + boardshorts + glutes
   const pelvisG = new THREE.Group(); bodyG.add(pelvisG);
   const hipsMesh = ball(1, shortsM, 0.165, 0.12, 0.115, pelvisG);
   for (const sx of [-1, 1]) { const gl = ball(1, shortsM, 0.075, 0.08, 0.07, pelvisG); gl.position.set(0.065 * sx, -0.02, -0.065); }
   const waist = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.016, 6, 24), strapM); waist.scale.set(1, 0.74, 1); waist.rotation.x = Math.PI / 2; waist.position.y = 0.075; pelvisG.add(waist);
   const cord = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.003, 4, 10), buckleM); cord.position.set(0, 0.06, 0.108); pelvisG.add(cord);
-  // Head (frame: z = face): skull, jaw, cheeks, eyes with whites, brows, nose, lips, ears, hair at the nape, helmet with vents
+  // Head (frame: z = face): skull with the user's face (photo, src/face_texture.jpg, inlined by build.py) projected
+  // straight onto the front; ears, hair at the nape, helmet. Texture scale 0.594 mm/px: eye line at y = 0, chin at y ≈ −0.095 m.
   const headG = new THREE.Group(); bodyG.add(headG);
-  ball(1, skinM, 0.077, 0.1, 0.09, headG);
-  const jaw = ball(1, skinM, 0.06, 0.05, 0.062, headG); jaw.position.set(0, -0.055, 0.028);
-  const chin = ball(1, skinM, 0.025, 0.02, 0.02, headG); chin.position.set(0, -0.09, 0.07);
-  for (const sx of [-1, 1]) {
-    const ch = ball(1, skinM, 0.025, 0.02, 0.02, headG); ch.position.set(0.042 * sx, -0.02, 0.07);
-    const ew = ball(1, eyeW, 0.012, 0.008, 0.006, headG); ew.position.set(0.028 * sx, 0.018, 0.083);
-    const ey = ball(0.0055, eyeM, 1, 1, 1, headG); ey.position.set(0.028 * sx, 0.018, 0.089);
-    const lid = ball(1, skinM, 0.013, 0.004, 0.007, headG); lid.position.set(0.028 * sx, 0.026, 0.084);
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.01), hairM); brow.position.set(0.028 * sx, 0.036, 0.086); brow.rotation.z = -0.15 * sx; headG.add(brow);
-    const ear = ball(1, skinM, 0.011, 0.027, 0.019, headG); ear.position.set(0.077 * sx, 0.0, -0.006);
-    const side = ball(1, hairM, 0.012, 0.03, 0.02, headG); side.position.set(0.07 * sx, 0.03, 0.02);   // sideburns
+  const faceTex = new THREE.TextureLoader().load('/*__FACE_TEX__*/');
+  const faceM = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.6, metalness: 0.0 });
+  { const HS = [0.077, 0.1, 0.09], K = 0.000594, TW = 250, TH = 300, CX = 124, EY = 120;   // texture: size, face centre and eye line (px)
+    // Relief (m, pushed forward along +z so the planar texture stays registered): nose, brows, eye sockets,
+    // cheekbones, lips and chin, placed on the photo's landmarks (eyes ±28 mm, nose tip −33 mm, mouth −52 mm, chin −83 mm).
+    const G = (x, y, cx, cy, sx, sy) => Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2) / 2);
+    const relief = (x, y) => {
+      const t = Math.min(1, Math.max(0, (0.006 - y) / 0.038));            // 0 at the bridge, 1 at the tip
+      const nose = y > -0.036 ? (0.004 + 0.014 * t * t) * Math.exp(-((x / (0.006 + 0.004 * t)) ** 2) / 2) * (y < 0.01 ? 1 : Math.exp(-(((y - 0.01) / 0.006) ** 2)))
+                              : 0.018 * Math.exp(-((x / 0.01) ** 2) / 2) * Math.exp(-(((y + 0.036) / 0.005) ** 2));
+      return nose + 0.004 * G(x, y, 0, 0.018, 0.03, 0.006) - 0.004 * (G(x, y, 0.028, 0, 0.011, 0.008) + G(x, y, -0.028, 0, 0.011, 0.008))
+        + 0.003 * (G(x, y, 0.042, -0.022, 0.012, 0.012) + G(x, y, -0.042, -0.022, 0.012, 0.012))
+        + 0.004 * G(x, y, 0, -0.052, 0.016, 0.006) + 0.006 * G(x, y, 0, -0.083, 0.014, 0.01);
+    };
+    const g = new THREE.SphereGeometry(1, 72, 54), pos = g.attributes.position, uv = g.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {       // planar front projection; the back of the head samples plain skin
+      const x = pos.getX(i) * HS[0], y = pos.getY(i) * HS[1], nz = pos.getZ(i);
+      if (nz <= 0) { uv.setXY(i, 0.01, 0.01); continue; }
+      uv.setXY(i, (CX + x / K) / TW, 1 - (EY - y / K) / TH);
+      const w = Math.min(1, Math.max(0, (nz - 0.25) / 0.45));             // fade the relief out towards the sides
+      pos.setZ(i, nz + w * w * (3 - 2 * w) * relief(x, y) / HS[2]);
+    }
+    g.computeVertexNormals();
+    g.scale(HS[0], HS[1], HS[2]); headG.add(new THREE.Mesh(g, faceM));
   }
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.034, 8), skinM); nose.rotation.x = Math.PI / 2 + 0.3; nose.position.set(0, -0.004, 0.097); headG.add(nose);
-  for (const [yy, sc] of [[-0.04, 1], [-0.05, 0.85]]) { const lip = ball(1, lipM, 0.018 * sc, 0.005, 0.008, headG); lip.position.set(0, yy, 0.083); }
-  const nape = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.35), hairM); nape.scale.set(0.082, 0.1, 0.094); nape.rotation.x = -0.6; headG.add(nape);
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), helmM); shell.scale.set(0.1, 0.12, 0.112); shell.position.y = 0.012; headG.add(shell);
-  for (let i = 0; i < 5; i++) { const vt = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.05), strapM); const a = (i - 2) * 0.35; vt.position.set(Math.sin(a) * 0.06, 0.125, Math.cos(a) * 0.01 - 0.01); vt.rotation.y = a; headG.add(vt); }
-  const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.008, 20, 1, false, -0.9, 1.8), helmM); visor.scale.set(0.95, 1, 1.05); visor.position.set(0, 0.03, 0.02); visor.rotation.x = 0.12; headG.add(visor);
-  for (const sx of [-1, 1]) { const ep = ball(1, helmM, 0.02, 0.045, 0.04, headG); ep.position.set(0.09 * sx, -0.01, -0.005); }
+  for (const sx of [-1, 1]) { const ear = ball(1, skinM, 0.011, 0.027, 0.019, headG); ear.position.set(0.077 * sx, -0.012, -0.006); }
+  const nape = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10, Math.PI, Math.PI, Math.PI * 0.35, Math.PI * 0.35), hairM); nape.scale.set(0.082, 0.1, 0.094); nape.rotation.x = -0.6; headG.add(nape);
+  const helmG = new THREE.Group(); helmG.rotation.x = -0.3; helmG.position.y = 0.018; headG.add(helmG);   // tipped back: front edge above the brows, back low over the nape
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), helmM); shell.scale.set(0.1, 0.12, 0.112); shell.position.y = 0.012; helmG.add(shell);
+  for (let i = 0; i < 5; i++) { const vt = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.05), strapM); const a = (i - 2) * 0.35; vt.position.set(Math.sin(a) * 0.06, 0.125, Math.cos(a) * 0.01 - 0.01); vt.rotation.y = a; helmG.add(vt); }
+  { // messy hair sticking out under the helmet rim (fringe at the front, tufts at the sides and back; ear pads left clear)
+    const tuftG = new THREE.ConeGeometry(0.008, 1, 5); tuftG.translate(0, 0.5, 0);   // base at the origin, length 1 along +y
+    for (let a = -Math.PI, i = 0; a < Math.PI; a += 0.21, i++) {
+      if (Math.abs(Math.abs(a) - Math.PI / 2) < 0.42) continue;
+      const k = 0.25 * Math.sin(a * 7.3), d = V(Math.sin(a) * (0.45 + k) + 0.15 * Math.sin(i * 2.1), -0.88, Math.cos(a) * (0.45 - k)).normalize();
+      const t = new THREE.Mesh(tuftG, hairM); t.quaternion.setFromUnitVectors(up, d); t.scale.set(1, 0.02 + 0.014 * (0.5 + 0.5 * Math.sin(i * 3.7)), 1);
+      t.position.set(0.1 * 0.93 * Math.sin(a), 0.012 + 0.12 * Math.cos(Math.PI * 0.55), 0.112 * 0.93 * Math.cos(a)); helmG.add(t);
+    }
+  }
+  for (const sx of [-1, 1]) { const ep = ball(1, strapM, 0.022, 0.045, 0.042, headG); ep.position.set(0.09 * sx, -0.01, -0.005); }
   const chinStrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.005, 5, 20, Math.PI), strapM); chinStrap.rotation.z = Math.PI; chinStrap.position.set(0, -0.02, 0.0); headG.add(chinStrap);
-  const neck = limb([[0.05, 0], [0.047, 0.5], [0.045, 1]], skinM);
+  const neck = limb([[0.06, 0], [0.056, 0.5], [0.055, 1]], skinM, 1, 0.9);
   // Arms: deltoid, upper arm (biceps/triceps), elbow, forearm, glove with fingers wrapped round the bar
   const deltoid = [ball(0.062, neo, 1, 0.9, 0.95), ball(0.062, neo, 1, 0.9, 0.95)];
   const uarm = [0, 1].map(() => limb([[0.054, 0], [0.05, 0.25], [0.049, 0.5], [0.043, 0.8], [0.038, 1]], neo, 1, 0.92));
@@ -751,7 +769,7 @@
     const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.16, 4, 10), M(0x2a2e33)); boot.rotation.x = Math.PI / 2; boot.position.set(0, 0.07, -0.01); boot.scale.set(1.05, 1, 1); g.add(boot);
     const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.065, 0.14, 14), M(0x2a2e33)); cuff.position.set(0, 0.15, 0.03); g.add(cuff);
     const hb = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.2, 0.02), bindM); hb.position.set(0, 0.14, 0.115); hb.rotation.x = -0.25; g.add(hb);
-    for (const zz of [-0.06, 0.04]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.05), vestM); st.position.set(0, 0.11, zz); g.add(st); }
+    for (const zz of [-0.06, 0.04]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.05), bootStrapM); st.position.set(0, 0.11, zz); g.add(st); }
     for (let k = 0; k < 3; k++) { const lace = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.004, 0.006), buckleM); lace.position.set(0, 0.125 - k * 0.02, -0.07 + k * 0.03); g.add(lace); }
     g.position.set(i ? -0.27 : 0.27, 0, 0); g.rotation.y = i ? 0.26 : -0.26;   // slight "duck" stance
     return g;
