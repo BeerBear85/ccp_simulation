@@ -24,7 +24,7 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 ## Graphics
 
 - **Sky and sun**: gradient sky with sun disc, halo and drifting clouds, drawn at the far plane in one pass. Sun from the south-west, 26° up (late afternoon); the directional light and fog match it.
-- **Water**: Fresnel mix of the body colour and a planar reflection of the scene (mirror camera with an oblique near plane, as three.js `Reflector`), tiled ripple normals scaled with the wind, sun glitter, wake foam and the rider's shadow as a soft ellipse along the sun. With the reflection pass off, the water reflects the analytic sky.
+- **Water**: Fresnel mix (scaled to 55 %, lake water is not a mirror) of the body colour and a softened planar reflection of the scene, blended 60/40 with the sky (mirror camera with an oblique near plane, as three.js `Reflector`), tiled ripple normals scaled with the wind, sun glitter, wake foam and the rider's shadow as a soft ellipse along the sun. With the reflection pass off, the water reflects the analytic sky.
 - **Shadows**: one 1024² shadow map in a 24 m box that follows the rider; only the rider casts, the dock, jetty, obstacles and grass receive.
 - **Ground**: generated grass texture and a bank along the water edge.
 - **Quality** (Settings → Graphics quality): High (pixel ratio ≤ 2, reflection at ½ resolution, shadows), Medium (≤ 1.5, ⅓ resolution, shadows), Low (1, no reflection pass, no shadows). Auto starts at Medium on phones and High elsewhere and steps down one level after 3 s below ≈40 fps. A fixed choice is kept in `localStorage`.

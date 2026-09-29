@@ -312,6 +312,12 @@
     </section>
 
     <section class="field">
+      <label for="selGfx">Graphics quality</label>
+      <select id="selGfx" aria-label="Graphics quality"><option value="auto" selected>Auto (adapts to the device)</option><option value="2">High: reflections, shadows</option><option value="1">Medium: lighter reflections</option><option value="0">Low: no reflection pass or shadows</option></select>
+      <p class="note" style="grid-column:1/-1;margin:2px 0 0" id="noteGfx">Auto starts at Medium on phones and High elsewhere, and steps down if the frame rate stays below ≈40 fps.</p>
+    </section>
+
+    <section class="field">
       <label for="chkObs">Obstacles active (contact and collision)</label><input type="checkbox" id="chkObs" checked style="accent-color:var(--accent);width:18px;height:18px">
     </section>
 
@@ -407,14 +413,113 @@
 
   /* ---------- Three.js scene ---------- */
   const view = $('view');
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  // Graphics levels: 2 high, 1 medium (phone default), 0 low. pr = max pixel ratio, refl = reflection-pass resolution scale.
+  const GFX = [{ name: 'Low', pr: 1, refl: 0, shadow: false }, { name: 'Medium', pr: 1.5, refl: 0.35, shadow: true }, { name: 'High', pr: 2, refl: 0.5, shadow: true }];
+  const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  let gfxAuto = true, gfx = isMobile ? 1 : 2;
+  try { const g = localStorage.getItem('ccpGfx'); if (g === '0' || g === '1' || g === '2') { gfx = +g; gfxAuto = false; } } catch (e) {}
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, GFX[gfx].pr));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = false;
   view.prepend(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x9fb8c6);
-  scene.fog = new THREE.Fog(0x9fb8c6, 450, 2200);
-  scene.add(new THREE.HemisphereLight(0xdfeefa, 0x3a4a3a, 0.9));
-  const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(-120, 200, 80); scene.add(sun);
+  // Sun: Copenhagen late afternoon, from the south-west (az 235°), 26° above the horizon
+  const SUN_AZ = 235 * DEG, SUN_EL = 26 * DEG;
+  const sunDir = new THREE.Vector3(Math.sin(SUN_AZ) * Math.cos(SUN_EL), Math.sin(SUN_EL), -Math.cos(SUN_AZ) * Math.cos(SUN_EL));
+  scene.background = new THREE.Color(0xc4d7e3);
+  scene.fog = new THREE.Fog(0xc4d7e3, 450, 2200);
+  scene.add(new THREE.HemisphereLight(0xd3e6f6, 0x4d5842, 0.72));
+  const sun = new THREE.DirectionalLight(0xfff0da, 0.95); sun.position.copy(sunDir).multiplyScalar(200); scene.add(sun, sun.target);
+  sun.castShadow = GFX[gfx].shadow; sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+  { const c = sun.shadow.camera; c.left = c.bottom = -12; c.right = c.top = 12; c.near = 100; c.far = 300; }   // tight box that follows the rider
+  // Sky: gradient + sun halo + drifting clouds, drawn at the far plane (one draw, only where nothing else covers it).
+  // The same GLSL function gives the water its sky reflection when the reflection pass is off.
+  const SKY_GLSL = `
+    uniform vec3 uSunDir, uZenith, uHorizon, uSunCol; uniform float uTime;
+    float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), f.x), f.y); }
+    vec3 skyCol(vec3 d, float clouds) {
+      float h = max(d.y, 0.0), mu = max(dot(d, uSunDir), 0.0);
+      vec3 c = mix(uHorizon, uZenith, pow(h, 0.5));
+      c = mix(c, vec3(1.0, 0.87, 0.72), 0.3 * pow(mu, 3.0) * (1.0 - h));        // warm horizon towards the sun
+      c += uSunCol * (0.22 * pow(mu, 8.0) + 0.45 * pow(mu, 90.0));              // halo
+      if (clouds > 0.0 && d.y > 0.01) {
+        vec2 uv = d.xz / (d.y + 0.1) * 1.4 + vec2(uTime * 0.004, uTime * 0.0016);
+        float n = vnoise(uv) * 0.55 + vnoise(uv * 2.3 + 7.1) * 0.3 + vnoise(uv * 5.3 + 3.7) * 0.15;
+        float cov = smoothstep(0.52, 0.82, n) * smoothstep(0.01, 0.2, d.y) * clouds;
+        vec3 cc = mix(vec3(0.86, 0.9, 0.94), vec3(1.0, 0.96, 0.88), pow(mu, 4.0)) * (0.92 + 0.12 * n);
+        c = mix(c, cc, cov * 0.9);
+      }
+      return c;
+    }`;
+  const skyU = { uSunDir: { value: sunDir }, uZenith: { value: new THREE.Color(0x3f7fc2) }, uHorizon: { value: new THREE.Color(0xc4d7e3) },
+    uSunCol: { value: new THREE.Color(0xfff1d8) }, uTime: { value: 0 } };
+  const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.ShaderMaterial({
+    uniforms: skyU, side: THREE.BackSide, depthWrite: false,
+    vertexShader: 'varying vec3 vDir; void main() { vDir = position; vec4 p = projectionMatrix * vec4(mat3(viewMatrix) * position, 1.0); gl_Position = p.xyww; }',
+    fragmentShader: SKY_GLSL + `varying vec3 vDir;
+      void main() { vec3 d = normalize(vDir); float mu = dot(d, uSunDir);
+        gl_FragColor = vec4(skyCol(d, 1.0) + uSunCol * smoothstep(0.99955, 0.9998, mu) * 3.0, 1.0); }` }));
+  skyMesh.frustumCulled = false; skyMesh.renderOrder = 1000; scene.add(skyMesh);   // after the opaque scene: early-z skips covered pixels
+  // Small-scale ripple normals (tileable sum of sines), sampled at three scales in the water shader
+  const rippleTex = (() => { const N = 128, d = new Uint8Array(N * N * 4), K = []; let sd = 11; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 22; i++) { const kx = Math.round((rn() - 0.5) * 16), ky = Math.round((rn() - 0.5) * 16); if (!kx && !ky) continue; K.push([kx, ky, rn() * 6.283, 1 / Math.hypot(kx, ky)]); }
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { let gx = 0, gy = 0;
+      for (const [kx, ky, ph, a] of K) { const c = Math.cos(6.2832 * (kx * x + ky * y) / N + ph) * a; gx += c * kx; gy += c * ky; }
+      const nx = -gx * 0.09, ny = -gy * 0.09, l = Math.hypot(nx, ny, 1), i = (y * N + x) * 4;
+      d[i] = (nx / l * 0.5 + 0.5) * 255; d[i + 1] = (ny / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255; }
+    const t = new THREE.DataTexture(d, N, N); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true; return t; })();
+  // Water: Fresnel mix of the body colour and a planar reflection (or the analytic sky), ripples, sun glitter, foam, rider shadow.
+  const reflRT = new THREE.WebGLRenderTarget(16, 16), reflCam = new THREE.PerspectiveCamera(), reflMat = new THREE.Matrix4();
+  const waterU = Object.assign({}, skyU, { tRefl: { value: reflRT.texture }, uTexMat: { value: reflMat }, uReflOn: { value: 0 }, tRipple: { value: rippleTex },
+    uRipple: { value: 0.15 }, uDeep: { value: new THREE.Color(0x245262) }, uScatter: { value: new THREE.Color(0x3f8a86) }, uFoamCol: { value: new THREE.Color(0xeef4f5) },
+    uShadow: { value: new THREE.Vector4(0, 0, 1, 0) }, uShadowAx: { value: new THREE.Vector2(1, 0) } });
+  const waterMaterial = foam => new THREE.ShaderMaterial({ fog: true, vertexColors: foam,
+    uniforms: Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.fog), waterU),
+    vertexShader: `#include <fog_pars_vertex>
+      varying vec3 vWPos, vN; varying float vFoam;
+      void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWPos = wp.xyz; vN = normalize(mat3(modelMatrix) * normal);
+        #ifdef USE_COLOR
+          vFoam = color.r;
+        #else
+          vFoam = 0.0;
+        #endif
+        vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `#include <fog_pars_fragment>
+      ${SKY_GLSL}
+      uniform sampler2D tRefl, tRipple; uniform mat4 uTexMat; uniform float uReflOn, uRipple; uniform vec3 uDeep, uScatter, uFoamCol;
+      uniform vec4 uShadow; uniform vec2 uShadowAx;
+      varying vec3 vWPos, vN; varying float vFoam;
+      void main() {
+        vec3 toCam = cameraPosition - vWPos; float dist = length(toCam); vec3 V = toCam / dist;
+        vec2 p = vWPos.xz, t = vec2(uTime);
+        vec3 n1 = texture2D(tRipple, p * 0.09 + t * vec2(0.021, 0.013)).xyz * 2.0 - 1.0;
+        vec3 n2 = texture2D(tRipple, p * 0.031 + t * vec2(-0.008, 0.016)).xyz * 2.0 - 1.0;
+        vec3 n3 = texture2D(tRipple, p * 0.33 + t * vec2(-0.05, 0.03)).xyz * 2.0 - 1.0;
+        vec2 rip = (n1.xy + n2.xy * 0.9 + n3.xy * 0.45) * uRipple / (1.0 + dist * 0.01);
+        vec3 N = normalize(vN + vec3(rip.x, 0.0, rip.y));
+        float NV = max(dot(N, V), 0.0), F = 0.02 + 0.98 * pow(1.0 - NV, 5.0);
+        vec3 R = reflect(-V, N); R.y = abs(R.y);
+        vec3 refl;
+        if (uReflOn > 0.5) { vec4 rc = uTexMat * vec4(vWPos, 1.0); refl = texture2D(tRefl, rc.xy / rc.w + rip * 0.25).rgb; }
+        else refl = skyCol(R, 0.7);
+        vec2 rel = vWPos.xz - uShadow.xy;
+        float sd = length(vec2(dot(rel, uShadowAx) / uShadow.z, dot(rel, vec2(-uShadowAx.y, uShadowAx.x)) / 0.45));
+        float shade = 1.0 - uShadow.w * (1.0 - smoothstep(0.35, 1.0, sd));
+        float sunN = max(dot(N, uSunDir), 0.0);
+        vec3 body = uDeep * (0.62 + 0.45 * sunN) + uScatter * clamp(vWPos.y * 6.0, 0.0, 0.5);   // light through crests
+        vec3 col = mix(body * shade, refl, F);
+        float s = max(dot(R, uSunDir), 0.0);
+        col += uSunCol * (pow(s, 700.0) * 6.0 + pow(s, 90.0) * 0.35) * shade;                    // sun glitter
+        float fo = clamp(vFoam * (0.8 + 0.6 * n3.x), 0.0, 1.0);
+        col = mix(col, uFoamCol * (0.75 + 0.3 * sunN) * mix(1.0, shade, 0.6), fo);
+        gl_FragColor = vec4(col, 1.0);
+        #include <fog_fragment>
+      }` });
 
   // Verdens-koordinater: sim (x øst, y nord, z op) -> three (X=x, Y=z, Z=-y)
   const V3 = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
@@ -424,18 +529,28 @@
   const landShape = new THREE.Shape([[-1400,-1400],[1600,-1400],[1600,1600],[-1400,1600]].map(p => new THREE.Vector2(p[0], p[1])));
   landShape.holes.push(new THREE.Path(W.map(p => new THREE.Vector2(p[0], p[1]))));
   const landGeo = new THREE.ShapeGeometry(landShape); landGeo.rotateX(-Math.PI / 2);
-  const land = new THREE.Mesh(landGeo, new THREE.MeshLambertMaterial({ color: 0x7d8a6e }));
-  land.position.y = 0.8; scene.add(land);
+  const grassTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); let sd = 5; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    g.fillStyle = '#7d8a6e'; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 90; i++) { const x = rn() * 512, y = rn() * 512, r = 30 + rn() * 90, l = rn() < 0.5 ? 'rgba(98,112,80,.22)' : 'rgba(146,150,116,.18)';   // soft patches (wrapped)
+      for (const [dx, dy] of [[0, 0], [512, 0], [-512, 0], [0, 512], [0, -512], [512, 512], [-512, -512], [512, -512], [-512, 512]]) { const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r); gr.addColorStop(0, l); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x + dx - r, y + dy - r, 2 * r, 2 * r); } }
+    for (let i = 0; i < 16000; i++) { const v = rn(); g.fillStyle = v < 0.5 ? 'rgba(70,84,58,.3)' : 'rgba(170,176,140,.2)'; g.fillRect(rn() * 512, rn() * 512, 1 + rn() * 2, 1 + rn() * 2); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 110, 1 / 110); t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); return t; })();
+  const land = new THREE.Mesh(landGeo, new THREE.MeshLambertMaterial({ map: grassTex }));
+  land.position.y = 0.8; land.receiveShadow = true; scene.add(land);
+  // Bank: vertical edge from below the water line to the grass (fills the gap and shows in the reflection)
+  { const P = [], I = []; W.forEach((a, i) => { const b = W[(i + 1) % W.length], k = P.length / 3;
+      P.push(a[0], -0.8, -a[1], b[0], -0.8, -b[1], b[0], 0.8, -b[1], a[0], 0.8, -a[1]); I.push(k, k + 1, k + 2, k, k + 2, k + 3); });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x6a6558, side: THREE.DoubleSide }))); }
   const waterShape = new THREE.Shape(W.map(p => new THREE.Vector2(p[0], p[1])));
   const waterGeo = new THREE.ShapeGeometry(waterShape); waterGeo.rotateX(-Math.PI / 2);
-  const flatWater = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x2c5566, roughness: 0.28, metalness: 0.05 })); flatWater.position.y = -0.05; scene.add(flatWater);
+  const flatWater = new THREE.Mesh(waterGeo, waterMaterial(false)); flatWater.position.y = -0.05; scene.add(flatWater);
   // Live water patch around the camera target: wind chop (same JONSWAP components as the physics) + the rider's wake, with foam
   const WP = 48, WN = 120, wGeo = new THREE.PlaneGeometry(WP, WP, WN, WN); wGeo.rotateX(-Math.PI / 2);
   const wCol = new Float32Array(wGeo.attributes.position.count * 3); wGeo.setAttribute('color', new THREE.BufferAttribute(wCol, 3));
   const wBase = wGeo.attributes.position.array.slice(), wEta = new Float32Array(wGeo.attributes.position.count);
-  const waterPatch = new THREE.Mesh(wGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.05 }));
+  const waterPatch = new THREE.Mesh(wGeo, waterMaterial(true));
   waterPatch.frustumCulled = false; scene.add(waterPatch);
-  const wc0 = new THREE.Color(0x2c5566), wcFoam = new THREE.Color(0xe8f0f2);
   let wLast = -1;
   function updateWater(cx, cy) {                   // cx, cy in physics coordinates (x east, y north)
     if (sim.t === wLast) return; wLast = sim.t;
@@ -458,14 +573,13 @@
       pos[i * 3 + 1] = wEta[i];
       const edge = Math.max(Math.abs(wBase[i * 3]), Math.abs(wBase[i * 3 + 2])) / (WP / 2), fade = edge > 0.8 ? 1 - (edge - 0.8) / 0.2 : 1;
       pos[i * 3 + 1] = wEta[i] * fade - 0.05 * (1 - fade);
-      const f = Math.min(1, Math.max(0, foam[i] / 0.03)) * 0.7 + Math.max(0, Math.min(0.12, wEta[i] * 2));   // foam only on the young wake; crests slightly lighter
-      wCol[i * 3] = wc0.r + (wcFoam.r - wc0.r) * f; wCol[i * 3 + 1] = wc0.g + (wcFoam.g - wc0.g) * f; wCol[i * 3 + 2] = wc0.b + (wcFoam.b - wc0.b) * f;
+      wCol[i * 3] = Math.min(1, Math.max(0, foam[i] / 0.03)) * 0.7 * fade;   // foam amount (young wake only); the shader lights the crests
     }
     wGeo.attributes.position.needsUpdate = true; wGeo.attributes.color.needsUpdate = true; wGeo.computeVertexNormals();
   }
   // vandflade-grid (10 m) for fornemmelse af fart
   const grid = new THREE.GridHelper(600, 60, 0x44707f, 0x3a6474); grid.position.set(80, 0.02, 0);
-  grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+  grid.material.transparent = true; grid.material.opacity = 0.12; scene.add(grid);
 
   // Surroundings (visual only): roads, CopenHill, Amagerværket, the mole, Prøvestenen tanks, allotment gardens. See LAYOUT.surroundings.
   { const S = LAYOUT.surroundings, G0 = 0.8, mats = {}, mat = c => mats[c] || (mats[c] = new THREE.MeshLambertMaterial({ color: c }));
@@ -517,13 +631,13 @@
     const A = V3(a[0], a[1], 0.6), B = V3(b[0], b[1], 0.6), len = A.distanceTo(B);
     const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.3, w), jettyMat);
     m.position.copy(A).add(B).multiplyScalar(0.5);
-    m.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x); scene.add(m);
+    m.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x); m.receiveShadow = true; scene.add(m);
   }
   const strutLater = [];
   const J = LAYOUT.jetty; for (let i = 0; i < J.length - 1; i++) plank(J[i], J[i + 1]);
   plank(LAYOUT.jettyLand[0], LAYOUT.jettyLand[1], 2);
   const dockM = new THREE.Mesh(new THREE.BoxGeometry(10, 0.3, 6), new THREE.MeshLambertMaterial({ color: 0xd8c29c }));
-  dockM.position.copy(V3(-4.35, -10.7, 0.6)); dockM.rotation.y = Math.atan2(-16.8, 7.8); scene.add(dockM);   // platform on the land side of the jetty head
+  dockM.position.copy(V3(-4.35, -10.7, 0.6)); dockM.rotation.y = Math.atan2(-16.8, 7.8); dockM.receiveShadow = true; scene.add(dockM);   // platform on the land side of the jetty head
   // Start dock: floating pontoon with a carpet and a ramp into the water (same geometry as the physics contact)
   { const g = new THREE.Group(), P = PHYS, h2 = P.DOCK_LEN / 2, flat = P.DOCK_LEN - P.DOCK_RAMP, W2 = 2 * P.DOCK_HALF_W;
     const carpet = new THREE.MeshLambertMaterial({ color: 0x2f7d5b }), pont = new THREE.MeshLambertMaterial({ color: 0x9aa4a8 });
@@ -532,7 +646,7 @@
     const drop = P.DOCK_TOP + 0.15, rl = Math.hypot(P.DOCK_RAMP, drop);
     const ramp = new THREE.Mesh(new THREE.BoxGeometry(rl, 0.04, W2), carpet);
     ramp.position.set(h2 - P.DOCK_RAMP / 2, P.DOCK_TOP - drop / 2 - 0.02, 0); ramp.rotation.z = -Math.atan2(drop, P.DOCK_RAMP); g.add(ramp);
-    g.position.copy(V3(P.DOCK_C[0], P.DOCK_C[1], 0)); g.rotation.y = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]); scene.add(g); }
+    g.traverse(o => { o.receiveShadow = true; }); g.position.copy(V3(P.DOCK_C[0], P.DOCK_C[1], 0)); g.rotation.y = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]); scene.add(g); }
   const tent = new THREE.Mesh(new THREE.ConeGeometry(3.2, 1.6, 4), new THREE.MeshLambertMaterial({ color: 0x22282c }));
   tent.position.copy(V3(-6, -12, 3.2)); tent.rotation.y = Math.PI / 4; scene.add(tent);
   for (const [x, y] of [[-8.3, -9.8], [-3.8, -14.3], [-8.3 + 2.3, -9.8 - 2.3 + 4.5], [-1.5, -12]]) strutLater.push([V3(x, y, 0.8), V3(x, y, 2.4)]);
@@ -606,7 +720,7 @@
       g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.computeVertexNormals();
     }
     const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef), side: o.W0 == null ? THREE.FrontSide : THREE.DoubleSide }));
-    mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; scene.add(mesh);
+    mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; mesh.receiveShadow = true; scene.add(mesh);
     if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
   }
   // Carrier
@@ -665,7 +779,7 @@
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const neo = M(0x16191c), neoPanel = M(0x2f5d73), shortsM = M(0x3a4f63), gloveM = M(0x0f1113), kneePadM = M(0x23282d);
   const hairM = M(0x8a6848), strapM = M(0x111416), buckleM = M(0xc9ccce);
-  const skinM = new THREE.MeshStandardMaterial({ color: 0xb37264, roughness: 0.6, metalness: 0.0 });
+  const skinM = new THREE.MeshStandardMaterial({ color: 0xcc8678, roughness: 0.6, metalness: 0.0 });
   function limb(profile, mat, sx = 1, sz = 1) {   // lathed limb, length 1 along +y; profile = [radius, t] from the proximal joint
     const g = new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), 18); g.scale(sx, 1, sz);
     const m = new THREE.Mesh(g, mat); bodyG.add(m); return m;
@@ -700,26 +814,11 @@
   const faceTex = new THREE.TextureLoader().load('/*__FACE_TEX__*/');
   const faceM = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.6, metalness: 0.0 });
   { const HS = [0.077, 0.1, 0.09], K = 0.000594, TW = 250, TH = 300, CX = 124, EY = 120;   // texture: size, face centre and eye line (px)
-    // Relief (m, pushed forward along +z so the planar texture stays registered): nose, brows, eye sockets,
-    // cheekbones, lips and chin, placed on the photo's landmarks (eyes ±28 mm, nose tip −33 mm, mouth −52 mm, chin −83 mm).
-    const G = (x, y, cx, cy, sx, sy) => Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2) / 2);
-    const relief = (x, y) => {
-      const t = Math.min(1, Math.max(0, (0.006 - y) / 0.038));            // 0 at the bridge, 1 at the tip
-      const nose = y > -0.036 ? (0.004 + 0.014 * t * t) * Math.exp(-((x / (0.006 + 0.004 * t)) ** 2) / 2) * (y < 0.01 ? 1 : Math.exp(-(((y - 0.01) / 0.006) ** 2)))
-                              : 0.018 * Math.exp(-((x / 0.01) ** 2) / 2) * Math.exp(-(((y + 0.036) / 0.005) ** 2));
-      return nose + 0.004 * G(x, y, 0, 0.018, 0.03, 0.006) - 0.004 * (G(x, y, 0.028, 0, 0.011, 0.008) + G(x, y, -0.028, 0, 0.011, 0.008))
-        + 0.003 * (G(x, y, 0.042, -0.022, 0.012, 0.012) + G(x, y, -0.042, -0.022, 0.012, 0.012))
-        + 0.004 * G(x, y, 0, -0.052, 0.016, 0.006) + 0.006 * G(x, y, 0, -0.083, 0.014, 0.01);
-    };
-    const g = new THREE.SphereGeometry(1, 72, 54), pos = g.attributes.position, uv = g.attributes.uv;
+    const g = new THREE.SphereGeometry(1, 40, 30), pos = g.attributes.position, uv = g.attributes.uv;
     for (let i = 0; i < pos.count; i++) {       // planar front projection; the back of the head samples plain skin
-      const x = pos.getX(i) * HS[0], y = pos.getY(i) * HS[1], nz = pos.getZ(i);
-      if (nz <= 0) { uv.setXY(i, 0.01, 0.01); continue; }
-      uv.setXY(i, (CX + x / K) / TW, 1 - (EY - y / K) / TH);
-      const w = Math.min(1, Math.max(0, (nz - 0.25) / 0.45));             // fade the relief out towards the sides
-      pos.setZ(i, nz + w * w * (3 - 2 * w) * relief(x, y) / HS[2]);
+      const x = pos.getX(i) * HS[0], y = pos.getY(i) * HS[1];
+      if (pos.getZ(i) <= 0) uv.setXY(i, 0.01, 0.01); else uv.setXY(i, (CX + x / K) / TW, 1 - (EY - y / K) / TH);
     }
-    g.computeVertexNormals();
     g.scale(HS[0], HS[1], HS[2]); headG.add(new THREE.Mesh(g, faceM));
   }
   for (const sx of [-1, 1]) { const ear = ball(1, skinM, 0.011, 0.027, 0.019, headG); ear.position.set(0.077 * sx, -0.012, -0.006); }
@@ -738,7 +837,7 @@
   }
   for (const sx of [-1, 1]) { const ep = ball(1, strapM, 0.022, 0.045, 0.042, headG); ep.position.set(0.09 * sx, -0.01, -0.005); }
   const chinStrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.005, 5, 20, Math.PI), strapM); chinStrap.rotation.z = Math.PI; chinStrap.position.set(0, -0.02, 0.0); headG.add(chinStrap);
-  const neck = limb([[0.06, 0], [0.056, 0.5], [0.055, 1]], skinM, 1, 0.9);
+  const neck = limb([[0.05, 0], [0.047, 0.5], [0.045, 1]], skinM);
   // Arms: deltoid, upper arm (biceps/triceps), elbow, forearm, glove with fingers wrapped round the bar
   const deltoid = [ball(0.062, neo, 1, 0.9, 0.95), ball(0.062, neo, 1, 0.9, 0.95)];
   const uarm = [0, 1].map(() => limb([[0.054, 0], [0.05, 0.25], [0.049, 0.5], [0.043, 0.8], [0.038, 1]], neo, 1, 0.92));
@@ -894,8 +993,61 @@
   }
   const headArrow = flatArrow(0xe23b2e, 9, 1.8), cableArrow = flatArrow(0xd9e2e6, 7, 0.9);
   const riderTag = makeLabel('R'); riderTag.scale.set(3.5, 3.5, 1); scene.add(riderTag);
-  scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })));
+  const trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); scene.add(trailLine);
   let trailN = 0, trailT = 0;
+
+  /* ---------- Graphics per frame: planar reflection, shadow box, rider shadow on water, quality ---------- */
+  rider.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const lineObjs = []; scene.traverse(o => { if (o.isLine) lineObjs.push(o); });   // 1-px lines alias badly at reflection resolution
+  const reflHide = () => [flatWater, waterPatch, grid, spray, headArrow, cableArrow, riderTag, ...mastLabels, ...obsTags, ...lineObjs];
+  const _rp = new THREE.Vector3(), _rt = new THREE.Vector3(), _rn = new THREE.Vector3(0, 1, 0), _rm = new THREE.Matrix4(), _rl = new THREE.Vector3(), _rq = new THREE.Vector4(),
+    _rplane = new THREE.Plane(), _rclip = new THREE.Vector4(), _rsh = new THREE.Vector3();
+  function sizeRefl() { const s = GFX[gfx].refl, c = renderer.domElement; if (!s) return;
+    const k = Math.min(1, 1024 / Math.max(c.width * s, c.height * s)); reflRT.setSize(Math.max(16, Math.round(c.width * s * k)), Math.max(16, Math.round(c.height * s * k))); }
+  function renderReflection(cam) {   // mirror the camera in the plane y = 0 with an oblique near plane (as three.js Reflector)
+    _rp.setFromMatrixPosition(cam.matrixWorld); if (_rp.y <= 0.02) return false;
+    _rm.extractRotation(cam.matrixWorld); _rl.set(0, 0, -1).applyMatrix4(_rm).add(_rp);
+    reflCam.position.set(_rp.x, -_rp.y, _rp.z); _rt.set(_rl.x, -_rl.y, _rl.z);
+    reflCam.up.set(0, 1, 0).applyMatrix4(_rm).reflect(_rn); reflCam.lookAt(_rt);
+    reflCam.far = cam.far; reflCam.updateMatrixWorld(); reflCam.projectionMatrix.copy(cam.projectionMatrix);
+    reflMat.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(reflCam.projectionMatrix).multiply(reflCam.matrixWorldInverse);
+    _rplane.setFromNormalAndCoplanarPoint(_rn, _rsh.set(0, 0, 0)).applyMatrix4(reflCam.matrixWorldInverse);
+    _rclip.set(_rplane.normal.x, _rplane.normal.y, _rplane.normal.z, _rplane.constant);
+    const e = reflCam.projectionMatrix.elements;
+    _rq.set((Math.sign(_rclip.x) + e[8]) / e[0], (Math.sign(_rclip.y) + e[9]) / e[5], -1, (1 + e[10]) / e[14]);
+    _rclip.multiplyScalar(2 / _rclip.dot(_rq)); e[2] = _rclip.x; e[6] = _rclip.y; e[10] = _rclip.z + 1 - 0.003; e[14] = _rclip.w;
+    const hid = reflHide().filter(o => o.visible); hid.forEach(o => { o.visible = false; });
+    renderer.setRenderTarget(reflRT); renderer.clear(); renderer.render(scene, reflCam); renderer.setRenderTarget(null);
+    hid.forEach(o => { o.visible = true; }); return true;
+  }
+  function setGfx(level, user) {
+    gfx = Math.max(0, Math.min(2, level)); renderer.setPixelRatio(Math.min(devicePixelRatio, GFX[gfx].pr)); resize();
+    sun.castShadow = GFX[gfx].shadow;
+    if (user !== undefined) { gfxAuto = user === 'auto'; try { gfxAuto ? localStorage.removeItem('ccpGfx') : localStorage.setItem('ccpGfx', String(gfx)); } catch (e) {} }
+    gfxNote();
+  }
+  function gfxNote() { $('noteGfx').textContent = (gfxAuto ? 'Auto, now ' : 'Fixed: ') + GFX[gfx].name + '. Auto starts at Medium on phones and High elsewhere, and steps down if the frame rate stays below ≈40 fps.'; }
+  $('selGfx').value = gfxAuto ? 'auto' : String(gfx); gfxNote();
+  $('selGfx').onchange = e => setGfx(e.target.value === 'auto' ? (isMobile ? 1 : 2) : +e.target.value, e.target.value === 'auto' ? 'auto' : 'fixed');
+  let fpsEma = 1 / 60, fpsSlow = 0;
+  function gfxWatch(dtRaw) {   // automatic step-down: ≥3 s below ≈40 fps drops one level (never steps back up by itself)
+    if (!gfxAuto || dtRaw > 0.25 || document.hidden) return;
+    fpsEma += (dtRaw - fpsEma) * 0.05; fpsSlow = fpsEma > 1 / 40 ? fpsSlow + dtRaw : 0;
+    if (fpsSlow > 3 && gfx > 0) { fpsSlow = 0; fpsEma = 1 / 60; setGfx(gfx - 1); }
+  }
+  function gfxFrame(cam, R, bz) {
+    skyU.uTime.value = sim.t; waterU.uRipple.value = 0.07 + 0.022 * Math.min(10, sim.wind || 0);
+    // shadow box follows the rider
+    sun.target.position.copy(V3(R.x, R.y, Math.max(bz, 0))); sun.position.copy(sun.target.position).addScaledVector(sunDir, 200); sun.target.updateMatrixWorld();
+    // rider's shadow on the water: an ellipse along the sun, at the projection of the body centre
+    const hc = Math.max(bz, 0) + 0.9, sx = -sunDir.x / sunDir.y, sz = -sunDir.z / sunDir.y, hl = Math.hypot(sunDir.x, sunDir.z);
+    const bx = R.x + sx * hc, bzp = -R.y + sz * hc;
+    waterU.uShadow.value.set(bx, bzp, 0.9 / Math.tan(SUN_EL) + 0.2, 0.5 / (1 + 0.25 * Math.max(0, bz)));
+    waterU.uShadowAx.value.set(sunDir.x / hl, sunDir.z / hl);
+    waterU.uReflOn.value = cam.isPerspectiveCamera && GFX[gfx].refl > 0 && renderReflection(cam) ? 1 : 0;
+    renderer.shadowMap.needsUpdate = sun.castShadow;
+  }
+  window.__gfxInfo = () => ({ gfx, auto: gfxAuto, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, refl: [reflRT.width, reflRT.height] });
 
   /* ---------- Kameraer ---------- */
   const persp = new THREE.PerspectiveCamera(50, 1, 0.5, 4000);
@@ -925,7 +1077,7 @@
 
   function resize() {
     const w = view.clientWidth, h = view.clientHeight;
-    renderer.setSize(w, h, false);
+    renderer.setSize(w, h, false); sizeRefl();
     persp.aspect = w / h; persp.updateProjectionMatrix();
     const a = w / h; let hw, hh;
     if (a >= 1) { hh = TOP_SPAN / 2; hw = hh * a; } else { hw = TOP_SPAN / 2; hh = hw / a; }
@@ -1151,7 +1303,7 @@
   }
   let acc = 0, last = performance.now();
   function frame(now) {
-    const realDt = Math.min(0.1, (now - last) / 1000); last = now;
+    const dtRaw = (now - last) / 1000, realDt = Math.min(0.1, dtRaw); last = now; gfxWatch(dtRaw);
     if (!paused) {
       acc += realDt * timeScale;
       let n = Math.floor(acc / PHYS.DT); acc -= n * PHYS.DT;
@@ -1246,6 +1398,7 @@
       camOff.copy(V3(R.x - cx * 6.5, R.y - cy * 6.5, Math.max(R.z, 0) + 2.1));
       persp.position.lerp(camOff, 0.2); persp.lookAt(V3(R.x + cx * 3, R.y + cy * 3, Math.max(R.z, 0) + 1.0));
     } else cam = ortho;
+    gfxFrame(cam, R, bz);
     renderer.render(scene, cam);
     // HUD
     $('hudT').textContent = `t ${sim.t.toFixed(2)} s`;
