@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 Claude outputs/
+dist/copenhagen_cable_park_sim.html
+dist/copenhagen_cable_park_sim.frag.html
