@@ -133,9 +133,9 @@ const PHYS = {
   // Drag:  trykdrag N·sin τ (løftet står vinkelret på bunden) + ITTC-57-friktion på S_w = l_w b /(cos τ cos φ)
   //        + residual (spray/3D/finner, rapport 4.3) + pløjedrag i deplacementsfasen.
   // Heave: added mass m_a = ρ π b² l_w / 8 og asymmetrisk slamming ṁ_a·w ved vandindtræden (rapport 7.2, 11.2).
-  BOARD_AREA:   0.40,    // m²     planform (hydrostatisk opdrift ved lav fart/dyb start). Kilde: typiske mål 138–144 × 42–44 cm
-  BOARD_LEN:    1.42,    // m      boardlængde. Kilde: rapportens referencecase (1,42 × 0,43 m)
-  BOARD_BEAM:   0.43,    // m      bredde. Kilde: rapportens referencecase
+  BOARD_AREA:   0.54,    // m²     planform. Mentor 143: omrids tegnet af fra producentens foto, integreret (0,544 m²)
+  BOARD_LEN:    1.43,    // m      boardlængde. Brugerens Good Boards Mentor 143 (bruger, 29 Sep 2026)
+  BOARD_BEAM:   0.43,    // m      bredde. Mentor 143: 42,8 cm målt på producentens foto (bredde/længde 0,299)
   ROCKER_H:     0.06,    // m      kontinuerlig rocker (6 cm). Kilde: typiske cableboards 5–7 cm
   NU_WATER:     1.19e-6, // m²/s   kinematisk viskositet, 15 °C. Kilde: ITTC
   X_LOAD:       0.66,    // m      riderens lastpunkt målt fra halen (lidt bag midten = vægt på bagerste fod). Antaget
@@ -158,7 +158,7 @@ const PHYS = {
   ANKLE_RATE:   150,     // °/s    hastighed for ankel-kant. Antaget
   SIDE_AREA:    0.03,    // m²     rail + finner, sideflade. Antaget
   SIDE_CLA:     3.0,     // 1/rad  løftkurvehældning for sideslip. Antaget (lav-AR flade)
-  FIN_AREA:     0.008,   // m²     4 finner à ~20 cm². Kilde: typisk finsæt
+  FIN_AREA:     0.003,   // m²     Mentor uden finner: kun 8 kanaler i bunden giver lidt sideføring. Antaget
   FIN_CLA:      3.0,     // 1/rad  Antaget
   FIN_ARM:      0.5,     // m      finnernes afstand bag tyngdepunkt. Antaget
   YAW_C:        60,      // N·m·s  yaw-dæmpning (luft/krop). Antaget
@@ -370,7 +370,7 @@ function halfWAt(ob, u) {
   const x = Math.max(0, Math.min(1, (u + ob.L / 2) / ob.L));
   return 0.5 * (ob.W0 + (ob.W - ob.W0) * x);
 }
-// Surface under the board, seen by a rigid plank (report: board 1.42 m). The board centre rests on the plank's two
+// Surface under the board, seen by a rigid plank (report: board 1.42 m; here the user's Mentor, 1.43 m). The board centre rests on the plank's two
 // ends: z = max over s ≤ reach of ½·(h(u−s) + h(u+s)), and never below h(u) itself. This spreads the toe of a steep
 // face (bump, kicker) over the board length instead of hitting the board centre as a step, and lets the board bridge a
 // crest. Upstream of the feature the tail rests on the water (height of the profile start); downstream of an abrupt

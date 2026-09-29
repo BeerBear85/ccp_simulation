@@ -267,7 +267,7 @@
     <details>
       <summary>Park layout · measured vs. assumed</summary>
       <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> as revised in the detailed course analysis of 26 Sep 2026: each part's ends are read from the user's Google Earth image 9628.jpg, registered to the six KML corners (0.31 m/px, RMS 0.23 m). Types follow the user's local knowledge: O2 is a rooftop rail with a very flat side plate on its right, O3 a self-built wedge (tapered, narrow tip upstream, 0.4 m flat ridge with faces sloping down to each side; the UNIT Bump beside it is left out), O4 a standard kicker with a wedge side by side (0.5 m apart), run-ups on one line across the direction of travel. O5 is a straight rail; O6 and O7 are funboxes with a narrow side rail that runs past their end. Sizes use the report's catalogue references where it gives one (UNIT Rooftop Box BO004, Shape Straight Rail 16 m, Shape Funbox 12-110, UNIT TR002); catalogue heights are product heights, not verified freeboard above the water; for O6 and O7 a freeboard of 1.2 m is assumed instead of the catalogue 1.6 m, which does not fit a rideable entry in the observed length. O1, the O2 plate, the wedges and the O4 kicker size are assumed. Tall box/rail/funbox entries are lengthened so the steepest point stays ≤ 22°. O2 (3 m) and O4 (5.7 m) are moved outwards, away from the cable line (user: no obstacle lies directly under the cable). Positions have ≈5–10 m absolute uncertainty. The unresolved dark structure X1 is left out. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.42 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> as revised in the detailed course analysis of 26 Sep 2026: each part's ends are read from the user's Google Earth image 9628.jpg, registered to the six KML corners (0.31 m/px, RMS 0.23 m). Types follow the user's local knowledge: O2 is a rooftop rail with a very flat side plate on its right, O3 a self-built wedge (tapered, narrow tip upstream, 0.4 m flat ridge with faces sloping down to each side; the UNIT Bump beside it is left out), O4 a standard kicker with a wedge side by side (0.5 m apart), run-ups on one line across the direction of travel. O5 is a straight rail; O6 and O7 are funboxes with a narrow side rail that runs past their end. Sizes use the report's catalogue references where it gives one (UNIT Rooftop Box BO004, Shape Straight Rail 16 m, Shape Funbox 12-110, UNIT TR002); catalogue heights are product heights, not verified freeboard above the water; for O6 and O7 a freeboard of 1.2 m is assumed instead of the catalogue 1.6 m, which does not fit a rideable entry in the observed length. O1, the O2 plate, the wedges and the O4 kicker size are assumed. Tall box/rail/funbox entries are lengthened so the steepest point stays ≤ 22°. O2 (3 m) and O4 (5.7 m) are moved outwards, away from the cable line (user: no obstacle lies directly under the cable). Positions have ≈5–10 m absolute uncertainty. The unresolved dark structure X1 is left out. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
     </details>
 
     <details id="diagBox">
@@ -757,18 +757,77 @@
   vestTex.wrapS = THREE.RepeatWrapping; vestTex.repeat.set(2, 1); vestTex.offset.set(0.5, 0); vestTex.anisotropy = 4;
   const vestM = new THREE.MeshStandardMaterial({ map: vestTex, roughness: 0.8, metalness: 0.0 });
   const vestTrim = M(0x121416);   // black binding, collar and panel seams
-  const boardTop = M(0x1d6f8f), boardBot = M(0xe8eef0), bindM = M(0x111416), handleM = M(0x2a2f33);
-  { // board: afrundet planform 140 × 43 cm, 3 cm tyk, med fire finner
-    const Lb = 1.40, Wb = 0.43, r = Wb / 2, sh = new THREE.Shape();
-    sh.moveTo(-Lb / 2 + r, -Wb / 2); sh.lineTo(Lb / 2 - r, -Wb / 2);
-    sh.absarc(Lb / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2, false); sh.lineTo(-Lb / 2 + r, Wb / 2);
-    sh.absarc(-Lb / 2 + r, 0, r, Math.PI / 2, Math.PI * 1.5, false);
-    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.01, bevelSegments: 2, curveSegments: 16 });
-    g.rotateX(-Math.PI / 2); g.translate(0, 0.004, 0);
-    const top = new THREE.Mesh(g, [boardTop, boardBot]); boardOnly.add(top);
-    for (const [fx, fz] of [[0.58, 0.14], [0.58, -0.14], [-0.58, 0.14], [-0.58, -0.14]]) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.008), boardBot); fin.position.set(fx, -0.015, fz); boardOnly.add(fin);
+  // Board: the user's Good Boards Mentor 143 (black top and base, satin finish) with a white "GOOD" sticker on the front half.
+  // Planform: traced from the manufacturer's product photo (goodboards.eu, Mentor_1.png: top and base side by side,
+  // 929 px long, 278 px max width → width/length 0.299, i.e. 42.8 cm at 143 cm). Blunt, squared-off tips with tight
+  // rounded corners and a continuous (gently curved) outline towards the centre. Side view: continuous rocker
+  // (manufacturer: "continuous rocker"; height not published, PHYS.ROCKER_H = 6 cm assumed), 3D-shaped deck
+  // (thick centre, thinner tips and rails; thicknesses assumed), ABS sidewalls, 8 base channels (2 per side per tip;
+  // position and depth assumed). No fins: the manufacturer lists none for the Mentor.
+  const boardTop = new THREE.MeshStandardMaterial({ color: 0x141517, roughness: 0.45, metalness: 0.05, side: THREE.DoubleSide });
+  const boardBot = new THREE.MeshStandardMaterial({ color: 0x101113, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide });
+  const bindM = M(0x111416), handleM = M(0x2a2f33);
+  const BL = PHYS.BOARD_LEN, BW = 0.428, RK = PHYS.ROCKER_H;
+  // [distance from the tip / length, width / max width], averaged over both tips of the traced photo
+  const MENTOR_W = [[0, 0.20], [0.003, 0.42], [0.0065, 0.47], [0.010, 0.51], [0.013, 0.555], [0.017, 0.60], [0.020, 0.64], [0.024, 0.675],
+    [0.027, 0.69], [0.031, 0.71], [0.035, 0.725], [0.040, 0.737], [0.045, 0.745], [0.050, 0.752], [0.060, 0.763], [0.070, 0.775], [0.080, 0.787],
+    [0.095, 0.803], [0.110, 0.818], [0.130, 0.838], [0.155, 0.857], [0.175, 0.873], [0.200, 0.889], [0.220, 0.904], [0.240, 0.916], [0.265, 0.930],
+    [0.290, 0.945], [0.310, 0.953], [0.330, 0.963], [0.350, 0.971], [0.375, 0.982], [0.395, 0.986], [0.415, 0.990], [0.435, 0.993], [0.455, 0.996],
+    [0.475, 0.998], [0.5, 1.0]];
+  const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const boardHalfW = s => {   // s = position along the board (m, 0 = centre)
+    const d = Math.min(0.5, Math.max(0, 0.5 - Math.abs(s) / BL));
+    for (let k = 1; k < MENTOR_W.length; k++) if (d <= MENTOR_W[k][0]) { const [d0, w0] = MENTOR_W[k - 1], [d1, w1] = MENTOR_W[k]; return 0.5 * BW * (w0 + (w1 - w0) * (d - d0) / (d1 - d0)); }
+    return 0.5 * BW;
+  };
+  const rockY = s => RK * (2 * s / BL) ** 2;                                  // continuous rocker, base centre at y = 0
+  const rockSlope = s => 8 * RK * s / (BL * BL);
+  const boardThick = (s, a) => {                                               // a = z / half-width (−1 … 1)
+    const e = Math.abs(2 * s / BL), tc = 0.022 - 0.010 * sstep(0.55, 1, e), tr = 0.010 - 0.001 * sstep(0.8, 1, e);
+    return tr + (tc - tr) * Math.sqrt(Math.max(0, 1 - a * a));
+  };
+  const channel = (s, a) => {                                                  // 8 channels: 2 per side per tip, 4 mm deep
+    const d = 0.5 - Math.abs(s) / BL, fade = sstep(0.05, 0.09, d) * (1 - sstep(0.25, 0.30, d)); if (fade <= 0) return 0;
+    let g = 0; for (const c of [0.55, 0.78]) g += Math.exp(-(((Math.abs(a) - c) / 0.035) ** 2)); return 0.004 * fade * g;
+  };
+  const baseY = (s, a) => rockY(s) + 0.003 * Math.max(0, (Math.abs(a) - 0.85) / 0.15) ** 2 + channel(s, a);   // rail bevel
+  const deckY = (s, a) => rockY(s) + boardThick(s, a);
+  {
+    const NS = 181, K = 41, pos = [], idx = [], nSt = 2 * K;
+    for (let i = 0; i < NS; i++) {
+      const s = -0.5 * BL * Math.cos(Math.PI * i / (NS - 1)), hw = boardHalfW(s);   // stations denser at the tips
+      for (let j = 0; j < K; j++) { const a = -Math.cos(Math.PI * j / (K - 1)); pos.push(s, deckY(s, a), a * hw); }
+      for (let j = 0; j < K; j++) { const a = -Math.cos(Math.PI * j / (K - 1)); pos.push(s, baseY(s, a), a * hw); }
     }
+    const T = (i, j) => i * nSt + j, B = (i, j) => i * nSt + K + j;
+    for (let i = 0; i < NS - 1; i++) for (let j = 0; j < K - 1; j++) idx.push(T(i, j), T(i, j + 1), T(i + 1, j + 1), T(i, j), T(i + 1, j + 1), T(i + 1, j));
+    const nTop = idx.length;
+    for (let i = 0; i < NS - 1; i++) for (let j = 0; j < K - 1; j++) idx.push(B(i, j), B(i + 1, j + 1), B(i, j + 1), B(i, j), B(i + 1, j), B(i + 1, j + 1));
+    for (let i = 0; i < NS - 1; i++) for (const j of [0, K - 1]) idx.push(T(i, j), B(i, j), B(i + 1, j), T(i, j), B(i + 1, j), T(i + 1, j));   // sidewalls
+    for (const i of [0, NS - 1]) for (let j = 0; j < K - 1; j++) idx.push(T(i, j), B(i, j), B(i, j + 1), T(i, j), B(i, j + 1), T(i, j + 1));   // tip walls
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+    g.addGroup(0, nTop, 0); g.addGroup(nTop, idx.length - nTop, 1); g.computeVertexNormals();
+    boardOnly.add(new THREE.Mesh(g, [boardTop, boardBot]));
+  }
+  // "GOOD" sticker on the deck's front half, between the front binding (x ≈ 0.27 ± 0.11 m) and the nose, laid onto the
+  // curved deck. Kept in its own group that turns 180° when riding switch, because the physics then flips the board frame
+  // (psi += π): the sticker stays on the same physical end of the twin-tip.
+  const deckDecalG = new THREE.Group(); boardOnly.add(deckDecalG);
+  {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
+    const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+    rr(4, 4, 504, 248, 48); g.fillStyle = '#f4f4f1'; g.fill();
+    g.fillStyle = '#111214'; g.font = '900 170px "Arial Black", "Helvetica Neue", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('GOOD', 256, 136, 460);
+    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+    const cx = 0.5, sw = 0.19, shh = 0.095, nx = 12, nz = 6, pos = [], uv = [], idx = [];
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+      const x = cx - sw / 2 + sw * i / nx, z = -shh / 2 + shh * j / nz;
+      pos.push(x, deckY(x, z / boardHalfW(x)) + 0.0006, z); uv.push(i / nx, 1 - j / nz);
+    }
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const a = i * (nz + 1) + j, b = a + 1, c2 = a + nz + 1, d = c2 + 1; idx.push(a, b, d, a, d, c2); }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); pg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); pg.setIndex(idx); pg.computeVertexNormals();
+    deckDecalG.add(new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 })));
   }
   // ---------- Human model ----------
   // bodyG/bootsG turn 180° when the rider lands switch (the physics flips the twin-tip board's frame instead)
@@ -861,18 +920,57 @@
   const kneeB = [ball(0.05, kneePadM, 1, 1, 1.05), ball(0.05, kneePadM, 1, 1, 1.05)];
   const shin = [0, 1].map(() => limb([[0.036, 0], [0.042, 0.2], [0.05, 0.55], [0.053, 0.72], [0.048, 0.92], [0.05, 1]], neo));
   const calf = [ball(1, neo, 0.042, 0.1, 0.036), ball(1, neo, 0.042, 0.1, 0.036)];
-  // Bindings: base plate, boot and highback (right foot forward = +x)
+  // Bindings: Slingshot Space Mob boots in white/grey (the user's). Closed-toe soft boot on a flat "bottomless" sole plate,
+  // tall shell with a removable 3D-moulded external tongue, built-in J-bars at the ankle, a laced liner showing at the
+  // collar and the tri-zone "Gummy Strap" closure (instep, ankle, upper shin). Proportions and shell height are
+  // estimated from product photos, not measured. Right foot forward = +x; toes point to −z (toeside), heel to +z.
+  // Each boot sits on the rockered deck (tilted to the local rocker slope at the insert position).
+  const mobShell = new THREE.MeshStandardMaterial({ color: 0xeceeee, roughness: 0.62, metalness: 0.0 });
+  const mobGrey = new THREE.MeshStandardMaterial({ color: 0xa9afb3, roughness: 0.55, metalness: 0.0 });    // external tongue
+  const mobDark = new THREE.MeshStandardMaterial({ color: 0x5b6166, roughness: 0.8, metalness: 0.0 });     // sole, toe bumper, J-bars
+  const mobLiner = new THREE.MeshStandardMaterial({ color: 0xc9cdd0, roughness: 0.85, metalness: 0.0 });
+  const mobStrap = new THREE.MeshStandardMaterial({ color: 0x7c8388, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });   // gummy straps
+  mobGrey.side = THREE.DoubleSide;
+  const rBox = (w, h, d, r) => { const sh = new THREE.Shape(), x = w / 2 - r, z = d / 2 - r;   // rounded-corner slab (w along x, d along z)
+    sh.absarc(x, z, r, 0, Math.PI / 2); sh.absarc(-x, z, r, Math.PI / 2, Math.PI); sh.absarc(-x, -z, r, Math.PI, 1.5 * Math.PI); sh.absarc(x, -z, r, 1.5 * Math.PI, 2 * Math.PI);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 6 }); g.rotateX(Math.PI / 2); g.translate(0, h, 0); return g; };
+  // The foot part sits on the board; the shaft ("cuff") pivots at the ankle joint and is aligned with the shin every frame
+  // (updateBootCuffs), so the boot opening follows the leg the way the soft shell flexes on the real boot.
+  const cuffG = [], shinDirs = [V(0, 1, 0), V(0, 1, 0)];
   const bootG = [0, 1].map(i => {
-    const g = new THREE.Group(); bootsG.add(g);
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.3), bindM); plate.position.y = 0.012; g.add(plate);
-    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.16, 4, 10), M(0x2a2e33)); boot.rotation.x = Math.PI / 2; boot.position.set(0, 0.07, -0.01); boot.scale.set(1.05, 1, 1); g.add(boot);
-    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.065, 0.14, 14), M(0x2a2e33)); cuff.position.set(0, 0.15, 0.03); g.add(cuff);
-    const hb = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.2, 0.02), bindM); hb.position.set(0, 0.14, 0.115); hb.rotation.x = -0.25; g.add(hb);
-    for (const zz of [-0.06, 0.04]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.05), bootStrapM); st.position.set(0, 0.11, zz); g.add(st); }
-    for (let k = 0; k < 3; k++) { const lace = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.004, 0.006), buckleM); lace.position.set(0, 0.125 - k * 0.02, -0.07 + k * 0.03); g.add(lace); }
-    g.position.set(i ? -0.27 : 0.27, 0, 0); g.rotation.y = i ? 0.26 : -0.26;   // slight "duck" stance
-    return g;
+    const xb = i ? -0.27 : 0.27, w = new THREE.Group(); bootsG.add(w);
+    w.position.set(xb, deckY(xb, 0), 0); w.rotation.z = Math.atan(rockSlope(xb));
+    const g = new THREE.Group(); w.add(g);
+    const cf = new THREE.Group(); cf.position.set(0, PHYS.ANKLE_H + 0.03 - deckY(xb, 0), 0); g.add(cf); cuffG.push(cf);   // pivot = ankle joint
+    const add = (geo, mat, x, y, z, rx = 0, sx = 1, sy = 1, sz = 1, par = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.scale.set(sx, sy, sz); par.add(m); return m; };
+    const arc = (r0, r1, h, span) => new THREE.CylinderGeometry(r0, r1, h, 20, 1, true, Math.PI - span / 2, span);   // open shell piece centred on −z (front)
+    // foot part (fixed to the board)
+    add(rBox(0.118, 0.022, 0.315, 0.045), mobDark, 0, 0, -0.012);                                                // sole / base plate
+    add(new THREE.CapsuleGeometry(0.052, 0.16, 6, 16), mobShell, 0, 0.068, -0.03, Math.PI / 2, 1.0, 1, 0.78);      // foot shell
+    add(new THREE.SphereGeometry(0.05, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mobDark, 0, 0.03, -0.118, -Math.PI / 2, 1.05, 0.9, 0.8);   // toe bumper
+    add(new THREE.SphereGeometry(0.062, 16, 10), mobShell, 0, 0.07, 0.05, 0, 1, 0.9, 0.95);                       // heel
+    add(arc(0.059, 0.059, 0.1, 2.0), mobGrey, 0, 0.06, -0.075, Math.PI / 2);                                       // tongue over the instep
+    add(arc(0.064, 0.064, 0.036, 2.6), mobStrap, 0, 0.06, -0.06, Math.PI / 2);                                     // instep strap
+    // shaft (follows the shin; y = up the shin from the ankle joint, −z = front)
+    add(new THREE.CylinderGeometry(0.058, 0.066, 0.2, 20), mobShell, 0, 0.055, 0.01, 0, 1, 1, 1, cf);              // shell
+    add(new THREE.TorusGeometry(0.058, 0.012, 8, 24), mobLiner, 0, 0.155, 0.01, Math.PI / 2, 1, 1, 1, cf);         // liner collar
+    add(arc(0.064, 0.072, 0.17, 1.9), mobGrey, 0, 0.07, 0.01, 0, 1, 1, 1, cf);                                     // external tongue
+    for (const sd of [-1, 1]) add(new THREE.BoxGeometry(0.006, 0.07, 0.045), mobDark, sd * 0.066, 0.015, 0.02, 0, 1, 1, 1, cf);   // J-bars
+    for (const [y, r] of [[0.04, 0.075], [0.125, 0.071]])                                                          // ankle and shin gummy straps
+      add(new THREE.CylinderGeometry(r, r, 0.032, 24, 1, true), mobStrap, 0, y, 0.01, 0, 1, 1, 1, cf);
+    for (let k = 0; k < 3; k++) add(new THREE.BoxGeometry(0.04, 0.004, 0.006), mobLiner, 0, 0.146 - k * 0.016, -0.045 - k * 0.004, 0, 1, 1, 1, cf);   // liner laces
+    g.rotation.y = i ? 0.26 : -0.26;   // slight "duck" stance
+    return w;
   });
+  const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _dv = new THREE.Vector3();
+  function updateBootCuffs() {   // shin direction (bodyG frame) → each cuff's parent frame
+    bodyG.getWorldQuaternion(_q1);
+    for (let i = 0; i < 2; i++) {
+      cuffG[i].parent.getWorldQuaternion(_q2);
+      _dv.copy(shinDirs[i]).applyQuaternion(_q1).applyQuaternion(_q2.invert()).normalize();
+      cuffG[i].quaternion.setFromUnitVectors(up, _dv);
+    }
+  }
   const handleBar = (() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.38, 10), M(0x2a2f33)); bodyG.add(m);
     const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 10), M(0x3c78a8)); m.add(grip); return m; })();
   const SHIN = PHYS.SHANK_LEN, THIGH = PHYS.THIGH_LEN, UARM = 0.291, FARM = 0.278, STANCE = PHYS.STANCE / 2;
@@ -904,6 +1002,7 @@
       seg(shin[i], ankles[i], kn); seg(thigh[i], kn, hp); kneeB[i].position.copy(kn); kneesP.push(kn);
       seg(shortsLeg[i], hp, hp.clone().lerp(kn, 0.42));
       const sh = kn.clone().sub(ankles[i]).normalize(), tg = hp.clone().sub(kn).normalize();
+      shinDirs[i].copy(sh);
       const post = V(0, 0, 1).sub(sh.clone().multiplyScalar(sh.z)).normalize();          // behind the shank (heel side)
       calf[i].position.copy(ankles[i].clone().lerp(kn, 0.66)).add(post.clone().multiplyScalar(0.022)); calf[i].quaternion.setFromUnitVectors(up, sh);
       const ant = V(0, 0, -1).sub(tg.clone().multiplyScalar(-tg.z)).normalize();          // in front of the thigh
@@ -1368,9 +1467,10 @@
     tmpA.copy(V3(sim.towPt.x, sim.towPt.y, sim.towPt.z - 0.5));   // trækpunktet (ophænget kan svinge ud i hjørner)
     // krop: linens retning i boardets ramme -> håndtag -> arme
     rider.updateMatrixWorld(true);
-    bodyG.rotation.y = sim.switchStance ? Math.PI : 0; bootsG.rotation.y = bodyG.rotation.y; rider.updateMatrixWorld(true);
+    bodyG.rotation.y = sim.switchStance ? Math.PI : 0; bootsG.rotation.y = bodyG.rotation.y; deckDecalG.rotation.y = bodyG.rotation.y; rider.updateMatrixWorld(true);
     lineDirLocal.copy(bodyG.worldToLocal(tmpA.clone())).sub(bodyG.worldToLocal(V3(sim.line.hp[0], sim.line.hp[1], sim.line.hp[2])));
     poseRider(R.leg, sim.line.F, sim.line.attached, R.phi, R.theta || 0, R.hOff || 0, R.arm || 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0, sim.switchStance, sim.grab);
+    rider.updateMatrixWorld(true); updateBootCuffs();
     updateSpray(R);
     if (sim.line.attached) tmpB.copy(bodyG.localToWorld(handleLocal.clone()));
     else tmpB.copy(V3(C.x - C.tx * 17, C.y - C.ty * 17, 0.3));   // sluppet håndtag slæbes efter carrier
