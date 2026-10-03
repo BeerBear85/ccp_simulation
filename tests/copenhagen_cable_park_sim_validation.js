@@ -101,8 +101,8 @@ for (const U of [0, 4, 8]) { const s = straight(); s.setWind(U); let n = 0, z = 
 { const s = createSim({ cableKmh: 30, obstaclesOn: false, releaseN: 1e9, wind: 0 }); let cross = 0;
   for (let i = 0; i < 240 * 70 && !s.out.fall; i++) { lapCtl(s); step(s); if (Math.abs(s.out.eta) > 0.01) cross++; }
   console.log(`9) Eget kølvand (vindstille, én runde): boardet står i kølvand > 1 cm i ${(cross / 240).toFixed(1)} s${s.out.fall ? ' · FALD: ' + s.out.fall : ''}`); }
-// 10) Tricks på O4a-kickeren (30 km/t): pre-wind + linemoment + grab. Spin følger impulsmomentet (I·ω bevares i luften)
-function trick(plan) { const s = createSim({ cableKmh: 30, wind: 0 }); const ob = s.obs.find(o => o.name === 'O4a kicker'), g = s.path.pieces.filter(g => g.kind === 'line')[ob.leg];
+// 10) Tricks på OI-kickeren (30 km/t; 5 × 3 × 1,4 m, skrå top): pre-wind + linemoment + grab. Spin følger impulsmomentet (I·ω bevares i luften)
+function trick(plan) { const s = createSim({ cableKmh: 30, wind: 0 }); const ob = s.obs.find(o => o.name === 'OI kicker'), g = s.path.pieces.filter(g => g.kind === 'line')[ob.leg];
   const uu = (ob.x - g.a[0]) * g.t[0] + (ob.y - g.a[1]) * g.t[1];
   s.reset({ carrierS: g.s0 + uu - 40 + Math.sqrt(Math.max(1, 19.6 ** 2 - 8.1 ** 2 - ob.off ** 2)),
     rider: { x: ob.x - ob.ax * 40, y: ob.y - ob.ay * 40, z: -0.03, vx: ob.ax * 8.33, vy: ob.ay * 8.33, psi: ob.yaw, theta: 0.1 } });

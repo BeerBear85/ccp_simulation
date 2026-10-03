@@ -224,49 +224,67 @@ const PHYS = {
 const LAYOUT = {
   // Hjulcentre = kabelbanens hjørner. MÅLT: brugerens Google Earth-polygon "ccp" (KML), omkreds 520 m, areal 15 413 m².
   // Omregnet fra lat/lon til lokale meter med origo 55.681713 N, 12.622169 Ø (mast A-området).
-  // Sheave C moved 5 m inwards along the corner bisector (bearing 210°, symmetric between B and D) from the measured [161.2, 130.4]
-  // (user, 25 Sep 2026); mast base C unchanged, so its boom is longer (15.4 → 20.3 m).
+  // Sheave TE (old C) moved 5 m inwards along the corner bisector (bearing 210°, symmetric between B and D) from the measured [161.2, 130.4]
+  // (user, 25 Sep 2026); mast base TE unchanged, so its boom is longer (15.4 → 20.3 m).
   wheels: [[5.4, 4.2], [77.0, -51.5], [106.6, -45.5], [173.4, 84.6], [158.7, 126.1], [116.9, 118.4]],
   // Mastfødder (A-rammer på jetty/kyst/mole), som hælder ind over vandet med en bom ud til hjulet.
+  // Tower IDs TA–TF and their recognisable features follow the layout report of 3 Oct 2026 (old IDs A, F, E, D, C, B).
   masts: [ // rækkefølge = omløbsretning (mod uret)
-    { id: 'A', x: -3.0,  y: -8.0,  role: 'Drive/start',  status: 'antaget' },
-    { id: 'F', x: 81.9,  y: -71.4, role: 'Jetty south',  status: 'målt' },     // jettypunkt nærmest hjul 2 (20,5 m udhæng)
-    { id: 'E', x: 114.8, y: -63.3, role: 'Jetty corner', status: 'målt' },     // brugerens måling: 20 m mast→hjul
-    { id: 'D', x: 188.3, y: 83.0,  role: 'East',         status: 'antaget' },  // 15 m ud fra hjulet
-    { id: 'C', x: 166.0, y: 145.0, role: 'NE by mole',   status: 'antaget' },  // base unchanged; boom 20.3 m to the moved sheave
-    { id: 'B', x: 109.3, y: 131.3, role: 'North shore',  status: 'målt' },     // satellit (pæl+skygge) = 15 m ud fra hjulet
+    { id: 'TA', x: -3.0,  y: -8.0,  role: 'Start / drive tower',  status: 'antaget' },
+    { id: 'TB', x: 81.9,  y: -71.4, role: 'Jetty south, G-SHOCK banner',  status: 'målt' },     // jettypunkt nærmest hjul 2 (20,5 m udhæng)
+    { id: 'TC', x: 114.8, y: -63.3, role: 'Jetty corner, light sail', status: 'målt' },     // brugerens måling: 20 m mast→hjul
+    { id: 'TD', x: 188.3, y: 83.0,  role: 'East, tank side',         status: 'antaget' },  // 15 m ud fra hjulet
+    { id: 'TE', x: 166.0, y: 145.0, role: 'NE by mole, counterweight',   status: 'antaget' },  // base unchanged; boom 20.3 m to the moved sheave
+    { id: 'TF', x: 109.3, y: 131.3, role: 'North shore, orange padding',  status: 'målt' },     // satellit (pæl+skygge) = 15 m ud fra hjulet
   ],
   // Vandkontur: NV-kyst og mole fra Google Earth (brugerens skærmbillede, ±3 m); syd/øst fra satellit (±15 m).
   water: [[-76,-37],[-25,22.4],[42,84.5],[93.8,134.9],[138.1,179.4],[148,196],[162.2,151.2],[181.6,120.8],
           [212.8,72.4],[246,19.4],[264.5,-67.6],[260.2,-171],[-37.2,-171],[-97.5,-102]],
   jetty: [[-6.7,6.2],[1.1,-10.6],[58.5,-74.7],[112.8,-65.0],[143.5,-23.0]],   // Google Earth 2D (brugerens skærmbillede, 0,22 m/px)
   jettyLand: [[1.1,-10.6],[-51.7,-60.3]],
-  // Obstacles: layout "O" as revised in "CCP - detaljeret baneanalyse" (26 Sep 2026, analysis/CCP_detaljeret_analyse_2).
-  // Positions and axes: each part's ends read from the user's Google Earth image 9628.jpg, registered to the six KML corners
-  // (similarity fit, 0.312 m/px, RMS 0.23 m); the report's group centres agree within ≈1 m. Absolute uncertainty stays
-  // ≈5–10 m (unknown image date, features move). Types and splits (O2a/b, O3b, O4a/b) are the user's local knowledge. The O3a UNIT Bump is left out (user, 28 Sep).
-  // L × W × H: the report's catalogue references where it gives one (marked "cat."; a catalogue height is the product's
-  // height, NOT verified freeboard above the water line), otherwise image length and assumed width/height ("assumed").
-  // Where the image length is within ≈1 m of the catalogue length the catalogue length is used.
-  // Rule kept from the user (25 Sep 2026): no obstacle lies directly under the cable, so O2 is moved 3 m and O4 5.7 m
-  // outwards (NW) from their image positions. X1 (dark structure between O6 and O7, possibly a shadow) is left out.
-  // W0 = width at the upstream end for a tapered planform (W is the downstream width).
-  obstacleLayout: 'O (analysis rev. 26 Sep 2026)',
+  // Obstacles: layout as reconstructed in "Layout og obstacles ved CCP" (analysis/CCP_layout_rapport.html, photos 1 Oct 2026,
+  // updated 3 Oct 2026): nine groups OA–OI. Group centres and axes from the report's layout data (local metres, angle
+  // counter-clockwise from east); L × W × H are the report's working sizes (photo estimates, max. height above the water,
+  // not measured). Shapes follow the report's text and its two 3D illustrations per group. Positions carry ≈5–10 m
+  // uncertainty. Part offsets (u along the direction of travel, v to the left) inside a group are read from the
+  // illustrations and are estimates. The orange buoys are left out of the report and kept here as before.
+  // Shape fields: top = explicit top line [[fraction of L from the upstream end, height m], …] (straight sections with kinks);
+  // ridge = width of the flat top, sides fall by edgeDrop (m, default: to the water line) to the side edge;
+  // W0 = width at the upstream end (tapered planform); Hl = height at the left edge for a top that tilts across (OI);
+  // color/topColor/accent = appearance only; pipe = drawn as a round bar on posts down to pipeBase.
+  obstacleLayout: 'OA–OI (layout report, 3 Oct 2026)',
   obstacles: [
-    // Road side (T6→T1, travel towards SW). Right side of travel = NW = road side.
-    { id: 'O1', tag: true, name: 'O1 box',  type: 'box',    x: 116.6, y: 113.5, dir: [0.661, 0.750], L: 5.8,  W: 4.2, H: 0.45 },  // broad light end (image; partly under the T6 marker). Height assumed
-    { id: 'O1',            name: 'O1 rail', type: 'rail',   x: 109.3, y: 105.8, dir: [0.699, 0.715], L: 15.2, W: 0.3, H: 0.55, color: 0x3a4046 },  // long dark rail/wall. Image 21 m in all (report 18–24 m); product unknown, height assumed
-    { id: 'O2', tag: true, name: 'O2a rooftop rail', type: 'rooftop', x: 82.68, y: 91.28, dir: [0.657, 0.754], L: 20, W: 0.4, H: 1.15, Hsrc: 'cat' },  // user: rooftop rail (up, ridge, down). Image 19.7 m; cat. UNIT Rooftop Box BO004 20 × 0.40 × 1.15 m
-    { id: 'O2',            name: 'O2b side plate', type: 'wedge', x: 84.15, y: 94.64, dir: [0.657, 0.754], L: 6.3, W: 1.8, H: 0.3 },  // user: very flat plate/kicker on the rail's right side (image: upstream half, NW side). Height assumed
-    { id: 'O3', tag: true, name: 'O3b wedge', type: 'wedge', x: 86.83, y: 79.42, dir: [0.580, 0.815], L: 11.7, W0: 1.0, W: 3.7, H: 1.2, ridge: 0.4 },  // user: self-built large wedge whose faces slope down to each side (28 Sep): 0.4 m flat ridge, sides down to the water line at the edges (user). Image: narrow upstream tip, 3.7 m at the lip. Height assumed
-    { id: 'O4', tag: true, name: 'O4a kicker', type: 'kicker', x: 55.61, y: 67.97, dir: [0.699, 0.715], L: 4.2, W: 2.0, H: 1.05 },  // user: standard white kicker on the group's SW side. Size ref. only: UNIT Kicker M 4.20 × 2.00 × 1.05 m
-    { id: 'O4',            name: 'O4b wedge', type: 'wedge', x: 57.78, y: 66.05, dir: [0.699, 0.715], L: 3.9, W: 2.8, H: 0.6 },  // user (28 Sep): side by side with the kicker, both run-ups on one line across the direction of travel; wedge on the inner side, 0.5 m gap assumed. Size and height assumed. O4 is hidden by a marker in 9628.jpg: centre from the report
-    // East side (T3→T4, travel towards NNE). Right side of travel = ESE = outside the loop.
-    { id: 'O5', tag: true, name: 'O5 rail', type: 'rail',   x: 137.75, y: 27.32, dir: [0.430, 0.903], L: 16, W: 0.38, H: 0.83, Hsrc: 'cat' },  // narrow, constant width. Image 15.5 m; cat. Shape Straight Rail 16 m 16 × 0.38 × 0.83 m (alt. UNIT Box BO001 13 m)
-    { id: 'O6', tag: true, name: 'O6 funbox', type: 'funbox', x: 136.10, y: 3.16, dir: [0.534, 0.846], L: 9.6, W: 2.0, H: 1.2 },  // broad part (image 9.6 m). Cat. Shape Funbox 12-110-V2 18 × 2.40 × 1.60 m for the whole feature; 1.6 m does not fit a rideable entry in 9.6 m, so freeboard 1.2 m is assumed
-    { id: 'O6',            name: 'O6 side rail', type: 'rail', x: 138.76, y: 5.03, dir: [0.534, 0.846], L: 16, W: 0.4, H: 1.2 },  // narrow part alongside the broad part's right edge, 6 m past its end (image 16.2 m in all)
-    { id: 'O7', tag: true, name: 'O7 funbox', type: 'funbox', x: 107.71, y: -36.39, dir: [0.485, 0.875], L: 15, W: 2.0, H: 1.2 },  // broad main part (upstream end hidden by the T3 marker). Cat. UNIT Rooftop Funbox TR002 20.8 × 2.40 × 1.60 m; rooftop top not verified, drawn flat; freeboard 1.2 m assumed as for O6
-    { id: 'O7',            name: 'O7 side rail', type: 'rail', x: 110.38, y: -34.15, dir: [0.485, 0.875], L: 21.5, W: 0.4, H: 1.2 },  // long side component / narrow extension, 6.5 m past the broad part (image ≥ 22 m in all)
+    // South leg TA→TB (travel towards SE). OA lies south of the cable and parallel to it (user correction; 8 m is an estimate).
+    { id: 'OA', tag: true, name: 'OA rising rail', type: 'box', x: 54.89, y: -44.42, dir: [0.788, -0.616], L: 11, W: 1.6, H: 1.2, ridge: 0.9, edgeDrop: 0.3,
+      top: [[0, -0.15], [0.12, 0.35], [1, 1.2]] },   // narrow white rail: sloped nose, long straight rise, high closed end
+    // East leg TC→TD (travel towards NNE, tank side)
+    { id: 'OB', tag: true, name: 'OB box', type: 'box', x: 104.37, y: -22.33, dir: [0.454, 0.891], L: 16, W: 2.5, H: 0.9, ridge: 1.1, edgeDrop: 0.3,
+      top: [[0, -0.15], [0.175, 0.9], [0.96, 0.9], [1, 0.55]], accent: [0, 0.175, 0x23282c] },   // low white box, sloped sides, narrow top, dark entry ramp; 16 m from the rider estimate (14–18 m)
+    { id: 'OB', name: 'OB bump', type: 'bump', x: 97.66, y: -28.45, dir: [0.454, 0.891], L: 4, W: 3, H: 0.5, ridge: 1.2 },   // beside the SW entry, 3.2 m to the left, overlapping along the box; size and gap very uncertain
+    { id: 'OC', tag: true, name: 'OC rail', type: 'rail', x: 143.0, y: 6.0, dir: [0.454, 0.891], L: 20, W: 0.4, H: 1.6,
+      top: [[0, -0.15], [0.3, 1.0], [0.4, 1.5], [1, 1.6]], topColor: 0x1f2326 },   // "Cocks & balls": central rail, black top on a white wall; rises between the ramps
+    { id: 'OC', name: 'OC left ramp', type: 'wedge', x: 138.53, y: 0.42, dir: [0.454, 0.891], L: 6, W: 2.5, H: 1.0 },    // two equal white ramps at the entry, one on each side of the rail (u −7 m, v ±1.45 m)
+    { id: 'OC', name: 'OC right ramp', type: 'wedge', x: 141.11, y: -0.90, dir: [0.454, 0.891], L: 6, W: 2.5, H: 1.0 },
+    { id: 'OD', tag: true, name: 'OD rooftop', type: 'rooftop', x: 137.0, y: 35.0, dir: [0.454, 0.891], L: 18, W: 2.6, H: 1.1, ridge: 1.4, edgeDrop: 0.3,
+      top: [[0, -0.15], [0.09, 0.5], [0.45, 1.1], [1, 0.6]] },   // long low white rooftop: low entry, faint peak near the middle, sloped faces
+    // Land-side leg TF→TA (travel towards SW, back to the start). Left of travel = SE = inside the loop.
+    // OE from the user's photos (OE_*.heic, 1 Oct 2026; user 3 Oct 2026): the wall, a black round rail on its own flat bank
+    // beside the wall, and a wide ramp beside the bank. Seen along the axis: wall | rail bank | ramp (v +2.5 / +1.2 / −1.35 m).
+    { id: 'OE', tag: true, name: 'OE wall', type: 'box', x: 113.80, y: 101.26, dir: [0.695, 0.719], L: 20, W: 1.0, H: 1.5, ridge: 0.5, edgeDrop: 0.25,
+      top: [[0, -0.15], [0.39, 1.5], [1, 1.0]], topColor: 0x5f676c },   // AIRTOX wall, round grey top edge: straight ramp from the water to a kink (photo 171147: ≈39 % of the length), then a slight fall to a vertical end ≈2/3 of the kink height
+    { id: 'OE', name: 'OE rail bank', type: 'box', x: 110.43, y: 99.65, dir: [0.695, 0.719], L: 7, W: 1.6, H: 0.6,
+      top: [[0, -0.15], [0.25, 0.6], [1, 0.6]] },   // flat white bank with vertical sides against the wall, short sloped entry at its upstream end (photos 161720, 161846); size and position along the wall estimated
+    { id: 'OE', name: 'OE rail', type: 'rail', x: 109.74, y: 98.93, dir: [0.695, 0.719], L: 4.5, W: 0.1, H: 1.0,
+      top: [[0, 1.0], [1, 1.0]], pipe: true, pipeBase: 0.6, color: 0x24292d },   // black round rail on posts standing on the rail bank's flat top
+    { id: 'OE', name: 'OE ramp', type: 'wedge', x: 107.21, y: 99.98, dir: [0.695, 0.719], L: 9, W: 3.5, H: 0.8 },   // wide plane ramp beside the rail bank, rising from the water to a vertical end level with the wall's end (photo 161846); height ≈0.8 m estimated
+    { id: 'OF', tag: true, name: 'OF rail', type: 'box', x: 89.27, y: 78.67, dir: [0.695, 0.719], L: 19, W: 1.2, H: 2.0, ridge: 0.7, edgeDrop: 0.25,
+      top: [[0, -0.15], [0.09, 0.5], [0.38, 2.0], [0.62, 2.0], [1, 0.4]] },   // G-SHOCK combination on the group's NW side (v −2.4 m): rail in three sections, up, level top, down to an end ≈0.4 m above the water (user, 3 Oct 2026); section lengths estimated
+    { id: 'OF', name: 'OF side deck', type: 'box', x: 90.57, y: 77.42, dir: [0.695, 0.719], L: 5, W: 2.4, H: 0.6,
+      top: [[0, 0.6], [1, 0.6]] },   // lower white side part against the rail's SE side, about mid-rail (user, 3 Oct 2026); size assumed
+    { id: 'OF', name: 'OF kicker', type: 'kicker', x: 86.83, y: 78.94, dir: [0.695, 0.719], L: 5, W: 2.7, H: 1.5, color: 0x23282c },   // black kicker in direct contact with the rail's NW side, opposite the side deck, about mid-rail with its lip beside the start of the rail's down section: you can only jump from it onto that section (user, 3 Oct 2026)
+    { id: 'OG', tag: true, name: 'OG wedge', type: 'wedge', x: 75.0, y: 88.0, dir: [0.695, 0.719], L: 12, W0: 0.4, W: 5, H: 1.5, ridge: 0.4 },   // symmetric white wedge, entry from the water; 0.4 m flat centre rail (user, 3 Oct 2026) with equal faces down to the water on each side
+    { id: 'OH', tag: true, name: 'OH kicker', type: 'kicker', x: 62.0, y: 43.0, dir: [0.695, 0.719], L: 5, W: 3, H: 1.7, color: 0x23282c },   // free-standing black AIRTOX kicker: curved run-up, free lip, vertical back
+    { id: 'OI', tag: true, name: 'OI kicker', type: 'kicker', x: 45.0, y: 53.0, dir: [0.695, 0.719], L: 5, W: 3, H: 1.4, Hl: 0.95 },   // white AIRTOX kicker, one curved face, no plateau; right top higher than left seen from the run-up (difference estimated)
   ],
 
   // Surroundings (visual only, no physics). Read from Google Maps satellite (z15–z17, calibrated on the jetty, ±10–20 m) and
@@ -339,7 +357,9 @@ function obstacleProfile(o, P) {
   // box/rail/funbox = smoothstep-indkørsel (vandret i begge ender).
   // wedge = plan rampe (lige flade fra vandet til læben, selvbyggede kiler), bump = afskåret pyramide (plane flader, flad top),
   // rooftop = indkørsel, lige stigning til toppen midt på, lige fald til enden (tagryg-profil).
+  // o.top (layout report, Oct 2026) overrides the type's profile with straight sections between given points.
   const a = -o.L / 2, b = o.L / 2, lo = -0.15, N = 12, pts = [];
+  if (o.top) return o.top.map(([f, h]) => [a + f * o.L, h]);
   const ss = x => x * x * (3 - 2 * x);
   if (o.type === 'kicker') { for (let i = 0; i <= N; i++) { const x = i / N; pts.push([a + x * o.L, lo + (o.H - lo) * x * x]); } return pts; }
   if (o.type === 'wedge') { const t = Math.min(0.6, o.L * 0.15);   // kort afrundet tå ved vandlinjen, derefter plan flade
@@ -375,7 +395,9 @@ function halfWAt(ob, u) {
 // face (bump, kicker) over the board length instead of hitting the board centre as a step, and lets the board bridge a
 // crest. Upstream of the feature the tail rests on the water (height of the profile start); downstream of an abrupt
 // end there is no support, so the board tips off the edge. With ob.ridge (flat ridge width) the cross-section slopes
-// from the ridge down to the water line at the edges ("faces sloping down to each side").
+// from the ridge down to the water line at the edges ("faces sloping down to each side"), or by ob.edgeDrop only
+// (chamfered box: vertical sides below). With ob.Hl the top tilts across: full height at the right edge, Hl at the left.
+// Returns [h, dh/du, dh/dv, reaction offset].
 function surfaceAt(ob, u, v, reach, spanV) {
   const pr = ob.prof, u0 = pr[0][0], u1 = pr[pr.length - 1][0];
   if (u < u0 - reach || u > u1 + reach) return null;
@@ -391,11 +413,17 @@ function surfaceAt(ob, u, v, reach, spanV) {
   const h = hEff(u, true); if (h == null) return null;
   const e = 0.05, hp = hEff(u + e), hm = hEff(u - e);
   const hu = hp != null && hm != null ? (hp - hm) / (2 * e) : hp != null ? (hp - h) / e : hm != null ? (h - hm) / e : 0;
+  const WL = -0.15, hw = halfWAt(ob, u);
+  if (ob.Hl != null) {   // tilted top: height scaled from 1 (right edge) to Hl/H (left edge); the board feels the highest point under it
+    const k = (1 - ob.Hl / ob.H) / (2 * hw), vv = Math.max(-hw, Math.min(hw, v - spanV)), s = 1 - k * (vv + hw);
+    return [WL + (h - WL) * s, hu * s, -(h - WL) * k, off];
+  }
   if (ob.ridge == null) return [h, hu, 0, off];
-  const hw = halfWAt(ob, u), r = Math.min(ob.ridge / 2, hw), ve = Math.max(0, Math.abs(v) - spanV), lo = pr[0][1];
+  const r = Math.min(ob.ridge / 2, hw), ve = Math.max(0, Math.abs(v) - spanV);
   if (ve <= r || hw - r < 1e-3) return [h, hu, 0, off];
-  const g = (h - lo) / (hw - r), f = Math.max(0, 1 - (ve - r) / (hw - r));
-  return [lo + (h - lo) * f, hu * f, -Math.sign(v) * g, off];
+  const full = Math.max(0, h - WL), d = ob.edgeDrop != null ? Math.min(ob.edgeDrop, full) : full;
+  const t = Math.min(1, (ve - r) / (hw - r)), g = d / (hw - r);
+  return [h - d * t, d < full ? hu : hu * (1 - t), -Math.sign(v) * g, off];
 }
 // Features that are ridden up and launched from (no rail/box slide state)
 const LAUNCH_TYPES = ['kicker', 'wedge', 'bump'];

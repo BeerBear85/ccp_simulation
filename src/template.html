@@ -35,7 +35,7 @@
   .chip { font: 500 12px/1 var(--mono); padding: 5px 8px; border-radius: 3px; background: rgba(16,28,36,.82); border: 1px solid var(--rule); color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .chip.on-warn { border-color: var(--warn); color: var(--warn); }
   .chip.on-ok { border-color: var(--ok); color: var(--ok); }
-  .camsw { position: absolute; right: 12px; top: 12px; display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .camsw { position: absolute; right: 12px; top: 12px; display: flex; flex-wrap: wrap; max-width: calc(100% - 24px); gap: 0; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
   .camsw button { border: 0; border-radius: 0; background: rgba(16,28,36,.88); }
   .camsw button + button { border-left: 1px solid var(--rule); }
   .camsw button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
@@ -204,6 +204,7 @@
       <button id="camOrbit" aria-pressed="false">Orbit</button>
       <button id="camFollow" aria-pressed="true">Follow rider</button>
       <button id="camTop" aria-pressed="false">Top-down</button>
+      <button id="camStart" aria-pressed="false" title="Inspect the photo-based control cabin, start and lounge">Start / lounge</button>
       <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
     </div>
     <div class="scalebar" id="scalebar" hidden><i id="scaleI" style="width:100px"></i><span id="scaleT">50 m</span></div>
@@ -267,7 +268,7 @@
     <details>
       <summary>Park layout · measured vs. assumed</summary>
       <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower A. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses layout <strong>O</strong> as revised in the detailed course analysis of 26 Sep 2026: each part's ends are read from the user's Google Earth image 9628.jpg, registered to the six KML corners (0.31 m/px, RMS 0.23 m). Types follow the user's local knowledge: O2 is a rooftop rail with a very flat side plate on its right, O3 a self-built wedge (tapered, narrow tip upstream, 0.4 m flat ridge with faces sloping down to each side; the UNIT Bump beside it is left out), O4 a standard kicker with a wedge side by side (0.5 m apart), run-ups on one line across the direction of travel. O5 is a straight rail; O6 and O7 are funboxes with a narrow side rail that runs past their end. Sizes use the report's catalogue references where it gives one (UNIT Rooftop Box BO004, Shape Straight Rail 16 m, Shape Funbox 12-110, UNIT TR002); catalogue heights are product heights, not verified freeboard above the water; for O6 and O7 a freeboard of 1.2 m is assumed instead of the catalogue 1.6 m, which does not fit a rideable entry in the observed length. O1, the O2 plate, the wedges and the O4 kicker size are assumed. Tall box/rail/funbox entries are lengthened so the steepest point stays ≤ 22°. O2 (3 m) and O4 (5.7 m) are moved outwards, away from the cable line (user: no obstacle lies directly under the cable). Positions have ≈5–10 m absolute uncertainty. The unresolved dark structure X1 is left out. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an AIRTOX wall (straight ramp from the water to a kink, then a slight fall to a vertical end) with a black round rail on its own flat bank beside it and a wide ramp beside the bank; OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low side deck on one side and a black kicker in direct contact on the other, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
     </details>
 
     <details id="diagBox">
@@ -386,7 +387,7 @@
             <tr><td>Pop from flat water / under line load</td><td class="n">line load helps</td><td class="n">0.25 s → 0.51 s air (0.12 → 0.29 m)</td></tr>
             <tr><td>Wind 0 / 4 / 8 m/s, straight 30 km/h: board heave rms, T ± σ</td><td class="n">—</td><td class="n">0 / 0.1 / 0.4 cm · 171±0 / 175±1 / 173±9 N</td></tr>
             <tr><td>Knee-limited leg push at 90° knee flexion (isometric)</td><td class="n">CMJ/squat ≈2–3 BW</td><td class="n">≈2.5 kN (3.2 BW)</td></tr>
-            <tr><td>Tricks on the O4a kicker (4.2 × 1.05 m, size ref. UNIT Kicker M), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">1.00 s air: nose grab, pre-wound 180 (lands switch); spin held into the air + nose grab gives a 360</td></tr>
+            <tr><td>Tricks on the OI kicker (5 × 3 × 1.4 m, photo estimate), 30 km/h</td><td class="n">I·ω conserved (6.2)</td><td class="n">0.97 s air: nose grab, pre-wound 180 (lands switch); spin held into the air + nose grab gives a 360</td></tr>
             <tr><td>Start peak at 30 km/h: sliding / jump</td><td class="n">deep water 2.0–2.5 BW†; user estimate ≈1.5 BW on the cable</td><td class="n">1.20 / 0.96 kN (1.5 / 1.2 BW)</td></tr>
           </tbody>
         </table></div>
@@ -404,6 +405,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/*__START_AREA__*/
+</script>
 <script>
 (() => {
   'use strict';
@@ -633,23 +637,9 @@
     m.position.copy(A).add(B).multiplyScalar(0.5);
     m.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x); m.receiveShadow = true; scene.add(m);
   }
-  const strutLater = [];
   const J = LAYOUT.jetty; for (let i = 0; i < J.length - 1; i++) plank(J[i], J[i + 1]);
   plank(LAYOUT.jettyLand[0], LAYOUT.jettyLand[1], 2);
-  const dockM = new THREE.Mesh(new THREE.BoxGeometry(10, 0.3, 6), new THREE.MeshLambertMaterial({ color: 0xd8c29c }));
-  dockM.position.copy(V3(-4.35, -10.7, 0.6)); dockM.rotation.y = Math.atan2(-16.8, 7.8); dockM.receiveShadow = true; scene.add(dockM);   // platform on the land side of the jetty head
-  // Start dock: floating pontoon with a carpet and a ramp into the water (same geometry as the physics contact)
-  { const g = new THREE.Group(), P = PHYS, h2 = P.DOCK_LEN / 2, flat = P.DOCK_LEN - P.DOCK_RAMP, W2 = 2 * P.DOCK_HALF_W;
-    const carpet = new THREE.MeshLambertMaterial({ color: 0x2f7d5b }), pont = new THREE.MeshLambertMaterial({ color: 0x9aa4a8 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(flat, 0.35, W2), pont); body.position.set(-h2 + flat / 2, P.DOCK_TOP - 0.2, 0); g.add(body);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(flat, 0.04, W2), carpet); top.position.set(-h2 + flat / 2, P.DOCK_TOP - 0.02, 0); g.add(top);
-    const drop = P.DOCK_TOP + 0.15, rl = Math.hypot(P.DOCK_RAMP, drop);
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(rl, 0.04, W2), carpet);
-    ramp.position.set(h2 - P.DOCK_RAMP / 2, P.DOCK_TOP - drop / 2 - 0.02, 0); ramp.rotation.z = -Math.atan2(drop, P.DOCK_RAMP); g.add(ramp);
-    g.traverse(o => { o.receiveShadow = true; }); g.position.copy(V3(P.DOCK_C[0], P.DOCK_C[1], 0)); g.rotation.y = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]); scene.add(g); }
-  const tent = new THREE.Mesh(new THREE.ConeGeometry(3.2, 1.6, 4), new THREE.MeshLambertMaterial({ color: 0x22282c }));
-  tent.position.copy(V3(-6, -12, 3.2)); tent.rotation.y = Math.PI / 4; scene.add(tent);
-  for (const [x, y] of [[-8.3, -9.8], [-3.8, -14.3], [-8.3 + 2.3, -9.8 - 2.3 + 4.5], [-1.5, -12]]) strutLater.push([V3(x, y, 0.8), V3(x, y, 2.4)]);
+  const startArea = createStartArea(THREE, PHYS, LAYOUT); scene.add(startArea);
   const buoyMat = new THREE.MeshLambertMaterial({ color: 0xf07a28 });
   for (const [x, y] of LAYOUT.buoys) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), buoyMat); b.position.copy(V3(x, y, 0.15)); scene.add(b); }
 
@@ -663,7 +653,6 @@
     m.position.copy(A).add(B).multiplyScalar(0.5);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()); scene.add(m);
   }
-  for (const [a, b] of strutLater) strut(a, b, 0.05, mastMat);
   const mastLabels = [], obsTags = [];
   LAYOUT.masts.forEach((m, i) => {
     const w = sim.path.wheels[i], ox = w[0] - m.x, oy = w[1] - m.y, ol = Math.hypot(ox, oy);
@@ -671,7 +660,8 @@
     // A-ramme (let hældende) + vandret bom med hjulet ude over vandet (jf. fotos/video)
     // Skrå A-ramme: toppen hælder ~halvdelen af udhænget ind over vandet; bom ud til hjulet (udhæng 15–20 m)
     const ax = m.x + ox * 0.5, ay = m.y + oy * 0.5, H = PHYS.MAST_HEIGHT + 1.5;
-    const top = V3(ax, ay, H), mat = m.id === 'A' ? motorMat : mastMat;
+    const top = V3(ax, ay, H), mat = m.id === 'TA' ? motorMat : mastMat;
+    if (i !== 0) { // The start mast is included in the photo-based start area.
     strut(V3(m.x + sx, m.y + sy, 0.8), top, 0.16, mat); strut(V3(m.x - sx, m.y - sy, 0.8), top, 0.16, mat);
     for (const f of [0.35, 0.65]) strut(V3(m.x + sx * (1 - f) + ox * 0.5 * f, m.y + sy * (1 - f) + oy * 0.5 * f, 0.8 + (H - 0.8) * f),
                                          V3(m.x - sx * (1 - f) + ox * 0.5 * f, m.y - sy * (1 - f) + oy * 0.5 * f, 0.8 + (H - 0.8) * f), 0.07, mat);
@@ -684,6 +674,7 @@
     const bx = m.x - ox / ol * 9, by = m.y - oy / ol * 9;  // bardun bagud til land
     scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([top, V3(bx, by, 0.8)]), guyMat));
     const base = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.6, 4.5), jettyMat); base.position.copy(V3(m.x, m.y, 0.5)); scene.add(base);
+    }
     const lbl = makeLabel(m.id); lbl.position.copy(V3(w[0], w[1], PHYS.MAST_HEIGHT + 2.5)); scene.add(lbl); mastLabels.push(lbl);
   });
   const cablePts = []; for (let s0 = 0; s0 <= sim.path.length; s0 += 0.5) { const q = pathAt(sim.path, s0); cablePts.push(V3(q.x, q.y, PHYS.CABLE_HEIGHT)); }
@@ -698,29 +689,70 @@
   function makeLabel(text) {
     const c = document.createElement('canvas'); c.width = 64; c.height = 64;
     const g = c.getContext('2d'); g.fillStyle = '#162631'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill();
-    g.fillStyle = '#e9b949'; g.font = '600 34px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 32, 34);
+    g.fillStyle = '#e9b949'; g.font = `600 ${text.length > 1 ? 26 : 34}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 32, 34);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
     s.scale.set(5, 5, 1); return s;
   }
 
-  // Obstakler: geometri bygget fra samme højdeprofil som fysikken bruger (fastfrosset bud)
-  for (const o of sim.obs) {
-    const pts = o.prof.map(([u, h]) => new THREE.Vector2(u, h));
-    pts.push(new THREE.Vector2(o.prof[o.prof.length - 1][0], -0.4), new THREE.Vector2(o.prof[0][0], -0.4));
-    let g;
-    if (o.W0 == null) { g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: o.W, bevelEnabled: false }); g.translate(0, 0, -o.W / 2); }
-    else {   // tapered planform (width from halfWAt, same as the contact physics); with o.ridge a sloped cross-section
-      const P_ = o.prof, n = P_.length, V = [], lo = P_[0][1], tri = (a, b, c) => V.push(...a, ...b, ...c);
-      const ring = ([u, h]) => { const w = halfWAt(o, u), r = o.ridge != null ? Math.min(o.ridge / 2, w) : w;
-        const top = o.ridge != null && w - r > 1e-3 ? [[-w, Math.min(lo, h)], [-r, h], [r, h], [w, Math.min(lo, h)]] : [[-w, h], [w, h]];
-        return top.concat([[w, -0.4], [-w, -0.4]]).map(([z, y]) => [u, y, z]); };
-      const R_ = P_.map(ring), m = R_[0].length;
-      for (let i = 0; i < n - 1; i++) for (let j = 0; j < m; j++) { const a = R_[i][j], b = R_[i][(j + 1) % m], c = R_[i + 1][(j + 1) % m], d = R_[i + 1][j]; tri(a, b, c); tri(a, c, d); }
-      for (const [rr, k] of [[R_[0], 0], [R_[n - 1], 1]]) for (let j = 1; j < m - 1; j++) k ? tri(rr[0], rr[j], rr[j + 1]) : tri(rr[0], rr[j + 1], rr[j]);
-      g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.computeVertexNormals();
+  // Obstakler: geometri bygget fra samme højdeprofil og tværsnit som fysikken bruger (surfaceAt). For each profile point a
+  // cross-section ring (flat top or ridge with sloped/chamfered sides, taper, tilt) is joined to the next; faces are coloured
+  // by role: top (topColor / accent), body, and a dark band at the water line as on the photos.
+  const WHITE = 0xeef1ef, GRIME = new THREE.Color(0x77744f);
+  function obstacleGeometry(o) {
+    const P_ = o.prof, n = P_.length, WL = -0.15, BOT = -0.4, V = [], C = [];
+    const body = new THREE.Color(o.color ?? (o.type === 'rail' ? 0xc9d0d3 : WHITE)), topC = new THREE.Color(o.topColor ?? o.color ?? (o.type === 'rail' ? 0xc9d0d3 : WHITE));
+    const accC = o.accent ? new THREE.Color(o.accent[2]) : null, light = body.r + body.g + body.b > 1.5;
+    const band = light ? body.clone().lerp(GRIME, 0.55) : body.clone().multiplyScalar(0.8);
+    const BAND = 0.08;
+    const ring = (u, h) => {   // [v, y, isTop] from the left top edge round to the left bottom
+      const w = halfWAt(o, u), pts = [];
+      const tilt = v => o.Hl != null ? 1 - (1 - o.Hl / o.H) * (v + w) / (2 * w) : 1, hv = v => WL + (h - WL) * tilt(v);
+      if (o.ridge != null && w - Math.min(o.ridge / 2, w) > 1e-3) {
+        const r = Math.min(o.ridge / 2, w), full = Math.max(0, h - WL), d = o.edgeDrop != null ? Math.min(o.edgeDrop, full) : full;
+        pts.push([w, h - d, 0], [r, h, 1], [-r, h, 1], [-w, h - d, 0]);
+      } else pts.push([w, hv(w), 1], [-w, hv(-w), 1]);
+      const yR = pts[pts.length - 1][1], yL = pts[0][1];   // water-line band rows on both sides (degenerate where the side is lower)
+      pts.push([-w, Math.min(yR, BAND), 0], [-w, BOT, 0], [w, BOT, 0], [w, Math.min(yL, BAND), 0]);
+      return pts;
+    };
+    const R_ = P_.map(([u, h]) => ring(u, h)), m = R_[0].length;
+    const xyz = (u, p) => [u, p[1], -p[0]];
+    const smooth = o.type === 'kicker', NS = [];   // curved kicker face: smooth normals from the surface gradient (no facet stripes)
+    const hAt = u => { const q = profileAt(P_, Math.max(P_[0][0], Math.min(P_[n - 1][0], u))); return q ? q[0] : 0; };
+    const nAt = (u, p) => { const w = halfWAt(o, u), du = 0.05, h = hAt(u), su = (hAt(u + du) - hAt(u - du)) / (2 * du);
+      const k = o.Hl != null ? (1 - o.Hl / o.H) / (2 * w) : 0, s = 1 - k * (p[0] + w), WLc = -0.15;
+      return new THREE.Vector3(-su * s, 1, -(h - WLc) * k).normalize(); };
+    const push = (a, b, c, col, top) => { V.push(...a, ...b, ...c); for (let k = 0; k < 3; k++) C.push(col.r, col.g, col.b);
+      NS.push(top && smooth ? [a, b, c].map(q => nAt(q[0], [-q[2]])) : null); };
+    for (let i = 0; i < n - 1; i++) {
+      const u0 = P_[i][0], u1 = P_[i + 1][0], f = (0.5 * (u0 + u1) + o.L / 2) / o.L;
+      for (let j = 0; j < m; j++) {
+        const a = R_[i][j], b = R_[i][(j + 1) % m], c = R_[i + 1][(j + 1) % m], d = R_[i + 1][j];
+        let col = body;
+        if (a[2] && b[2]) col = accC && f >= o.accent[0] && f <= o.accent[1] ? accC : topC;
+        else if (Math.max(a[1], b[1], c[1], d[1]) <= BAND + 1e-6) col = band;
+        const top = a[2] && b[2];
+        push(xyz(u0, a), xyz(u0, b), xyz(u1, c), col, top); push(xyz(u0, a), xyz(u1, c), xyz(u1, d), col, top);
+      }
     }
-    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: o.color ?? (o.type === 'rail' ? 0xc9d0d3 : 0xeef1ef), side: o.W0 == null ? THREE.FrontSide : THREE.DoubleSide }));
-    mesh.position.copy(V3(o.x, o.y, 0)); mesh.rotation.y = o.yaw; mesh.receiveShadow = true; scene.add(mesh);
+    for (const [rr, u] of [[R_[0], P_[0][0]], [R_[n - 1], P_[n - 1][0]]])   // end caps (convex rings: fan)
+      for (let j = 1; j < m - 1; j++) push(xyz(u, rr[0]), xyz(u, rr[j]), xyz(u, rr[j + 1]), body);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.computeVertexNormals();
+    const nrm = g.attributes.normal;
+    NS.forEach((t, i) => { if (t) t.forEach((q, k) => nrm.setXYZ(3 * i + k, q.x, q.y, q.z)); });
+    return g;
+  }
+  for (const o of sim.obs) {
+    let obj;
+    if (o.pipe) {   // round bar on posts (drawn only; the contact uses the profile like any rail)
+      obj = new THREE.Group(); const r = Math.max(0.04, o.W / 2), m_ = new THREE.MeshLambertMaterial({ color: o.color ?? 0x24292d }), base = o.pipeBase ?? 0;
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(r, r, o.L, 12), m_); bar.rotation.z = Math.PI / 2; bar.position.set(0, o.H - r, 0); obj.add(bar);
+      const np = Math.max(2, Math.round(o.L / 1.8) + 1);
+      for (let k = 0; k < np; k++) { const post = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.7, o.H - r - base, 8), m_);
+        post.position.set(-o.L / 2 + 0.2 + k * (o.L - 0.4) / (np - 1), base + (o.H - r - base) / 2, 0); obj.add(post); }
+    } else obj = new THREE.Mesh(obstacleGeometry(o), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    obj.position.copy(V3(o.x, o.y, 0)); obj.rotation.y = o.yaw; obj.traverse(q => { q.receiveShadow = true; }); scene.add(obj);
     if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
   }
   // Carrier
@@ -1159,16 +1191,23 @@
   const TOP_SPAN = 400; // m synligt (højeste akse)
   function setCam(mode) {
     camMode = mode;
+    const inspect = mode === 'start';
+    $('camStart').setAttribute('aria-pressed', inspect);
     $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
     $('camFollow').setAttribute('aria-pressed', mode === 'follow');
     $('camTop').setAttribute('aria-pressed', mode === 'top');
-    controls.enabled = mode === 'orbit';
+    controls.enabled = mode === 'orbit' || inspect;
+    if (inspect) {
+      persp.position.copy(startArea.localToWorld(new THREE.Vector3(19, 15, -23)));
+      controls.target.copy(startArea.localToWorld(new THREE.Vector3(1, 1.3, 4.1))); controls.update();
+    }
     $('scalebar').hidden = mode !== 'top';
     resize();
   }
   $('camOrbit').onclick = () => setCam('orbit');
   $('camFollow').onclick = () => setCam('follow');
   $('camTop').onclick = () => setCam('top');
+  $('camStart').onclick = () => { setCam('start'); setPlay(false); };
   // Info-tekst i billedet til/fra (huskes lokalt i browseren, hvis muligt)
   let infoOn = true; try { infoOn = localStorage.getItem('ccpInfo') !== '0'; } catch (e) {}
   function setInfo(on) { infoOn = on; $('hud').hidden = !on; $('btnInfo').setAttribute('aria-pressed', on); try { localStorage.setItem('ccpInfo', on ? '1' : '0'); } catch (e) {} }
@@ -1385,10 +1424,10 @@
   const tb = document.querySelector('#tblMasts tbody');
   for (const m of LAYOUT.masts) tb.insertAdjacentHTML('beforeend', `<tr><td>${m.id}</td><td>${m.role}</td><td class="n">${m.x.toFixed(0)}</td><td class="n">${m.y.toFixed(0)}</td><td><span class="tag ${m.status === 'målt' ? 'm' : 'a'}">${m.status === 'målt' ? 'measured' : 'assumed'}</span></td></tr>`);
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Cable length (computed)</td><td class="n" colspan="2">${sim.path.length.toFixed(0)} m</td><td></td></tr>`);
-  sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td>${m.id === 'C' ? '<span class="tag a">moved 5 m</span>' : '<span class="tag m">measured</span>'}</td></tr>`); });
+  sim.path.wheels.forEach((w, i) => { const m = LAYOUT.masts[i]; tb.insertAdjacentHTML('beforeend', `<tr><td>Sheave ${m.id}</td><td>overhang ${Math.hypot(w[0] - m.x, w[1] - m.y).toFixed(1)} m</td><td class="n">${w[0].toFixed(0)}</td><td class="n">${w[1].toFixed(0)}</td><td>${m.id === 'TE' ? '<span class="tag a">moved 5 m</span>' : '<span class="tag m">measured</span>'}</td></tr>`); });
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Sheave diameter</td><td class="n" colspan="2">${2 * PHYS.WHEEL_RADIUS} m</td><td><span class="tag a">assumed</span></td></tr>`);
   tb.insertAdjacentHTML('beforeend', `<tr><td colspan="2">Direction of travel</td><td class="n" colspan="2">counter-clockwise</td><td><span class="tag m">confirmed</span></td></tr>`);
-  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W0 != null ? o.W0 + '–' : ''}${o.W} m, height ${o.H} m ${o.Hsrc === 'cat' ? 'catalogue, not freeboard' : 'assumed'})</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
+  for (const o of sim.obs) tb.insertAdjacentHTML('beforeend', `<tr><td>${o.type}</td><td>${o.name} (${o.L}×${o.W0 != null ? o.W0 + '–' : ''}${o.W} m, height ${o.H} m ${o.Hsrc === 'cat' ? 'catalogue, not freeboard' : 'photo estimate'})</td><td class="n">${o.x.toFixed(0)}</td><td class="n">${o.y.toFixed(0)}</td><td><span class="tag a">estimate</span></td></tr>`);
   const tp = document.querySelector('#tblPhys tbody');
   for (const [k, v] of Object.entries(PHYS)) tp.insertAdjacentHTML('beforeend', `<tr><td>${k}</td><td class="n">${Array.isArray(v) ? v.join(', ') : typeof v === 'number' ? +v.toPrecision(4) : String(v)}</td></tr>`);
 
@@ -1449,7 +1488,7 @@
     // rider
     const bz = Math.max(R.z, -0.25);
     rider.position.copy(V3(R.x, R.y, bz + 0.03));
-    { const tgt = camMode === 'orbit' ? controls.target : null; updateWater(tgt ? tgt.x : R.x, tgt ? -tgt.z : R.y); waterPatch.visible = camMode !== 'top'; }
+    { const tgt = camMode === 'orbit' || camMode === 'start' ? controls.target : null; updateWater(tgt ? tgt.x : R.x, tgt ? -tgt.z : R.y); waterPatch.visible = camMode !== 'top'; }
     rider.rotation.y = R.psi;
     const topView = camMode === 'top';
     headArrow.visible = topView; cableArrow.visible = false;   // kun den røde retningspil
@@ -1460,7 +1499,7 @@
       const kpx = pxSize(V3(R.x, R.y, 0), ortho) * 55 / 9; headArrow.scale.setScalar(Math.max(0.25, kpx * 0.25)); cableArrow.scale.setScalar(Math.max(1, kpx * 0.9));   // ~55 px lang uanset zoom
       cableArrow.position.copy(V3(R.x, R.y, 0.25)); cableArrow.rotation.y = Math.atan2(C.ty, C.tx);  // kablets retning
     }
-    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow'; for (const l of mastLabels.concat(obsTags)) l.visible = camMode !== 'follow';
+    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow' && camMode !== 'start'; for (const l of mastLabels.concat(obsTags)) l.visible = camMode !== 'follow' && camMode !== 'start';
     boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
     boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
     // line: lige i træk, hængende i slæk
@@ -1489,7 +1528,7 @@
     }
     // kamera
     let cam = persp;
-    if (camMode === 'orbit') controls.update();
+    if (camMode === 'orbit' || camMode === 'start') controls.update();
     else if (camMode === 'follow') {
       const hxv = Math.cos(R.psi), hyv = Math.sin(R.psi);
       // lige bagfra langs kørselsretningen (hastighedsvektoren, glattet), let hævet
@@ -1549,7 +1588,9 @@
     const fill = (leanHold / PHYS.LEAN_MAX_DEG * 100).toFixed(0) + '%';
     $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
-  window.__ccpDebug = { sim, persp, controls, setCam };   // for automated screenshots/tests
-  setCam('follow'); resize(); requestAnimationFrame(frame);
+  window.__ccpDebug = { sim, persp, controls, setCam, startArea, scene, renderer };   // for automated screenshots/tests
+  setCam(location.hash === '#start-area' ? 'start' : 'follow');
+  if (location.hash === '#start-area') { startSim(); setPlay(false); }
+  resize(); requestAnimationFrame(frame);
 })();
 </script>

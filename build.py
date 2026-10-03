@@ -6,7 +6,8 @@ t=open(os.path.join(root,'src','template.html'), encoding='utf-8').read(); p=ope
 import base64
 vest=base64.b64encode(open(os.path.join(root,'src','vest_texture.jpg'),'rb').read()).decode('ascii')
 face=base64.b64encode(open(os.path.join(root,'src','face_texture.jpg'),'rb').read()).decode('ascii')
-frag=t.replace('/*__PHYSICS__*/',p).replace('/*__VEST_TEX__*/','data:image/jpeg;base64,'+vest).replace('/*__FACE_TEX__*/','data:image/jpeg;base64,'+face)
+area=open(os.path.join(root,'src','start_area.js'), encoding='utf-8').read()
+frag=t.replace('/*__PHYSICS__*/',p).replace('/*__START_AREA__*/',area).replace('/*__VEST_TEX__*/','data:image/jpeg;base64,'+vest).replace('/*__FACE_TEX__*/','data:image/jpeg;base64,'+face)
 os.makedirs(os.path.join(root,'dist'),exist_ok=True)
 open(os.path.join(root,'dist','copenhagen_cable_park_sim.frag.html'),'w', encoding='utf-8', newline='\n').write(frag)
 i=frag.index('</style>')+len('</style>')
