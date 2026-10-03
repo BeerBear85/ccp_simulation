@@ -279,8 +279,8 @@ const LAYOUT = {
     { id: 'OE', name: 'OE ramp', type: 'wedge', x: 107.21, y: 99.98, dir: [0.695, 0.719], L: 9, W: 3.5, H: 0.8 },   // wide plane ramp beside the rail bank, rising from the water to a vertical end level with the wall's end (photo 161846); height ≈0.8 m estimated
     { id: 'OF', tag: true, name: 'OF rail', type: 'box', x: 89.27, y: 78.67, dir: [0.695, 0.719], L: 19, W: 1.2, H: 2.0, ridge: 0.7, edgeDrop: 0.25,
       top: [[0, -0.15], [0.09, 0.5], [0.38, 2.0], [0.62, 2.0], [1, 0.4]] },   // G-SHOCK combination on the group's NW side (v −2.4 m): rail in three sections, up, level top, down to an end ≈0.4 m above the water (user, 3 Oct 2026); section lengths estimated
-    { id: 'OF', name: 'OF side deck', type: 'box', x: 90.57, y: 77.42, dir: [0.695, 0.719], L: 5, W: 2.4, H: 0.6,
-      top: [[0, 0.6], [1, 0.6]] },   // lower white side part against the rail's SE side, about mid-rail (user, 3 Oct 2026); size assumed
+    { id: 'OF', name: 'OF white kicker', type: 'wedge', x: 90.57, y: 77.42, dir: [0.695, 0.719], L: 5, W: 2.4, H: 0.6,
+      top: [[0, -0.15], [0.45, 0.6], [1, 0.6]] },   // white kicker on the rail's left (SE) side, about mid-rail: run-up ramp, flat top, abrupt end (user, 3 Oct 2026); size assumed
     { id: 'OF', name: 'OF kicker', type: 'kicker', x: 86.83, y: 78.94, dir: [0.695, 0.719], L: 5, W: 2.7, H: 1.5, color: 0x23282c },   // black kicker in direct contact with the rail's NW side, opposite the side deck, about mid-rail with its lip beside the start of the rail's down section: you can only jump from it onto that section (user, 3 Oct 2026)
     { id: 'OG', tag: true, name: 'OG wedge', type: 'wedge', x: 75.0, y: 88.0, dir: [0.695, 0.719], L: 12, W0: 0.4, W: 5, H: 1.5, ridge: 0.4 },   // symmetric white wedge, entry from the water; 0.4 m flat centre rail (user, 3 Oct 2026) with equal faces down to the water on each side
     { id: 'OH', tag: true, name: 'OH kicker', type: 'kicker', x: 62.0, y: 43.0, dir: [0.695, 0.719], L: 5, W: 3, H: 1.7, color: 0x23282c },   // free-standing black AIRTOX kicker: curved run-up, free lip, vertical back
