@@ -205,6 +205,7 @@
       <button id="camFollow" aria-pressed="true">Follow rider</button>
       <button id="camTop" aria-pressed="false">Top-down</button>
       <button id="camStart" aria-pressed="false" title="Inspect the photo-based control cabin, start and lounge">Start / lounge</button>
+      <button id="camOE" aria-pressed="false" title="Inspect OE from the bank side; drag to orbit">OE detail</button>
       <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
     </div>
     <div class="scalebar" id="scalebar" hidden><i id="scaleI" style="width:100px"></i><span id="scaleT">50 m</span></div>
@@ -268,7 +269,7 @@
     <details>
       <summary>Park layout · measured vs. assumed</summary>
       <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an AIRTOX wall (straight ramp from the water to a kink, then a slight fall to a vertical end) with a black round rail on its own flat bank beside it and a wide ramp beside the bank; OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low white kicker (ramp, flat top, abrupt end) on its left and a black kicker in direct contact on its right, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an asymmetric AIRTOX rooftop with a rounded grey top, a joined bank with end and side approaches to one flat deck, and a smaller black round rail with a sloped entry mounted on that deck (photos 9807, 9777, 9778, 9829 and 9743; dimensions estimated); OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low white kicker (ramp, flat top, abrupt end) on its left and a black kicker in direct contact on its right, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
     </details>
 
     <details id="diagBox">
@@ -699,7 +700,10 @@
   // by role: top (topColor / accent), body, and a dark band at the water line as on the photos.
   const WHITE = 0xeef1ef, GRIME = new THREE.Color(0x77744f);
   function obstacleGeometry(o) {
-    const P_ = o.prof, n = P_.length, WL = -0.15, BOT = -0.4, V = [], C = [];
+    // Subdivide the bank's blended entry corner so the mesh follows the contact surface.
+    const P_ = o.crossTop ? o.prof.flatMap((p, i) => i === o.prof.length - 1 ? [p] :
+      Array.from({ length: 16 }, (_, k) => [p[0] + (o.prof[i + 1][0] - p[0]) * k / 16, p[1] + (o.prof[i + 1][1] - p[1]) * k / 16])) : o.prof;
+    const n = P_.length, WL = -0.15, BOT = o.baseHeight ?? -0.4, V = [], C = [];
     const body = new THREE.Color(o.color ?? (o.type === 'rail' ? 0xc9d0d3 : WHITE)), topC = new THREE.Color(o.topColor ?? o.color ?? (o.type === 'rail' ? 0xc9d0d3 : WHITE));
     const accC = o.accent ? new THREE.Color(o.accent[2]) : null, light = body.r + body.g + body.b > 1.5;
     const band = light ? body.clone().lerp(GRIME, 0.55) : body.clone().multiplyScalar(0.8);
@@ -707,19 +711,24 @@
     const ring = (u, h) => {   // [v, y, isTop] from the left top edge round to the left bottom
       const w = halfWAt(o, u), pts = [];
       const tilt = v => o.Hl != null ? 1 - (1 - o.Hl / o.H) * (v + w) / (2 * w) : 1, hv = v => WL + (h - WL) * tilt(v);
-      if (o.ridge != null && w - Math.min(o.ridge / 2, w) > 1e-3) {
+      if (o.roundTop || o.crossTop) {
+        const samples = o.roundTop ? Array.from({ length: 25 }, (_, i) => Math.cos(i * Math.PI / 24)) :
+          o.crossTop.flatMap((p, i) => i === o.crossTop.length - 1 ? [p[0]] : Array.from({ length: 16 }, (_, k) => p[0] + (o.crossTop[i + 1][0] - p[0]) * k / 16)).reverse();
+        for (const t of samples) pts.push([t * w, shapedTopAt(o, u, h, t * w)[0], 1]);
+      } else if (o.ridge != null && w - Math.min(o.ridge / 2, w) > 1e-3) {
         const r = Math.min(o.ridge / 2, w), full = Math.max(0, h - WL), d = o.edgeDrop != null ? Math.min(o.edgeDrop, full) : full;
         pts.push([w, h - d, 0], [r, h, 1], [-r, h, 1], [-w, h - d, 0]);
       } else pts.push([w, hv(w), 1], [-w, hv(-w), 1]);
       const yR = pts[pts.length - 1][1], yL = pts[0][1];   // water-line band rows on both sides (degenerate where the side is lower)
-      pts.push([-w, Math.min(yR, BAND), 0], [-w, BOT, 0], [w, BOT, 0], [w, Math.min(yL, BAND), 0]);
+      pts.push([-w, Math.max(BOT, Math.min(yR, BAND)), 0], [-w, BOT, 0], [w, BOT, 0], [w, Math.max(BOT, Math.min(yL, BAND)), 0]);
       return pts;
     };
     const R_ = P_.map(([u, h]) => ring(u, h)), m = R_[0].length;
     const xyz = (u, p) => [u, p[1], -p[0]];
-    const smooth = o.type === 'kicker', NS = [];   // curved kicker face: smooth normals from the surface gradient (no facet stripes)
+    const smooth = o.type === 'kicker' || o.roundTop, NS = [];
     const hAt = u => { const q = profileAt(P_, Math.max(P_[0][0], Math.min(P_[n - 1][0], u))); return q ? q[0] : 0; };
     const nAt = (u, p) => { const w = halfWAt(o, u), du = 0.05, h = hAt(u), su = (hAt(u + du) - hAt(u - du)) / (2 * du);
+      if (o.roundTop) { const q = shapedTopAt(o, u, h, p[0]); return new THREE.Vector3(-su * q[1], 1, q[2]).normalize(); }
       const k = o.Hl != null ? (1 - o.Hl / o.H) / (2 * w) : 0, s = 1 - k * (p[0] + w), WLc = -0.15;
       return new THREE.Vector3(-su * s, 1, -(h - WLc) * k).normalize(); };
     const push = (a, b, c, col, top) => { V.push(...a, ...b, ...c); for (let k = 0; k < 3; k++) C.push(col.r, col.g, col.b);
@@ -752,6 +761,25 @@
       for (let k = 0; k < np; k++) { const post = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.7, o.H - r - base, 8), m_);
         post.position.set(-o.L / 2 + 0.2 + k * (o.L - 0.4) / (np - 1), base + (o.H - r - base) / 2, 0); obj.add(post); }
     } else obj = new THREE.Mesh(obstacleGeometry(o), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    if (o.name === 'OE rooftop') {
+      // Lettering and panel joins are visual details; all riding surfaces come from the shared profile.
+      const group = new THREE.Group(); group.add(obj); obj = group;
+      const c = document.createElement('canvas'); c.width = 2048; c.height = 160;
+      const ctx = c.getContext('2d'); ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#b8172b'; ctx.font = '900 134px Arial'; ctx.fillText('FEAR NOTHING', 0, 85, 1360);
+      ctx.fillStyle = '#20282b'; ctx.font = 'italic 900 104px Arial'; ctx.fillText('AIRTOX', 1410, 87, 630);
+      const material = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
+      for (const side of [-1, 1]) {
+        const label = new THREE.Mesh(new THREE.PlaneGeometry(11.8, 0.68), material);
+        label.position.set(2.1, 0.54, side * (o.W / 2 + 0.003)); if (side < 0) label.rotation.y = Math.PI; obj.add(label);
+        for (const u of [-6, -1.4, 3.4, 8]) {
+          const h = shapedTopAt(o, u, profileAt(o.prof, u)[0], o.W / 2)[0];
+          const seam = new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.02, h), 0.006), new THREE.MeshLambertMaterial({ color: 0xbcc2bf }));
+          seam.position.set(u, h / 2, side * (o.W / 2 + 0.004)); obj.add(seam);
+        }
+      }
+    }
+    obj.name = o.name;
     obj.position.copy(V3(o.x, o.y, 0)); obj.rotation.y = o.yaw; obj.traverse(q => { q.receiveShadow = true; }); scene.add(obj);
     if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
   }
@@ -1191,15 +1219,21 @@
   const TOP_SPAN = 400; // m synligt (højeste akse)
   function setCam(mode) {
     camMode = mode;
-    const inspect = mode === 'start';
-    $('camStart').setAttribute('aria-pressed', inspect);
+    const inspect = mode === 'start' || mode === 'oe';
+    $('camStart').setAttribute('aria-pressed', mode === 'start');
+    $('camOE').setAttribute('aria-pressed', mode === 'oe');
     $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
     $('camFollow').setAttribute('aria-pressed', mode === 'follow');
     $('camTop').setAttribute('aria-pressed', mode === 'top');
     controls.enabled = mode === 'orbit' || inspect;
-    if (inspect) {
+    if (mode === 'start') {
       persp.position.copy(startArea.localToWorld(new THREE.Vector3(-27, 43, -49)));
       controls.target.copy(startArea.localToWorld(new THREE.Vector3(-17, 1.3, 3))); controls.update();
+    }
+    if (mode === 'oe') {
+      const o = sim.obs.find(o => o.name === 'OE rooftop');
+      const local = (u, v, h) => V3(o.x + o.ax * u - o.ay * v, o.y + o.ay * u + o.ax * v, h);
+      persp.position.copy(local(17, -24, 13)); controls.target.copy(local(1, -2, 0.5)); controls.update();
     }
     $('scalebar').hidden = mode !== 'top';
     resize();
@@ -1208,6 +1242,7 @@
   $('camFollow').onclick = () => setCam('follow');
   $('camTop').onclick = () => setCam('top');
   $('camStart').onclick = () => { setCam('start'); setPlay(false); };
+  $('camOE').onclick = () => { setCam('oe'); setPlay(false); };
   // Info-tekst i billedet til/fra (huskes lokalt i browseren, hvis muligt)
   let infoOn = true; try { infoOn = localStorage.getItem('ccpInfo') !== '0'; } catch (e) {}
   function setInfo(on) { infoOn = on; $('hud').hidden = !on; $('btnInfo').setAttribute('aria-pressed', on); try { localStorage.setItem('ccpInfo', on ? '1' : '0'); } catch (e) {} }
@@ -1488,7 +1523,7 @@
     // rider
     const bz = Math.max(R.z, -0.25);
     rider.position.copy(V3(R.x, R.y, bz + 0.03));
-    { const tgt = camMode === 'orbit' || camMode === 'start' ? controls.target : null; updateWater(tgt ? tgt.x : R.x, tgt ? -tgt.z : R.y); waterPatch.visible = camMode !== 'top'; }
+    { const tgt = controls.enabled ? controls.target : null; updateWater(tgt ? tgt.x : R.x, tgt ? -tgt.z : R.y); waterPatch.visible = camMode !== 'top'; }
     rider.rotation.y = R.psi;
     const topView = camMode === 'top';
     headArrow.visible = topView; cableArrow.visible = false;   // kun den røde retningspil
@@ -1499,7 +1534,7 @@
       const kpx = pxSize(V3(R.x, R.y, 0), ortho) * 55 / 9; headArrow.scale.setScalar(Math.max(0.25, kpx * 0.25)); cableArrow.scale.setScalar(Math.max(1, kpx * 0.9));   // ~55 px lang uanset zoom
       cableArrow.position.copy(V3(R.x, R.y, 0.25)); cableArrow.rotation.y = Math.atan2(C.ty, C.tx);  // kablets retning
     }
-    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow' && camMode !== 'start'; for (const l of mastLabels.concat(obsTags)) l.visible = camMode !== 'follow' && camMode !== 'start';
+    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow' && camMode !== 'start' && camMode !== 'oe'; for (const l of mastLabels.concat(obsTags)) l.visible = riderTag.visible;
     boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
     boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
     // line: lige i træk, hængende i slæk
@@ -1528,7 +1563,7 @@
     }
     // kamera
     let cam = persp;
-    if (camMode === 'orbit' || camMode === 'start') controls.update();
+    if (controls.enabled) controls.update();
     else if (camMode === 'follow') {
       const hxv = Math.cos(R.psi), hyv = Math.sin(R.psi);
       // lige bagfra langs kørselsretningen (hastighedsvektoren, glattet), let hævet
@@ -1589,8 +1624,8 @@
     $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
   window.__ccpDebug = { sim, persp, controls, setCam, startArea, scene, renderer };   // for automated screenshots/tests
-  setCam(location.hash === '#start-area' ? 'start' : 'follow');
-  if (location.hash === '#start-area') { startSim(); setPlay(false); }
+  setCam(location.hash === '#oe' ? 'oe' : location.hash === '#start-area' ? 'start' : 'follow');
+  if (location.hash === '#start-area' || location.hash === '#oe') { startSim(); setPlay(false); }
   resize(); requestAnimationFrame(frame);
 })();
 </script>

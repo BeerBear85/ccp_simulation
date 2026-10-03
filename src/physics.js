@@ -268,15 +268,17 @@ const LAYOUT = {
     { id: 'OD', tag: true, name: 'OD rooftop', type: 'rooftop', x: 137.0, y: 35.0, dir: [0.454, 0.891], L: 18, W: 2.6, H: 1.1, ridge: 1.4, edgeDrop: 0.3,
       top: [[0, -0.15], [0.09, 0.5], [0.45, 1.1], [1, 0.6]] },   // long low white rooftop: low entry, faint peak near the middle, sloped faces
     // Land-side leg TF→TA (travel towards SW, back to the start). Left of travel = SE = inside the loop.
-    // OE from the user's photos (OE_*.heic, 1 Oct 2026; user 3 Oct 2026): the wall, a black round rail on its own flat bank
-    // beside the wall, and a wide ramp beside the bank. Seen along the axis: wall | rail bank | ramp (v +2.5 / +1.2 / −1.35 m).
-    { id: 'OE', tag: true, name: 'OE wall', type: 'box', x: 113.80, y: 101.26, dir: [0.695, 0.719], L: 20, W: 1.0, H: 1.5, ridge: 0.5, edgeDrop: 0.25,
-      top: [[0, -0.15], [0.39, 1.5], [1, 1.0]], topColor: 0x5f676c },   // AIRTOX wall, round grey top edge: straight ramp from the water to a kink (photo 171147: ≈39 % of the length), then a slight fall to a vertical end ≈2/3 of the kink height
-    { id: 'OE', name: 'OE rail bank', type: 'box', x: 110.43, y: 99.65, dir: [0.695, 0.719], L: 7, W: 1.6, H: 0.6,
-      top: [[0, -0.15], [0.25, 0.6], [1, 0.6]] },   // flat white bank with vertical sides against the wall, short sloped entry at its upstream end (photos 161720, 161846); size and position along the wall estimated
-    { id: 'OE', name: 'OE rail', type: 'rail', x: 109.74, y: 98.93, dir: [0.695, 0.719], L: 4.5, W: 0.1, H: 1.0,
-      top: [[0, 1.0], [1, 1.0]], pipe: true, pipeBase: 0.6, color: 0x24292d },   // black round rail on posts standing on the rail bank's flat top
-    { id: 'OE', name: 'OE ramp', type: 'wedge', x: 107.21, y: 99.98, dir: [0.695, 0.719], L: 9, W: 3.5, H: 0.8 },   // wide plane ramp beside the rail bank, rising from the water to a vertical end level with the wall's end (photo 161846); height ≈0.8 m estimated
+    // OE: three joined assemblies from photos 9807, 9777, 9778, 9829 and 9743 (3 Oct 2026).
+    // Local +u follows travel SW; the bank adjoins the wall's -v side. Dimensions are photo estimates.
+    { id: 'OE', tag: true, name: 'OE rooftop', type: 'rooftop', x: 113.80, y: 101.26, dir: [0.695, 0.719], L: 20, W: 1.0, H: 1.5,
+      top: [[0, -0.15], [0.43, 1.5], [1, 1.0]], roundTop: true, roundRise: 0.2, topColor: 0x68747c },
+    // Centre offset u=4, v=-3.25 from the rooftop; inner edge v=-0.5 touches it exactly.
+    // One flat deck, with entry from the end AND the outer side, rather than a separate kicker.
+    { id: 'OE', name: 'OE bank', type: 'box', relativeTo: 'OE rooftop', offset: [4, -3.25], dir: [0.695, 0.719], L: 12, W: 5.5, H: 0.72,
+      top: [[0, -0.15], [0.27, 0.72], [1, 0.72]], crossTop: [[-1, 0], [1 - 3.2 / 5.5, 1], [1, 1]] },
+    // Small round rail with its own inclined entry, mounted on the flat part of the bank.
+    { id: 'OE', name: 'OE upper rail', type: 'rail', relativeTo: 'OE rooftop', offset: [4.4, -1.3], dir: [0.695, 0.719], L: 6, W: 0.18, H: 1.18,
+      top: [[0, 0.72], [0.23, 1.18], [1, 1.18]], baseHeight: 0.72, roundTop: true, color: 0xeef1ef, topColor: 0x20292f },
     { id: 'OF', tag: true, name: 'OF rail', type: 'box', x: 89.27, y: 78.67, dir: [0.695, 0.719], L: 19, W: 1.2, H: 2.0, ridge: 0.7, edgeDrop: 0.25,
       top: [[0, -0.15], [0.09, 0.5], [0.38, 2.0], [0.62, 2.0], [1, 0.4]] },   // G-SHOCK combination on the group's NW side (v −2.4 m): rail in three sections, up, level top, down to an end ≈0.4 m above the water (user, 3 Oct 2026); section lengths estimated
     { id: 'OF', name: 'OF white kicker', type: 'wedge', x: 90.57, y: 77.42, dir: [0.695, 0.719], L: 5, W: 2.4, H: 0.6,
@@ -390,6 +392,18 @@ function halfWAt(ob, u) {
   const x = Math.max(0, Math.min(1, (u + ob.L / 2) / ob.L));
   return 0.5 * (ob.W0 + (ob.W - ob.W0) * x);
 }
+// Optional cross-sections, shared by contact and rendering. Returns height, longitudinal
+// slope multiplier and lateral slope. crossTop knots are [v / halfWidth, height fraction].
+function shapedTopAt(ob, u, h, v) {
+  const hw = halfWAt(ob, u), base = ob.baseHeight ?? -0.15;
+  if (ob.crossTop) {
+    const q = profileAt(ob.crossTop, Math.max(-1, Math.min(1, v / hw)));
+    return [base + (h - base) * q[0], q[0], (h - base) * q[1] / hw];
+  }
+  const rise = ob.roundRise ?? hw, radius = Math.min(rise, Math.max(0, h - base)), t = Math.max(-1, Math.min(1, v / hw));
+  const arc = Math.sqrt(Math.max(0, 1 - t * t));
+  return [h - radius * (1 - arc), h - base < rise ? arc : 1, -radius * t / (hw * Math.max(arc, 0.001))];
+}
 // Surface under the board, seen by a rigid plank (report: board 1.42 m; here the user's Mentor, 1.43 m). The board centre rests on the plank's two
 // ends: z = max over s ≤ reach of ½·(h(u−s) + h(u+s)), and never below h(u) itself. This spreads the toe of a steep
 // face (bump, kicker) over the board length instead of hitting the board centre as a step, and lets the board bridge a
@@ -414,6 +428,14 @@ function surfaceAt(ob, u, v, reach, spanV) {
   const e = 0.05, hp = hEff(u + e), hm = hEff(u - e);
   const hu = hp != null && hm != null ? (hp - hm) / (2 * e) : hp != null ? (hp - h) / e : hm != null ? (h - hm) / e : 0;
   const WL = -0.15, hw = halfWAt(ob, u);
+  if (ob.crossTop || ob.roundTop) {
+    // Highest point beneath the board footprint, including a ridge between its ends.
+    const lo = Math.max(-hw, Math.min(hw, v - spanV)), hi = Math.max(-hw, Math.min(hw, v + spanV));
+    const knots = ob.crossTop ? ob.crossTop.map(p => p[0] * hw) : [0];
+    const samples = [lo, hi, ...knots.filter(x => x >= lo && x <= hi)].map(x => shapedTopAt(ob, u, h, x));
+    const q = samples.reduce((a, b) => b[0] > a[0] ? b : a);
+    return [q[0], hu * q[1], q[2], off];
+  }
   if (ob.Hl != null) {   // tilted top: height scaled from 1 (right edge) to Hl/H (left edge); the board feels the highest point under it
     const k = (1 - ob.Hl / ob.H) / (2 * hw), vv = Math.max(-hw, Math.min(hw, v - spanV)), s = 1 - k * (vv + hw);
     return [WL + (h - WL) * s, hu * s, -(h - WL) * k, off];
@@ -429,7 +451,15 @@ function surfaceAt(ob, u, v, reach, spanV) {
 const LAUNCH_TYPES = ['kicker', 'wedge', 'bump'];
 function buildObstacles(path, P, layout) {
   const legs = path.pieces.filter(g => g.kind === 'line');
-  return layout.obstacles.map(o => {
+  const built = [];
+  for (const source of layout.obstacles) {
+    let o = source;
+    if (o.relativeTo) {
+      const parent = built.find(p => p.name === o.relativeTo);
+      if (!parent) throw new Error(`Missing preceding obstacle: ${o.relativeTo}`);
+      const [u, v] = o.offset;
+      o = { ...o, x: parent.x + parent.ax * u - parent.ay * v, y: parent.y + parent.ay * u + parent.ax * v };
+    }
     let best = null, bd = 1e9, bu = 0;
     for (const g of legs) {
       const u = Math.max(0, Math.min(g.len, (o.x - g.a[0]) * g.t[0] + (o.y - g.a[1]) * g.t[1]));
@@ -439,8 +469,9 @@ function buildObstacles(path, P, layout) {
     let ax = best.t[0], ay = best.t[1];
     if (o.dir) { const n = Math.hypot(o.dir[0], o.dir[1]), sg = Math.sign(o.dir[0] * ax + o.dir[1] * ay) || 1; ax = sg * o.dir[0] / n; ay = sg * o.dir[1] / n; }
     const off = best.t[0] * (o.y - best.a[1]) - best.t[1] * (o.x - best.a[0]);
-    return { ...o, ax, ay, off, leg: legs.indexOf(best), yaw: Math.atan2(ay, ax), prof: obstacleProfile(o, P), halfW: o.W / 2 };
-  });
+    built.push({ ...o, ax, ay, off, leg: legs.indexOf(best), yaw: Math.atan2(ay, ax), prof: obstacleProfile(o, P), halfW: o.W / 2 });
+  }
+  return built;
 }
 function profileAt(prof, u) {  // returnerer [h, dh/du] eller null uden for profilen
   if (u < prof[0][0] || u > prof[prof.length - 1][0]) return null;
