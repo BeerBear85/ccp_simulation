@@ -1233,7 +1233,7 @@
     if (mode === 'oe') {
       const o = sim.obs.find(o => o.name === 'OE rooftop');
       const local = (u, v, h) => V3(o.x + o.ax * u - o.ay * v, o.y + o.ay * u + o.ax * v, h);
-      persp.position.copy(local(17, -24, 13)); controls.target.copy(local(1, -2, 0.5)); controls.update();
+      persp.position.copy(local(-17, 24, 13)); controls.target.copy(local(-1, 2, 0.5)); controls.update();
     }
     $('scalebar').hidden = mode !== 'top';
     resize();

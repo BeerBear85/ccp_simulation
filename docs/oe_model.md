@@ -14,8 +14,13 @@ flade dæk og den lille rail. De øvrige fotos støtter fortolkningen af
 den afrundede hovedrail og de lukkede hvide sider. Samlinger og skrift
 er forenklet; antallet af fysiske moduler og præcise samlinger er ukendt.
 
-Hoveddelens placering og længde er bevaret. De to øvrige dele placeres i
-hoveddelens lokale koordinater, så banken møder væggen uden mellemrum.
+Hoveddelens placering og længde er bevaret. Efter brugerens rettelse den
+4. oktober 2026 er banken og den lille rail spejlet til den modsatte side
+af hovedrailen (+v) og flyttet 8 m tilbage mod indkørslen. Bankens start
+flugter nu med hovedrailens start. Bankens tværsnit er også spejlet, så
+det flade dæk fortsat ligger ved hovedrailen og sideopkørslen yderst.
+De to øvrige dele placeres i hoveddelens lokale koordinater, så banken
+møder væggen uden mellemrum.
 Bankens to opkørsler blandes i det fælles hjørne; hjørnets præcise form
 kan ikke fastslås ud fra billederne. Hovedrailens afrunding er modelleret
 som en lav halvellipse med 0,2 m højde; den lille rail er halvcirkelformet.

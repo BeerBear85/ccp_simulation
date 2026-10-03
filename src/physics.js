@@ -269,15 +269,15 @@ const LAYOUT = {
       top: [[0, -0.15], [0.09, 0.5], [0.45, 1.1], [1, 0.6]] },   // long low white rooftop: low entry, faint peak near the middle, sloped faces
     // Land-side leg TF→TA (travel towards SW, back to the start). Left of travel = SE = inside the loop.
     // OE: three joined assemblies from photos 9807, 9777, 9778, 9829 and 9743 (3 Oct 2026).
-    // Local +u follows travel SW; the bank adjoins the wall's -v side. Dimensions are photo estimates.
+    // Local +u follows travel SW. User correction (4 Oct): bank on +v side, aligned with the entry.
     { id: 'OE', tag: true, name: 'OE rooftop', type: 'rooftop', x: 113.80, y: 101.26, dir: [0.695, 0.719], L: 20, W: 1.0, H: 1.5,
       top: [[0, -0.15], [0.43, 1.5], [1, 1.0]], roundTop: true, roundRise: 0.2, topColor: 0x68747c },
-    // Centre offset u=4, v=-3.25 from the rooftop; inner edge v=-0.5 touches it exactly.
+    // Centre offset u=-4, v=+3.25: upstream toes align at u=-10; inner edge v=+0.5 touches the rail.
     // One flat deck, with entry from the end AND the outer side, rather than a separate kicker.
-    { id: 'OE', name: 'OE bank', type: 'box', relativeTo: 'OE rooftop', offset: [4, -3.25], dir: [0.695, 0.719], L: 12, W: 5.5, H: 0.72,
-      top: [[0, -0.15], [0.27, 0.72], [1, 0.72]], crossTop: [[-1, 0], [1 - 3.2 / 5.5, 1], [1, 1]] },
+    { id: 'OE', name: 'OE bank', type: 'box', relativeTo: 'OE rooftop', offset: [-4, 3.25], dir: [0.695, 0.719], L: 12, W: 5.5, H: 0.72,
+      top: [[0, -0.15], [0.27, 0.72], [1, 0.72]], crossTop: [[-1, 1], [-1 + 3.2 / 5.5, 1], [1, 0]] },
     // Small round rail with its own inclined entry, mounted on the flat part of the bank.
-    { id: 'OE', name: 'OE upper rail', type: 'rail', relativeTo: 'OE rooftop', offset: [4.4, -1.3], dir: [0.695, 0.719], L: 6, W: 0.18, H: 1.18,
+    { id: 'OE', name: 'OE upper rail', type: 'rail', relativeTo: 'OE rooftop', offset: [-3.6, 1.3], dir: [0.695, 0.719], L: 6, W: 0.18, H: 1.18,
       top: [[0, 0.72], [0.23, 1.18], [1, 1.18]], baseHeight: 0.72, roundTop: true, color: 0xeef1ef, topColor: 0x20292f },
     { id: 'OF', tag: true, name: 'OF rail', type: 'box', x: 89.27, y: 78.67, dir: [0.695, 0.719], L: 19, W: 1.2, H: 2.0, ridge: 0.7, edgeDrop: 0.25,
       top: [[0, -0.15], [0.09, 0.5], [0.38, 2.0], [0.62, 2.0], [1, 0.4]] },   // G-SHOCK combination on the group's NW side (v −2.4 m): rail in three sections, up, level top, down to an end ≈0.4 m above the water (user, 3 Oct 2026); section lengths estimated
