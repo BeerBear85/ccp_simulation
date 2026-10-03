@@ -8,6 +8,16 @@ visuel rekonstruktion, ikke fotogrammetri eller en opmåling. Geometrien ligger 
 
 Originalerne ligger i brugerens `Photos/CCP`-mappe. De vigtigste referencer er:
 
+- De supplerende fotos `9763.jpg`, `9800.jpg`, `9801.jpg` og `9839.jpg`:
+  den brede, lange blå rampe langs dækkets kant og det lave startpodie ved
+  kabinen. `9801` og `9839` viser én skrå gittermast med ét fæste ved enden af
+  den inderste sidebro, ikke en A-ramme med to ben på loungedækket.
+
+- Google Earth-billederne `9860.jpg`–`9864.jpg`, tilføjet 3. oktober 2026:
+  `9860` bruges til planens retninger og forbindelser, de øvrige fire vinkler til
+  at kontrollere kabinens hjørneplacering, sæder og sidebroer. Billederne viser,
+  at basen følger den gennemgående bro, ikke starttæppets retning.
+
 - `OA_OB_OC_OD_TA_TB_TC_controltower_start_lounge_IMG20261001164327.heic`:
   panorama af dæk, kabine, start og trappesæder.
 - `OB_OC_OD_OE_OF_OG_OH_OI_TA_TD_TE_TF_controltower_start_lounge_IMG20261001164407.heic`:
@@ -36,7 +46,9 @@ Følgende er skøn, valgt for at passe ind i simulatorens koordinater:
 | Kabine | 3 × 3 m, væghøjde 2,7 m over dækket |
 | Lounge | Tre sektioner, tre trin, trinhøjde 0,38 m |
 | Pæle | Diameter ca. 0,28 m; skjult længde er illustrativ |
-| Mast | Eksisterende mastfod, hjulposition og kabelhøjde fra LAYOUT/PHYS |
+| Blå adgangsrampe | Ca. 7,1 m lang, ca. 2,3 m bred, fald 0,5 m; fotoskøn |
+| Mast | Én 0,64 m bred gittermast; fod ved inderste sidebros vandende |
+| Gangbroer | Bredde 1,8–2,4 m; adgang til vej, to sidearme og lang tværbro |
 
 Mål, antal pæle/brædder, præcis orientering, indretning, udstyr og skjulte sider
 er ikke verificeret. Betjeningspult, boards og tasker er forenklede illustrationer.
@@ -46,10 +58,29 @@ på kabinen vil gøre en senere skalering mere pålidelig.
 
 ## Samspil med simulatoren
 
-- Lokalt x følger `PHYS.DOCK_DIR`, y er op, z går fra startfladen ind mod loungen.
+- Lokalt x følger `LAYOUT.jetty[1] → LAYOUT.jetty[2]`, y er op, z går fra
+  vandsiden mod loungen. Det giver ca. −48,2° i verdensplanet, en korrektion på
+  ca. 43° fra den første models retning på −5,2°.
 - Modellen registreres ved `PHYS.DOCK_C`; meter er fælles enhed.
+- Kabinen står på et fremspring i det hjørne, der vender mod vejen og vandet.
+- Den gennemgående bro fortsætter fra dækkets ende mod TB. Tværbroen går ud
+  ved siden af sæderne gennem en åbning i rækværket. Adgangsbroen har to
+  sidearme mod vandet og åbninger i tovrækværket ved deres tilslutninger.
+- Adgangsbroen skærer den eksisterende kystlinje og fortsætter som rampe til
+  vejens nærmeste kant. Den gamle, korte brostump og overlappende flader er
+  fjernet fra scenen. Både broerne og deres understøtning indgår i GLB-filen.
+- Broernes forbindelser og relative retning følger de nye billeder. Deres
+  absolutte længder tilpasses simulatorens eksisterende, omtrentlige kyst- og
+  vejkort; de er ikke opmålt direkte fra Google Earth-skærmbillederne.
 - Starttæppets kontaktflade bruger fortsat `DOCK_LEN`, `DOCK_HALF_W`, `DOCK_TOP`
-  og `DOCK_RAMP`. Den er blevet blå som på billederne.
+  og `DOCK_RAMP`, samt den oprindelige position og retning i verden.
+  Startfladen modroteres i forhold til dækket. En lang blå rampe falder fra
+  trælandingen ved loungen til podiet ved kabinen. Den har underbygning,
+  kantlister og en lav blå landing på kabinesiden.
+- TA-mastens visuelle fod er flyttet til ca. `[-1,01; 11,12]` m i verdensplanet,
+  svarende til sidebroens ende `[-16,5; -9]` i dækkets lokale plan. Den har ét
+  samlet fodbeslag og én skrå gitterstamme. Bardunerne er tynde afstivningswirer,
+  ikke ekstra mastben. Hjulets position og kabelhøjden er uændrede.
 - Den bredere adgangsflade, dæk, kabine, sæder og mast er kun visuelle. Der er
   ingen ny kollisionsfysik på disse dele.
 - Den gamle skematiske pavillon/platform og startmastens simple rør erstattes.
@@ -67,5 +98,12 @@ kræver Python Playwright, Chromium og adgang til det eksisterende Three.js-CDN.
   Lokalt nulpunkt ved startfladen, y op, meter; vand/omgivelser/rider er udeladt.
 - `dist/start-area-preview.png`: oversigt i simulatoren.
 - `dist/start-area-detail.png`: nærvisning.
+- `dist/start-area-plan.png`: planvisning til kontrol af orientering og broer.
+- `dist/start-area-mast.png`: samlet vandvendt visning af rampe, kabine og enkeltmast.
+
+Eksportkontrollen efterprøver også dækkets retning, syv brosegmenter,
+rækkefølgen dæk–kyst–vej og seks punkter på startfladen mod fysikkens kontaktflade.
+Den kontrollerer også, at adgangsrampen stiger mod loungen, og at mastens nederste
+geometri er samlet ved ét fæste præcis ved den inderste sidebros ende.
 
 GLB-filen kan importeres i et 3D-program og kræver ikke de originale fotos.

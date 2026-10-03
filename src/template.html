@@ -637,8 +637,8 @@
     m.position.copy(A).add(B).multiplyScalar(0.5);
     m.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x); m.receiveShadow = true; scene.add(m);
   }
-  const J = LAYOUT.jetty; for (let i = 0; i < J.length - 1; i++) plank(J[i], J[i + 1]);
-  plank(LAYOUT.jettyLand[0], LAYOUT.jettyLand[1], 2);
+  // The start-area model owns the access network and the first span to TB.
+  const J = LAYOUT.jetty; for (let i = 2; i < J.length - 1; i++) plank(J[i], J[i + 1]);
   const startArea = createStartArea(THREE, PHYS, LAYOUT); scene.add(startArea);
   const buoyMat = new THREE.MeshLambertMaterial({ color: 0xf07a28 });
   for (const [x, y] of LAYOUT.buoys) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), buoyMat); b.position.copy(V3(x, y, 0.15)); scene.add(b); }
@@ -1198,8 +1198,8 @@
     $('camTop').setAttribute('aria-pressed', mode === 'top');
     controls.enabled = mode === 'orbit' || inspect;
     if (inspect) {
-      persp.position.copy(startArea.localToWorld(new THREE.Vector3(19, 15, -23)));
-      controls.target.copy(startArea.localToWorld(new THREE.Vector3(1, 1.3, 4.1))); controls.update();
+      persp.position.copy(startArea.localToWorld(new THREE.Vector3(-27, 43, -49)));
+      controls.target.copy(startArea.localToWorld(new THREE.Vector3(-17, 1.3, 3))); controls.update();
     }
     $('scalebar').hidden = mode !== 'top';
     resize();

@@ -230,7 +230,7 @@ const LAYOUT = {
   // Mastfødder (A-rammer på jetty/kyst/mole), som hælder ind over vandet med en bom ud til hjulet.
   // Tower IDs TA–TF and their recognisable features follow the layout report of 3 Oct 2026 (old IDs A, F, E, D, C, B).
   masts: [ // rækkefølge = omløbsretning (mod uret)
-    { id: 'TA', x: -3.0,  y: -8.0,  role: 'Start / drive tower',  status: 'antaget' },
+    { id: 'TA', x: -1.013, y: 11.123, role: 'Start / drive tower, single foot at inner finger pier', status: 'antaget' }, // photos 9801/9839; visual foot only, wheel unchanged
     { id: 'TB', x: 81.9,  y: -71.4, role: 'Jetty south, G-SHOCK banner',  status: 'målt' },     // jettypunkt nærmest hjul 2 (20,5 m udhæng)
     { id: 'TC', x: 114.8, y: -63.3, role: 'Jetty corner, light sail', status: 'målt' },     // brugerens måling: 20 m mast→hjul
     { id: 'TD', x: 188.3, y: 83.0,  role: 'East, tank side',         status: 'antaget' },  // 15 m ud fra hjulet

@@ -1,11 +1,22 @@
 /* CCP start area reconstructed from the user's photos of 1 October 2026.
- * SI metres; local x follows DOCK_DIR, local z points towards the lounge.
+ * SI metres; local x follows the through-jetty, local z points towards the lounge.
  * Dimensions/registration are estimates, not a survey. See docs/start_area_model.md.
  * The launch surface uses PHYS exactly; all other geometry is scenery only.
  */
 function createStartArea(THREE, P, layout) {
   const root = new THREE.Group(); root.name = 'CCP_control_start_lounge';
-  root.userData = { source: 'CCP photos 2026-10-01', accuracy: 'Photo-based approximation; not surveyed', units: 'metres' };
+  // Google Earth 9860 (plan) + 9861–9864 (oblique): deck/access spine is
+  // parallel to the jetty towards TB, independently of the launch carpet.
+  const j1 = layout.jetty[1], j2 = layout.jetty[2];
+  const yaw = Math.atan2(j2[1] - j1[1], j2[0] - j1[0]);
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const local = (x, y, h = 0.75) => {
+    const dx = x - P.DOCK_C[0], dz = -y + P.DOCK_C[1]; return [c * dx - s * dz, h, s * dx + c * dz];
+  };
+  const world = (x, z) => [P.DOCK_C[0] + c * x + s * z, P.DOCK_C[1] + s * x - c * z];
+  const launchYaw = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]) - yaw;
+  const launchPoint = (x, z, h) => [Math.cos(launchYaw) * x + Math.sin(launchYaw) * z, h, -Math.sin(launchYaw) * x + Math.cos(launchYaw) * z];
+  root.userData = { source: 'CCP photos 9763, 9800, 9801, 9839; Google Earth 9860–9864', accuracy: 'Photo-based approximation; not surveyed', units: 'metres', deckYaw: yaw, bridges: [] };
   const material = (name, color, roughness = 0.85, metalness = 0) => {
     const m = new THREE.MeshStandardMaterial({ color, roughness, metalness }); m.name = name; return m;
   };
@@ -43,10 +54,11 @@ function createStartArea(THREE, P, layout) {
   }
   // A broad deck behind the start, with the open water edge kept free of rails.
   plankSurface(deck, 2.5, 6.05, 18, 7.5, 0.75);
-  plankSurface(deck, -6.2, 0.9, 4.5, 2.8, 0.75);
-  for (const x of [-8.3, -4.1]) for (const z of [-0.35, 2.15])
+  // Cabin projects from the water-side corner; no second broad mast platform.
+  plankSurface(deck, -5.4, 0.72, 3.8, 3.16, 0.75);
+  for (const x of [-7.15, -3.65]) for (const z of [-0.7, 2.15])
     beam(deck, [x, -0.95, z], [x, 0.65, z], 0.15, timber[3]);
-  for (const z of [-0.45, 2.25]) box(deck, -6.2, 0.5, z, 4.6, 0.32, 0.16, timber[3]);
+  for (const z of [-0.78, 2.25]) box(deck, -5.4, 0.5, z, 3.9, 0.32, 0.16, timber[3]);
   for (const z of [2.35, 6.0, 9.7]) {
     box(deck, 2.5, 0.49, z, 18.1, 0.34, 0.18, timber[3]);
     for (const x of [-6.25, -3.4, -0.5, 2.4, 5.3, 8.2, 11.25])
@@ -118,20 +130,55 @@ function createStartArea(THREE, P, layout) {
   const ramp = box(launch, h2 - P.DOCK_RAMP / 2, P.DOCK_TOP - drop / 2 - 0.02, 0,
     Math.hypot(P.DOCK_RAMP, drop), 0.04, width, blue);
   ramp.rotation.z = -Math.atan2(drop, P.DOCK_RAMP);
-  // Broad blue waiting/access apron rises to the timber deck behind the launch strip.
-  const apronDepth = 2.3 - P.DOCK_HALF_W, rise = 0.75 - P.DOCK_TOP;
-  const apron = box(queue, -0.6, P.DOCK_TOP + rise / 2 - 0.025, P.DOCK_HALF_W + apronDepth / 2,
-    3.6, 0.05, Math.hypot(apronDepth, rise), blue); apron.rotation.x = -Math.atan2(rise, apronDepth);
-  // Slim timber edging at the water side.
-  beam(queue, [-2.4, P.DOCK_TOP, 0.84], [-2.4, 0.75, 2.3], 0.035, timber[1]);
-  // Rope railing only at the back approach, leaving the lounge and start edge open.
-  for (const x of [-5.9, -3.5, -1.1]) beam(detail, [x, 0.75, 9.65], [x, 1.75, 9.65], 0.035, steel);
-  for (let j = 0; j < 2; j++) {
-    const x0 = -5.9 + j * 2.4;
+  // 9763/9800: a long, broad queue ramp descends ALONG the deck, from the
+  // lounge end to the low start podium beside the operator. Not a short cross-ramp.
+  const qa = launchPoint(-h2, P.DOCK_HALF_W, P.DOCK_TOP);
+  const qb = launchPoint(h2 - P.DOCK_RAMP, P.DOCK_HALF_W, P.DOCK_TOP);
+  const highOuter = [7.2, 0.75, qb[2]], highInner = [7.2, 0.75, 2.3];
+  const lowInner = [qa[0], P.DOCK_TOP, 2.3];
+  // The upper end opens onto a full-width timber landing (visible in 9763).
+  // This makes the blue ramp a recess along the deck edge, not a projecting flap.
+  plankSurface(deck, (7.2 + 11.5) / 2, (qb[2] + 2.3) / 2, 11.5 - 7.2, 2.3 - qb[2], 0.75);
+  box(deck, 9.35, 0.5, qb[2] + 0.07, 4.3, 0.32, 0.14, timber[3]);
+  for (const x of [7.32, 11.35]) beam(deck, [x, -0.95, qb[2]+0.15], [x, 0.65, qb[2]+0.15], 0.14, timber[3]);
+  function slab(parent, points, thickness) {
+    const triangles = THREE.ShapeUtils.triangulateShape(points.map(p => new THREE.Vector2(p[0], p[2])), []);
+    const top = [], shell = [];
+    for (const [ia, ib, ic] of triangles) {
+      const a = points[ia], b = points[ib], c = points[ic];
+      // Shape triangulation is CCW in x/z; reverse it for upward-facing y normals.
+      top.push(...a, ...c, ...b);
+      shell.push(a[0], a[1]-thickness, a[2], ...b.map((v,i)=>i===1?v-thickness:v), ...c.map((v,i)=>i===1?v-thickness:v));
+    }
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      const ad = [a[0], a[1]-thickness, a[2]], bd = [b[0], b[1]-thickness, b[2]];
+      shell.push(...a, ...b, ...bd, ...a, ...bd, ...ad);
+    }
+    for (const [vertices, mat] of [[top, blue], [shell, float]]) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      const uv = []; for (let i = 0; i < vertices.length; i += 3) uv.push(vertices[i] / 8, vertices[i + 2] / 3);
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
+      mesh(parent, g, mat);
+    }
+  }
+  slab(queue, [qa, qb, highOuter, highInner, lowInner], 0.12);
+  // Low landing extends towards the cabin; the simulated launch surface stays
+  // at its original position on the water-side of this landing.
+  const landing = group('Low blue landing beside cabin - visual only');
+  const upstream = launchPoint(-h2, -P.DOCK_HALF_W, P.DOCK_TOP);
+  slab(landing, [[-3.5, P.DOCK_TOP, upstream[2]], upstream, qa, lowInner, [-3.5, P.DOCK_TOP, 2.3]], 0.16);
+  beam(queue, lowInner.map((v,i)=>i===1?v+0.04:v), highInner.map((v,i)=>i===1?v+0.04:v), 0.035, timber[1]);
+  beam(queue, qb, highOuter, 0.025, steel);
+  root.userData.accessRamp = { low: [qa, qb], high: [highOuter, highInner], length: 7.2 - (qa[0]+qb[0])/2, drop: 0.75 - P.DOCK_TOP };
+  // Leave a two-metre opening onto the transverse walkway beside the seats.
+  for (const [x0, x1] of [[-5.9, -4.1], [-1.9, -0.2]]) {
+    for (const x of [x0, x1]) beam(detail, [x, 0.75, 9.65], [x, 1.75, 9.65], 0.035, steel);
     for (let i = 0; i < 12; i++) {
       const u = i / 12, v = (i + 1) / 12;
-      beam(detail, [x0 + 2.4 * u, 1.65 - 0.2 * Math.sin(Math.PI * u), 9.65],
-        [x0 + 2.4 * v, 1.65 - 0.2 * Math.sin(Math.PI * v), 9.65], 0.018, rope);
+      beam(detail, [x0 + (x1 - x0) * u, 1.65 - 0.2 * Math.sin(Math.PI * u), 9.65],
+        [x0 + (x1 - x0) * v, 1.65 - 0.2 * Math.sin(Math.PI * v), 9.65], 0.018, rope);
     }
   }
   // Equipment resting against the lounge, visible in the source photographs.
@@ -143,27 +190,101 @@ function createStartArea(THREE, P, layout) {
   }
   box(detail, 6.2, 1.23, 7.28, 0.58, 0.20, 0.38, black);
   beam(detail, [10.8, 0.75, 9.1], [10.8, 4.1, 9.1], 0.07, timber[3]);
+  // Connected walkways: road spine, two water-side fingers, continuation towards
+  // TB and the long perpendicular branch. Ends meet deck edges, never run across it.
+  const bridges = group('Connected access walkways');
+  function walkway(name, a, b, width = 2, railings = false, openings = []) {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A);
+    const horizontal = Math.hypot(d.x, d.z), n = Math.ceil(horizontal / 0.23);
+    const segment = new THREE.Group(); bridges.add(segment);
+    segment.position.copy(A).add(B).multiplyScalar(0.5);
+    segment.rotation.y = -Math.atan2(d.z, d.x);
+    segment.rotation.z = Math.atan2(d.y, horizontal);
+    for (let i = 0; i < n; i++) box(segment, -d.length() / 2 + (i + 0.5) * d.length() / n, -0.045, 0,
+      d.length() / n - 0.006, 0.09, width, timber[i % 4]);
+    for (const z of [-width / 2 + 0.08, width / 2 - 0.08]) box(segment, 0, -0.20, z, d.length(), 0.3, 0.14, timber[3]);
+    const bays = Math.max(1, Math.ceil(horizontal / 3.2));
+    for (let k = 0; k <= bays; k++) {
+      const u = k / bays, v = A.clone().lerp(B, u), nx = -d.z / horizontal, nz = d.x / horizontal;
+      for (const sign of [-1, 1]) {
+        const x = v.x + sign * nx * (width / 2 - 0.15), z = v.z + sign * nz * (width / 2 - 0.15);
+        beam(bridges, [x, -0.8, z], [x, v.y - 0.1, z], 0.085, timber[3]);
+        if (railings && !(sign === 1 && openings.some(gapX => Math.abs(x - gapX) < 1.1)))
+          beam(bridges, [x, v.y, z], [x, v.y + 0.95, z], 0.028, steel);
+      }
+    }
+    if (railings) for (const sign of [-1, 1]) {
+      const nx = -d.z / horizontal * (width / 2 - 0.15) * sign, nz = d.x / horizontal * (width / 2 - 0.15) * sign;
+      for (let k = 0; k < bays; k++) for (let t = 0; t < 6; t++) {
+        const u = (k + t / 6) / bays, v = (k + (t + 1) / 6) / bays;
+        const p = A.clone().lerp(B, u), q = A.clone().lerp(B, v);
+        if (sign === 1 && openings.some(gapX => Math.abs((p.x + q.x) / 2 - gapX) < 1.1)) continue;
+        beam(bridges, [p.x + nx, p.y + 0.87 - 0.12 * Math.sin(t / 6 * Math.PI), p.z + nz],
+          [q.x + nx, q.y + 0.87 - 0.12 * Math.sin((t + 1) / 6 * Math.PI), q.z + nz], 0.015, rope);
+      }
+    }
+    root.userData.bridges.push({ name, a, b, width, worldA: world(a[0], a[2]), worldB: world(b[0], b[2]) });
+  }
+  // Intersect the access spine with the existing shoreline/road instead of
+  // terminating an arbitrary bridge endpoint in the water (the previous bug).
+  const spineZ = 5.0;
+  function spineIntersection(polyline, edgeInset = 0) {
+    const hits = [];
+    for (let i = 1; i < polyline.length; i++) {
+      const a = local(...polyline[i - 1]), b = local(...polyline[i]);
+      if (Math.abs(b[2] - a[2]) < 1e-8) continue;
+      const t = (spineZ - a[2]) / (b[2] - a[2]);
+      const x = a[0] + t * (b[0] - a[0]);
+      // Shift a road-centre intersection to its near edge, accounting for angle.
+      const edgeOffset = edgeInset * Math.hypot(b[0] - a[0], b[2] - a[2]) / Math.abs(b[2] - a[2]);
+      if (t >= 0 && t <= 1 && x < -6.5) hits.push(x + edgeOffset);
+    }
+    if (!hits.length) throw new Error('Start-area access spine does not intersect its mapped shoreline/road');
+    return Math.max(...hits);
+  }
+  const shoreX = spineIntersection([...layout.water, layout.water[0]]);
+  const roadX = spineIntersection(layout.surroundings.roads[0].pts, layout.surroundings.roads[0].w / 2);
+  walkway('Road access over water', [-6.5, 0.75, spineZ], [shoreX + 1.2, 0.75, spineZ], 2.2, true, [-16.5, shoreX + 5.5]);
+  // Rise before reaching the bank: the land surface is 0.8 m high.
+  walkway('Bank transition ramp', [shoreX + 1.2, 0.75, spineZ], [shoreX, 0.91, spineZ], 2.2, true);
+  walkway('Shore approach to road', [shoreX, 0.91, spineZ], [roadX, 0.89, spineZ], 2.2, true);
+  walkway('Inner finger pier', [-16.5, 0.75, spineZ - 1.1], [-16.5, 0.75, -9], 1.8);
+  walkway('Shore-side finger pier', [shoreX + 5.5, 0.75, spineZ - 1.1], [shoreX + 5.5, 0.75, -9], 1.8);
+  const end = local(...j2), cross = local(...layout.jettyLand[1]), junction = local(...j1);
+  walkway('Through-jetty towards TB', [11.5, 0.75, junction[2]], end, 2.4);
+  walkway('Long transverse walkway', [-3, 0.75, 9.8], cross, 2.0);
+  root.userData.access = { spineZ, shoreX, roadX };
   if (layout) {
-    const mast = group('Start mast - lattice and drive'), m = layout.masts[0], w = layout.wheels[0];
+    const mast = group('Start mast - lattice and drive'), column = group('Start mast - single anchored column');
+    const m = layout.masts[0], w = layout.wheels[0];
     const ox = w[0] - m.x, oy = w[1] - m.y, length = Math.hypot(ox, oy);
-    const theta = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]), c = Math.cos(theta), s = Math.sin(theta);
-    const local = (x, y, h) => { const dx = x - P.DOCK_C[0], dz = -y + P.DOCK_C[1]; return [c * dx - s * dz, h, s * dx + c * dz]; };
     const ax = m.x + ox * 0.5, ay = m.y + oy * 0.5, H = P.MAST_HEIGHT + 1.5;
-    function lattice(a, b, width, count) {
+    function lattice(parent, a, b, width, count) {
       const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), dir = B.clone().sub(A).normalize();
       const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 0, 1)).normalize().multiplyScalar(width / 2);
       const other = new THREE.Vector3().crossVectors(dir, side).normalize().multiplyScalar(width / 2);
       const offsets = [side.clone().add(other), side.clone().sub(other), side.clone().negate().sub(other), side.clone().negate().add(other)];
-      for (const off of offsets) beam(mast, A.clone().add(off).toArray(), B.clone().add(off).toArray(), 0.038, steel);
+      for (const off of offsets) beam(parent, A.clone().add(off).toArray(), B.clone().add(off).toArray(), 0.038, steel);
       for (let i = 0; i < count; i++) for (let j = 0; j < 4; j++) {
         const p = A.clone().lerp(B, i / count), q = A.clone().lerp(B, (i + 1) / count);
-        beam(mast, p.clone().add(offsets[j]).toArray(), q.clone().add(offsets[(j + 1) % 4]).toArray(), 0.017, steel);
-        beam(mast, p.clone().add(offsets[j]).toArray(), p.clone().add(offsets[(j + 1) % 4]).toArray(), 0.022, steel);
+        beam(parent, p.clone().add(offsets[j]).toArray(), q.clone().add(offsets[(j + 1) % 4]).toArray(), 0.017, steel);
+        beam(parent, p.clone().add(offsets[j]).toArray(), p.clone().add(offsets[(j + 1) % 4]).toArray(), 0.022, steel);
       }
     }
-    const sx = -oy / length * 2.2, sy = ox / length * 2.2;
-    for (const sign of [-1, 1]) lattice(local(m.x + sign * sx, m.y + sign * sy, 0.8), local(ax, ay, H), 0.32, 12);
-    lattice(local(ax, ay, P.MAST_HEIGHT + 0.4), local(w[0], w[1], P.MAST_HEIGHT), 0.62, 10);
+    // 9801/9839: ONE raked lattice column, anchored at the water end of the
+    // inner finger pier, not two A-frame legs standing on the lounge deck.
+    const foot = local(m.x, m.y, 0.9);
+    const foundation = group('Single mast foot at inner finger pier');
+    box(foundation, foot[0], 0.79, foot[2], 0.95, 0.08, 0.95, steel);
+    beam(foundation, [foot[0], -0.9, foot[2]], [foot[0], 0.8, foot[2]], 0.22, dark);
+    for (const dx of [-0.34, 0.34]) for (const dz of [-0.34, 0.34])
+      beam(foundation, [foot[0]+dx,0.81,foot[2]+dz], [foot[0]+dx,0.9,foot[2]+dz], 0.035, steel);
+    lattice(column, foot, local(ax, ay, H), 0.64, 14);
+    // The boom connects to the inclined column at its actual height, below the apex.
+    const joinH = P.MAST_HEIGHT + 0.4, tJoin = (joinH - foot[1]) / (H - foot[1]);
+    const joinX = m.x + (ax - m.x) * tJoin, joinY = m.y + (ay - m.y) * tJoin;
+    lattice(mast, local(joinX, joinY, joinH), local(w[0], w[1], P.MAST_HEIGHT), 0.5, 10);
+    root.userData.startMast = { foot, footWorld: [m.x,m.y], mainColumns: 1, footingCount: 1 };
     for (const sign of [-1, 1]) beam(mast, local(ax, ay, H + 0.2), local(w[0], w[1] + sign * 0.5, P.MAST_HEIGHT), 0.013, steel);
     beam(mast, local(w[0], w[1], P.MAST_HEIGHT), local(w[0], w[1], P.CABLE_HEIGHT), 0.09, steel);
     const wheel = mesh(mast, new THREE.TorusGeometry(P.WHEEL_RADIUS, 0.08, 8, 32), black, ...local(w[0], w[1], P.CABLE_HEIGHT)); wheel.rotation.x = Math.PI / 2;
@@ -172,7 +293,7 @@ function createStartArea(THREE, P, layout) {
     box(mast, drive[0] - 0.38, drive[1] + 0.37, drive[2], 0.56, 0.4, 0.5, steel);
     for (const dx of [-0.9, 0.9]) for (const dz of [-0.7, 0.7]) beam(mast, [drive[0] + dx, drive[1], drive[2] + dz], [drive[0] + dx, drive[1] + 1.05, drive[2] + dz], 0.025, steel);
     for (const dz of [-0.7, 0.7]) beam(mast, [drive[0] - 0.9, drive[1] + 1.05, drive[2] + dz], [drive[0] + 0.9, drive[1] + 1.05, drive[2] + dz], 0.025, steel);
-    const points = [[-5.9, 3.05, 4.25], local(m.x + ox * 0.17, m.y + oy * 0.17, 4.0), local(ax, ay, H)];
+    const points = [[-6.85, 3.05, 0.65], local(m.x + ox * 0.17, m.y + oy * 0.17, 4.0), local(ax, ay, H)];
     const conduit = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
     mesh(mast, new THREE.TubeGeometry(conduit, 32, 0.085, 8, false), orange);
     for (const sign of [-1, 1]) beam(mast, local(ax, ay, H), local(m.x - ox / length * 9 + sign * 1.5, m.y - oy / length * 9, 0.8), 0.013, steel);
@@ -198,10 +319,12 @@ function createStartArea(THREE, P, layout) {
     }
     for (const geo of old) geo.dispose();
   }
-  // Keep the cabin behind the existing mast feet; its absolute registration is estimated.
-  cabin.position.z = 1.65;
+  // Cabin is at the road-end, water-side corner, as in all five Earth views.
+  cabin.position.set(-0.95, 0, -1.95);
+  // Rotate only the physical launch surface back to its original world frame.
+  launch.rotation.y = launchYaw;
   root.position.set(P.DOCK_C[0], 0, -P.DOCK_C[1]);
-  root.rotation.y = Math.atan2(P.DOCK_DIR[1], P.DOCK_DIR[0]);
+  root.rotation.y = yaw;
   return root;
 }
 
