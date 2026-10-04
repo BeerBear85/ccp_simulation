@@ -165,7 +165,7 @@ const PHYS = {
   YAW_C_AIR:    0.5,     // N·m·s  yaw damping in the air (aerodynamic, spinning body). Assumed
   YAW_C_W:      10,      // N·m·s per m/s  yaw-dæmpning fra vandet, ∝ fart. Antaget
   // Carving: et kantet board med rocker følger sin skrå rail. Kurveradius R = (L²/8h)·CARVE_SLIP / sin(kant).
-  CARVE_SLIP:   1.70,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 1,91 (bruger, 25/9-2026) → 1,70: 11 % mindre radius ved samme kant (bruger, 28/9-2026)
+  CARVE_SLIP:   1.49,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 1,91 (bruger, 25/9-2026) → 1,70: 11 % mindre radius ved samme kant (bruger, 28/9-2026); 1,70 → 1,49 (bruger, 4/10-2026): fuldt kantet (45°) med stram line drejer boardet 15 °/s (før 13,2 °/s)
   CARVE_TAU:    0.25,    // s      hvor hurtigt vandet drejer boardet ind på railens kurve. Antaget
   PIVOT_K:      400,     // N·m/rad  riderens aktive drej af boardet med fødderne ved stor sideslip. Antaget
   PIVOT_TAU_MAX: 180,    // N·m    maks. drejemoment fra fødderne. Antaget
@@ -1179,4 +1179,124 @@ function createSim(opts = {}) {
   return sim;
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, buildPath, pathAt, profileAt, halfWAt, surfaceAt, LAUNCH_TYPES, bodyInertia, legForceMax, kneeGeom };
+/* ---------------- Demo autopilot ("drone flyby") ---------------- */
+// Steers the rider round the course on its own: follows the line angle and edges out before each corner (as the lap
+// controller in the validation tests), and on chosen features leaves the line, lines up on the feature's axis, pops or
+// slides, and does a trick in the air. It only sets the same inputs a player has (lean, legs, spin, grab); the physics
+// is unchanged. `plan` lists the features in riding order with what to do on them. Tuned and checked headless
+// (tests/demo_autopilot.test.js): at DEMO_SETTINGS it rides lap after lap without a fall in 0, 4 and 8 m/s wind.
+const DEMO_SETTINGS = { cableKmh: 30, releaseN: 2500 };   // a strong demo rider: 2.5 kN grip (the UI allows up to 3 kN)
+const DEMO_PLAN = [
+  { name: 'OC left ramp', act: 'jump', pop: true, grab: -1 },    // pop off the ramp, tail grab
+  { name: 'OI kicker', act: 'jump', spin: -1, grab: 1, cross: 25, diag: 12 },   // crossed 25° to the right (jumps out towards the wide line), 360 to the right with a nose grab
+  { name: 'OA rising rail', act: 'slide', boardslide: 1 },       // boardslide, turned back before the end
+];
+function createAutopilot(sim, opts = {}) {
+  const D2R = Math.PI / 180, P = PHYS;
+  const plan = (opts.plan || DEMO_PLAN).map(p => ({ ...p, ob: sim.obs.find(o => o.name === p.name) })).filter(p => p.ob);
+  // gains: k1 (1/s) lateral offset → sideways speed, kh (1/s) heading error → turn rate, vmax (m/s) sideways speed,
+  // cap/capNear (°) lean limits far from / within 6 m of the entry. Tuned by a parameter sweep (headless).
+  const ap = { focus: null, phase: 'line', tAir: null, flight: 0,
+    gains: { k1: 0.8, kh: 1.5, vmax: 2, cap: 35, capNear: 15, ...opts.gains },
+    wide: { minTurn: 90, lead: 9, offset: 18, vmax: 4, cap: 35, turnIn: 2.5, carve: 45, carveFor: 3, ...opts.wide } };
+  const clamp = (x, a) => Math.max(-a, Math.min(a, x));
+  function lineLean() {   // follow the line angle; edge out ≈5 s before a corner
+    const R = sim.rider, hx = Math.cos(R.psi), hy = Math.sin(R.psi), hp = sim.line.hp, Pa = sim.path;
+    const cs = ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length; let dA = 1e9;
+    for (const g of Pa.pieces) if (g.kind === 'arc') { let d = g.s0 - cs; if (d < 0) d += Pa.length; dA = Math.min(dA, d); }
+    const dx = sim.tow.x - hp[0], dy = sim.tow.y - hp[1], lat = Math.atan2(dx * hy - dy * hx, dx * hx + dy * hy);
+    return clamp(1.5 * lat / D2R + (dA / sim.cableSpeed < 5 ? 20 : 0), 45);
+  }
+  // Wide set-up for the sharp corners (turn ≥ wide.minTurn°, i.e. the 96° corner at tower A; user, 4 Oct 2026: ride far
+  // out to the right before the last corner for less force in the rope, and turn the board in before the pull comes).
+  // Geometry: with the rope's horizontal length H = √(L² − Δz²) ≈ 18.3 m, the rope stays taut as the carrier turns the
+  // corner angle α only if its angle θ to the cable satisfies θ ≥ (α + φ)/2, φ = how far the board is already turned in;
+  // the lateral distance is H·sin θ (13.6 m for φ = 0, 15.5 m for φ = 20°, 17 m for φ = 40°; > 18.3 m is impossible).
+  // From wide.lead s before the sheave the rider rides a line wide.offset m outside the cable (up to wide.vmax m/s
+  // sideways, lean ≤ wide.cap°); wide.turnIn s before the sheave he carves in (lean wide.carve°) until wide.carveFor s
+  // after it. With the OI kicker crossed 25° to the right he gets ≈8 m out with the board ≈14° in: peak rope force in
+  // the corner 1.31–1.41 kN (0–8 m/s wind, CARVE_SLIP 1.49) against 1.75 kN riding the line. Turning in 2 s before
+  // the sheave instead gives 1.8–2.3 kN (rope slack, then a jerk); 2.25 s is lower but loses the OA entry after it. Without the kicker (more time) 13–14 m
+  // and 20–25° in gave ≈0.8 kN; 15 m out with the board still straight gave 2.2 kN. Values from parameter sweeps.
+  const sharp = sim.path.pieces.map((g, i) => ({ g, prev: sim.path.pieces[(i - 1 + sim.path.pieces.length) % sim.path.pieces.length] }))
+    .filter(({ g, prev }) => g.kind === 'arc' && prev.kind === 'line' && g.len / g.R / D2R >= ap.wide.minTurn)
+    .map(({ g, prev }) => ({ s0: g.s0, ob: { x: prev.a[0] + prev.t[1] * ap.wide.offset, y: prev.a[1] - prev.t[0] * ap.wide.offset,
+      ax: prev.t[0], ay: prev.t[1], yaw: Math.atan2(prev.t[1], prev.t[0]), L: 0 } }));
+  function afterSharp() {   // time past a sharp corner's sheave (s), or false
+    const Pa = sim.path, cs = ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length;
+    for (const c of sharp) { let d = cs - c.s0; if (d < 0) d += Pa.length; if (d / sim.cableSpeed < ap.wide.carveFor) return d / sim.cableSpeed; }
+    return false;
+  }
+  function wideSetup() {
+    const Pa = sim.path, cs = ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length;
+    for (const c of sharp) { let d = c.s0 - cs; if (d < 0) d += Pa.length; const tt = d / sim.cableSpeed; if (tt < ap.wide.lead) return { ob: c.ob, tt }; }
+    return null;
+  }
+  function local(ob) { const R = sim.rider, rx = R.x - ob.x, ry = R.y - ob.y; return { u: rx * ob.ax + ry * ob.ay, v: -rx * ob.ay + ry * ob.ax }; }
+  // Cascade: lateral offset v → wanted sideways speed → wanted heading off the feature's axis → lean. A lean of 1° turns
+  // the board ≈0.35 °/s at cable speed (straight-tow case), so the heading loop is a proportional lean on the heading error.
+  // hOff (rad): extra heading off the axis, + = left (used to cross a kicker at an angle).
+  ap.track = function (ob, v, near, cap, vm = ap.gains.vmax, hOff = 0) {
+    const R = sim.rider, G = ap.gains, V = Math.max(4, Math.hypot(R.vx, R.vy));
+    const vmax = near < 12 ? 0.3 + (vm - 0.3) * near / 12 : vm;
+    const vdes = clamp(-G.k1 * v, vmax), hd = Math.asin(clamp(vdes / V, 0.5)) + hOff;
+    const h = Math.atan2(Math.sin(R.psi - ob.yaw), Math.cos(R.psi - ob.yaw));
+    return clamp(G.kh * (h - hd) / D2R / 0.35, cap);
+  };
+  ap.update = function () {
+    const R = sim.rider;
+    let lean = lineLean(), leg = sim.legBase, spin = 0, grab = 0, tgt = null;
+    const cur = ap.focus && ap.focus.p;
+    if (cur) {   // stay on the feature through the take-off, the air (a spin turns the board away) and the landing
+      const { u, v } = local(cur.ob);
+      if ((sim.jump || u > -cur.ob.L / 2 - 1) && u < cur.ob.L / 2 + 14 && Math.abs(v) < 18) tgt = { p: cur, u, v };
+    }
+    if (!tgt) for (const p of plan) {   // the next feature: approaching it (≤ 60 m before its start) or on it
+      const { u, v } = local(p.ob), hd = Math.cos(R.psi - p.ob.yaw);
+      if (u > -(p.ob.L / 2 + (p.lead || 60)) && u < p.ob.L / 2 + 14 && Math.abs(v) < 18 && hd > 0.6) { tgt = { p, u, v }; break; }
+    }
+    if (!tgt || tgt.p !== cur) ap.tAir = null;
+    ap.focus = tgt;
+    if (tgt) {
+      const { p, u } = tgt, ob = p.ob, d = u - ob.L / 2;   // d: distance past the end/lip (negative before it)
+      // p.cross (°): the last p.diag m before the lip (default 15 m) are ridden on a diagonal that leaves the lip at its
+      // centre heading p.cross° to the right; before that the rider lines up on the start of the diagonal.
+      const cr = (p.cross || 0) * D2R, dg = p.diag || 15, toLip = Math.max(0, ob.L / 2 - u);
+      // the turn onto the diagonal starts ≈1.5 s early: the board turns only ≈15°/s at full edge on a taut line
+      const v = tgt.v - Math.tan(cr) * Math.min(dg, toLip), hOff = -cr * Math.max(0, Math.min(1, (dg + 14 - toLip) / 14));
+      if (!sim.jump) ap.tAir = null;
+      else if (ap.tAir == null) ap.tAir = sim.t;
+      // time left before touchdown on the water (ballistic, from height and vertical speed)
+      ap.flight = sim.jump ? (R.vz + Math.sqrt(Math.max(0, R.vz * R.vz + 2 * P.G * Math.max(0, R.z)))) / P.G : 0;
+      const ta = ap.tAir == null ? null : sim.t - ap.tAir;
+      if (u < -ob.L / 2 - 0.5 && R.z < 0.05 && !sim.jump) {          // line up on the feature's axis
+        const blend = Math.min(1, (u + ob.L / 2 + (p.lead || 60)) / 8), near = -(u + ob.L / 2);
+        lean = (1 - blend) * lean + blend * ap.track(ob, v, near < 6 ? 0 : near, near < 6 && !cr ? ap.gains.capNear : ap.gains.cap, ap.gains.vmax, hOff);
+        ap.phase = 'approach';
+      } else if (d < 0 && !sim.jump) {                                 // on the feature
+        lean = sim.out.rail ? 0 : ap.track(ob, v, 0, 12, ap.gains.vmax, hOff);
+        ap.phase = p.act === 'slide' ? 'slide' : 'ramp';
+      } else if (sim.jump) { lean = 0; ap.phase = 'air'; }
+      else { ap.phase = 'landed'; }
+      if (p.act === 'jump') {
+        if (p.pop && d > -2.6 && d < -1.2) leg = P.LEG_MIN + 0.05;
+        if (p.pop && d >= -1.2 && d < 0.6 && !sim.jump) leg = P.LEG_MAX;
+        if (p.spin && ((d > -3.5 && ta == null) || (ta != null && ap.flight > 0.25))) spin = p.spin;
+        if (p.grab && ta != null && ta > 0.08 && ap.flight > (sim.grab.reach > 0 ? 0.42 : 0.7)) grab = p.grab;   // let go in time to straighten the legs before landing
+      }
+      if (sim.jump && ap.flight < 0.42 && ap.flight > 0.12 && !grab) leg = P.LEG_MAX;   // reach for the water: straight legs give the full stroke to absorb the landing
+      if (p.act === 'slide' && p.boardslide && sim.out.rail && d < -3.5) spin = p.boardslide;   // turn back before the end
+    } else {
+      const w = wideSetup();
+      if (w && !sim.jump && w.tt < ap.wide.turnIn) { lean = -ap.wide.carve; ap.phase = 'turn-in'; }   // carve in towards the inside of the corner
+      else if (w && !sim.jump) { lean = ap.track(w.ob, local(w.ob).v, 20, ap.wide.cap, ap.wide.vmax); ap.phase = 'wide'; }
+      else ap.phase = 'line';
+      if (!w && afterSharp() !== false && ap.wide.carve) { lean = -ap.wide.carve; ap.phase = 'turn-in'; }
+    }
+    sim.leanCmdIn = lean * D2R; sim.legCmdIn = leg; sim.spinIn = spin; sim.grabIn = grab;
+  };
+  ap.reset = () => { ap.focus = null; ap.phase = 'line'; ap.tAir = null; };
+  return ap;
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, createAutopilot, DEMO_PLAN, DEMO_SETTINGS, buildPath, pathAt, profileAt, halfWAt, surfaceAt, LAUNCH_TYPES, bodyInertia, legForceMax, kneeGeom };

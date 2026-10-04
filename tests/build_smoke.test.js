@@ -13,6 +13,10 @@ test('both built artifacts contain current source and replay its behavior', () =
     const area = fs.readFileSync(path.join(__dirname, '../src/start_area.js'), 'utf8').replace(/\r\n/g, '\n');
     assert.ok(html.includes(area), `${name} has stale start-area geometry: run python build.py`);
     assert.ok(!html.includes('/*__START_AREA__*/'), `${name} has an unresolved model placeholder`);
+    for (const file of ['operator.js', 'operator.css']) {
+      const operator = fs.readFileSync(path.join(__dirname, '../src', file), 'utf8').replace(/\r\n/g, '\n');
+      assert.ok(html.includes(operator), `${name} has stale operator UI: run python build.py`);
+    }
     const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
     const embedded = scripts.find(([, code]) => code.includes('function createSim('));
     assert.ok(embedded, `${name} contains the physics script`);

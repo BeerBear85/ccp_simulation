@@ -136,7 +136,32 @@
   .cv-start:active { transform: rotate(-1deg) translate(8px, 8px); box-shadow: 0 0 0 5px #fff, 4px 4px 0 5px var(--cv-bg); }
   .cv-start:focus-visible { outline: 4px dashed #fff; outline-offset: 12px; }
   @keyframes cvPulse { 0%, 100% { transform: rotate(-3deg) scale(1); } 50% { transform: rotate(-3deg) scale(1.035); } }
+  .cv-fly { position: absolute; left: 1100px; top: 770px; display: flex; align-items: center; gap: 14px; padding: 8px 30px 10px 22px;
+    background: #fff; color: var(--cv-ink); border: 5px solid var(--cv-ink); border-radius: 999px; cursor: pointer; text-align: left;
+    font: 800 44px/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -1px;
+    box-shadow: 8px 8px 0 0 var(--cv-accent); transform: rotate(2deg); transition: transform .15s ease, box-shadow .15s ease; }
+  .cv-fly small { display: block; margin-top: 4px; font: 21px/1 "Permanent Marker", cursive; letter-spacing: 0; color: #555; }
+  .cv-fly svg { width: 58px; height: 58px; flex: none; }
+  .cv-fly:hover { transform: rotate(0deg) scale(1.04); }
+  .cv-fly:active { transform: rotate(0deg) translate(6px, 6px); box-shadow: 2px 2px 0 0 var(--cv-accent); }
+  .cv-fly:focus-visible { outline: 4px dashed #fff; outline-offset: 10px; }
   @media (prefers-reduced-motion: reduce) { .cv-start { animation: none; } .cover { transition: none; } }
+  /* ---------- Drone flyby (demo rider + director camera) ---------- */
+  .demobar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px;
+    max-width: calc(100% - 24px); padding: 5px 5px 5px 12px; background: rgba(16,28,36,.88); border: 1px solid var(--rule); border-radius: 4px;
+    font: 500 12px var(--mono); color: var(--ink-2); white-space: nowrap; }
+  .demobar .rec { color: #ff5a4f; animation: recBlink 1.2s steps(2, start) infinite; }
+  .demobar b { color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+  .demobar button { flex: none; }
+  @keyframes recBlink { to { visibility: hidden; } }
+  .democap { position: absolute; left: 50%; bottom: 76px; transform: translate(-50%, 8px); z-index: 3; pointer-events: none; text-align: center;
+    max-width: calc(100% - 24px); font: 800 clamp(22px, 4.6vw, 54px)/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -.5px;
+    color: #fff; text-transform: uppercase; text-shadow: 0 3px 0 #000, 0 0 22px rgba(0,0,0,.55); opacity: 0; transition: opacity .3s, transform .3s; }
+  .democap small { display: block; margin-top: 6px; font: 500 clamp(11px, 1.6vw, 15px) var(--mono); letter-spacing: 0; text-transform: none; color: var(--accent); }
+  .democap.on { opacity: 1; transform: translate(-50%, 0); }
+  .view.demo .hud, .view.demo .trickpad, .view.demo .edgepad { display: none; }
+  @media (prefers-reduced-motion: reduce) { .demobar .rec { animation: none; } }
+/*__OPERATOR_CSS__*/
 </style>
 
 <section class="cover" id="cover" aria-label="Start screen">
@@ -181,11 +206,68 @@
     <div class="cv-tag">ride Copenhagen Cable Park straight from your couch</div>
     <div class="cv-foot"><span>3D</span><i>●</i><span>in your browser</span><i>●</i><span>no wetsuit needed</span></div>
     <button class="cv-start" id="btnStart" type="button">START<span aria-hidden="true">▶</span></button>
+    <button class="cv-fly" id="btnFlyby" type="button" aria-label="Drone flyby: watch a demo rider run the park">
+      <svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round">
+        <line x1="14" y1="16" x2="50" y2="48"/><line x1="50" y1="16" x2="14" y2="48"/>
+        <rect x="23" y="25" width="18" height="14" rx="4" fill="#FF3DA8"/>
+        <ellipse cx="14" cy="16" rx="11" ry="4"/><ellipse cx="50" cy="16" rx="11" ry="4"/>
+        <ellipse cx="14" cy="48" rx="11" ry="4"/><ellipse cx="50" cy="48" rx="11" ry="4"/>
+        <circle cx="32" cy="43" r="3" fill="#111"/>
+      </svg>
+      <span>DRONE FLYBY<small>watch the demo rider</small></span>
+    </button>
   </div>
 </section>
 
 <div class="app">
-  <div class="view" id="view">
+  <main class="operator">
+    <header class="operator-header">
+      <div class="operator-brand"><span class="brand-mark">CCP</span><div><h1>Operator view</h1><div class="sub">Copenhagen Cable Park · Simulation</div></div></div>
+      <span class="live-state paused" id="operatorState">Paused</span>
+    </header>
+    <section class="control-bar" aria-label="Simulation controls">
+      <div class="control-row"><div class="control-group" aria-label="Time controls">
+        <button class="primary" id="btnPlay">❚❚ Pause</button>
+        <button id="btnStep" title="One physics step (4.17 ms)">▹ Step</button>
+        <button id="btnStep24" title="24 steps (0.1 s)">Step 0.1 s</button>
+        <select id="selSlow" aria-label="Time scale">
+          <option value="1">1×</option>
+          <option value="0.5">0.5×</option>
+          <option value="0.25">0.25×</option>
+          <option value="0.1">0.1×</option>
+        </select>
+        <button id="btnReset">↺ Reset</button>
+</div>
+        <button id="btnPanel" type="button" aria-expanded="false" aria-controls="telemetryPanel" aria-keyshortcuts="L" title="Open or close graphs and log (L)">▥ Graphs &amp; log <kbd>L</kbd></button>
+      </div>
+      <div class="control-row"><span class="control-label">Camera</span>    <div class="camsw" role="group" aria-label="Camera">
+      <button id="camOrbit" aria-pressed="false">Orbit</button>
+      <button id="camFollow" aria-pressed="true">Follow rider</button>
+      <button id="camTop" aria-pressed="false">Top-down</button>
+      <button id="camDrone" aria-pressed="false" title="The flying drone camera of the flyby" hidden>Drone</button>
+      <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
+    </div></div>
+          <div class="demobar" id="demoBar" hidden>
+      <span class="rec" aria-hidden="true">● REC</span><span>Drone flyby · demo rider</span><b id="demoNext"></b>
+      <button id="btnDemoExit" type="button" title="Stop the demo and ride yourself (Esc)">Take control ✕</button>
+    </div>
+    </section>
+    <div class="scene-header"><h2>Live camera</h2><span>6 towers · 1 carrier · 1 rider</span></div>
+  <div class="view" id="view" tabindex="-1" aria-label="Live simulation camera">
+    <div class="rider-controls" role="group" aria-label="Rider controls">
+      <div class="edgepad">
+        <button id="edgeL" aria-label="Lean left (hold)">◀ Lean</button>
+        <span class="kneepad"><button id="legDn" aria-label="Bend knees (hold)">▼ Crouch</button><button id="legUp" aria-label="Extend/pop (hold)">▲ Pop</button></span>
+        <button id="edgeR" aria-label="Lean right (hold)">Lean ▶</button>
+      </div>
+      <div class="trickpad" aria-label="Tricks">
+        <button id="trSpinL" aria-label="Spin left (hold, Q)">⟲ Q</button><button id="trNose" aria-label="Nose grab (hold, W)">Nose W</button><button id="trTail" aria-label="Tail grab (hold, S)">Tail S</button><button id="trSpinR" aria-label="Spin right (hold, R)">R ⟳</button>
+      </div>
+    </div>
+    <section class="instruments" aria-label="Live instruments">
+      <article id="speedGauge"></article>
+      <article id="tensionGauge"></article>
+    </section>
     <div class="hud" id="hud" aria-live="off">
       <span class="chip" id="hudT">t 0.00 s</span>
       <span class="chip" id="hudMode">▶ 1×</span>
@@ -200,18 +282,11 @@
       <span class="chip" id="hudRail" hidden>rail</span>
       <span class="chip" id="hudLegend" hidden><span style="color:#e23b2e">▶</span> board heading</span>
     </div>
-    <div class="camsw" role="group" aria-label="Camera">
-      <button id="camOrbit" aria-pressed="false">Orbit</button>
-      <button id="camFollow" aria-pressed="true">Follow rider</button>
-      <button id="camTop" aria-pressed="false">Top-down</button>
-      <button id="camStart" aria-pressed="false" title="Inspect the photo-based control cabin, start and lounge">Start / lounge</button>
-      <button id="camOE" aria-pressed="false" title="Inspect OE from the bank side; drag to orbit">OE detail</button>
-      <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
-    </div>
+
     <div class="scalebar" id="scalebar" hidden><i id="scaleI" style="width:100px"></i><span id="scaleT">50 m</span></div>
-    <div class="trickpad" aria-label="Tricks">
-      <button id="trSpinL" aria-label="Spin left (hold, Q)">⟲ Q</button><button id="trNose" aria-label="Nose grab (hold, W)">Nose W</button><button id="trTail" aria-label="Tail grab (hold, S)">Tail S</button><button id="trSpinR" aria-label="Spin right (hold, R)">R ⟳</button>
-    </div>
+
+    <div class="democap" id="demoCap" aria-live="polite"></div>
+
     <div class="fallbox" id="fallBox" hidden>
       <div class="card" role="alertdialog" aria-modal="false" aria-labelledby="fallTitle" aria-describedby="fallWhy">
         <h2 id="fallTitle">You fell</h2>
@@ -220,40 +295,22 @@
         <p class="hint">or press <kbd>Enter</kbd></p>
       </div>
     </div>
-    <div class="edgepad">
-      <button id="edgeL" aria-label="Lean left (hold)">◀ Lean</button>
-      <span class="kneepad"><button id="legDn" aria-label="Bend knees (hold)">▼ Crouch</button><button id="legUp" aria-label="Extend/pop (hold)">▲ Pop</button></span>
-      <button id="edgeR" aria-label="Lean right (hold)">Lean ▶</button>
-    </div>
+
   </div>
 
-  <aside class="panel">
-    <div>
-      <h1>Copenhagen Cable Park Simulator</h1>
-      <div class="sub">Kraftværksvej 24 · 6 towers · 1 carrier · 1 rider · physics 240 Hz</div>
-    </div>
-
+  </main>
+  <aside class="panel" id="telemetryPanel" aria-label="Graphs, log and settings" hidden>
+    <div id="panelResize" class="panel-resize" role="separator" tabindex="0" aria-label="Resize telemetry panel" aria-orientation="vertical" aria-controls="telemetryPanel" title="Drag to resize, or use left and right arrow keys"></div>
+    <header class="panel-heading"><div><h2>Graphs &amp; log</h2><p>History stays available while this panel is closed.</p></div><button id="btnPanelClose" aria-label="Close graphs and log" title="Close panel (L)">✕</button></header>
+    <div class="panel-scroll">
     <div class="tabs" role="tablist" aria-label="Panel">
-      <button role="tab" id="tab-ride" aria-controls="pane-ride" aria-selected="true">Ride</button>
-      <button role="tab" id="tab-settings" aria-controls="pane-settings" aria-selected="false">Settings</button>
-      <button role="tab" id="tab-guide" aria-controls="pane-guide" aria-selected="false">Guide</button>
+      <button role="tab" id="tab-ride" aria-controls="pane-ride" aria-selected="true">Graphs</button>
+      <button role="tab" id="tab-log" aria-controls="pane-log" aria-selected="false" tabindex="-1">Log</button>
+      <button role="tab" id="tab-settings" aria-controls="pane-settings" aria-selected="false" tabindex="-1">Settings</button>
+      <button role="tab" id="tab-guide" aria-controls="pane-guide" aria-selected="false" tabindex="-1">Guide</button>
     </div>
     <div class="pane" role="tabpanel" id="pane-ride" aria-labelledby="tab-ride">
-    <section>
-      <h2>Time</h2>
-      <div class="row">
-        <button class="primary" id="btnPlay">Pause</button>
-        <button id="btnStep" title="One physics step (4.17 ms)">Step</button>
-        <button id="btnStep24" title="24 steps (0.1 s)">Step 0.1 s</button>
-        <select id="selSlow" aria-label="Time scale">
-          <option value="1">1×</option>
-          <option value="0.5">0.5×</option>
-          <option value="0.25">0.25×</option>
-          <option value="0.1">0.1×</option>
-        </select>
-        <button id="btnReset">Reset</button>
-      </div>
-    </section>
+
 
     <section aria-label="Line tension and rider speed">
       <div class="charts" id="chartsTop"></div>
@@ -266,18 +323,18 @@
       <div class="charts" id="charts"></div>
     </section>
 
-    <details>
-      <summary>Park layout · measured vs. assumed</summary>
-      <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an asymmetric AIRTOX rooftop with a rounded grey top, a joined bank with end and side approaches to one flat deck, and a smaller black round rail with a sloped entry mounted on that deck (photos 9807, 9777, 9778, 9829 and 9743; dimensions estimated); OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low white kicker (ramp, flat top, abrupt end) on its left and a black kicker in direct contact on its right, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
-    </details>
 
-    <details id="diagBox">
+
+
+
+    </div>
+    <div class="pane" role="tabpanel" id="pane-log" aria-labelledby="tab-log" hidden>
+      <p class="note">Live diagnostics. The existing 30 Hz history buffer retains up to five minutes in Graphs; Reset starts a new recording.</p>
+    <details id="diagBox" open>
       <summary>Diagnostics (live) · report 13.7</summary>
       <div class="tbl"><table id="tblDiag"><tbody></tbody></table></div>
       <p class="note">All internal channels, so the simulator can be checked rather than just "look right": line tension, cable power, water-force components, wetted area, centre of pressure, dimensionless numbers, energy balance and contact state.</p>
     </details>
-
     </div>
     <div class="pane" role="tabpanel" id="pane-settings" aria-labelledby="tab-settings" hidden>
     <section class="field">
@@ -330,6 +387,11 @@
     </details>
     </div>
     <div class="pane" role="tabpanel" id="pane-guide" aria-labelledby="tab-guide" hidden>
+    <details>
+      <summary>Park layout · measured vs. assumed</summary>
+      <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an asymmetric AIRTOX rooftop with a rounded grey top, a joined bank with end and side approaches to one flat deck, and a smaller black round rail with a sloped entry mounted on that deck (photos 9807, 9777, 9778, 9829 and 9743; dimensions estimated); OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low white kicker (ramp, flat top, abrupt end) on its left and a black kicker in direct contact on its right, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+    </details>
     <section class="field">
       <h2 style="grid-column:1/-1;margin:0">How to ride</h2>
       <p class="note" style="grid-column:1/-1;margin:2px 0 0">Hold <kbd>←</kbd> <kbd>→</kbd> (or the buttons in the 3D view) to lean: a tap gives a small edge (10°), and the lean builds up the longer you hold, to the maximum 45° after ≈1.2 s (the bar under the button shows how far). Let go to ride flat again. Lean out (right) before the corners to keep the line tight and avoid a jerk. Lean in (left) to reach the obstacles, but ride flat (lean ≈ 0°) up kickers and land flat: an edge on landing or a hit corner means a fall. Hold <kbd>↓</kbd> (Crouch) to absorb onto a box or on landing, and press <kbd>↑</kbd> (Pop) just before the kicker lip for a bigger jump. If your knees bottom out on a hard landing, you fall. <kbd>Space</kbd> pauses, <kbd>.</kbd> steps once.</p>
@@ -401,6 +463,7 @@
     </details>
 
     </div>
+    </div>
   </aside>
 </div>
 
@@ -410,11 +473,19 @@
 /*__START_AREA__*/
 </script>
 <script>
+/*__OPERATOR__*/
+</script>
+<script>
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
   const DEG = Math.PI / 180;
   const sim = createSim();
+  const operatorPanel = CCP_OPERATOR.setupPanel();
+  const speedGauge = new CCP_OPERATOR.AnalogGauge($('speedGauge'), CCP_OPERATOR.CONFIG.speed);
+  const tensionGauge = new CCP_OPERATOR.AnalogGauge($('tensionGauge'), CCP_OPERATOR.CONFIG.tension);
+  const observeGauges = () => { speedGauge.observe(sim.out.V * 3.6); tensionGauge.observe(sim.line.F / 1000); };
+  let gaugeLast = performance.now();
 
   /* ---------- Three.js scene ---------- */
   const view = $('view');
@@ -1220,11 +1291,10 @@
   function setCam(mode) {
     camMode = mode;
     const inspect = mode === 'start' || mode === 'oe';
-    $('camStart').setAttribute('aria-pressed', mode === 'start');
-    $('camOE').setAttribute('aria-pressed', mode === 'oe');
     $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
     $('camFollow').setAttribute('aria-pressed', mode === 'follow');
     $('camTop').setAttribute('aria-pressed', mode === 'top');
+    $('camDrone').setAttribute('aria-pressed', mode === 'drone');
     controls.enabled = mode === 'orbit' || inspect;
     if (mode === 'start') {
       persp.position.copy(startArea.localToWorld(new THREE.Vector3(-27, 43, -49)));
@@ -1241,8 +1311,7 @@
   $('camOrbit').onclick = () => setCam('orbit');
   $('camFollow').onclick = () => setCam('follow');
   $('camTop').onclick = () => setCam('top');
-  $('camStart').onclick = () => { setCam('start'); setPlay(false); };
-  $('camOE').onclick = () => { setCam('oe'); setPlay(false); };
+  $('camDrone').onclick = () => { droneReset(); setCam('drone'); };
   // Info-tekst i billedet til/fra (huskes lokalt i browseren, hvis muligt)
   let infoOn = true; try { infoOn = localStorage.getItem('ccpInfo') !== '0'; } catch (e) {}
   function setInfo(on) { infoOn = on; $('hud').hidden = !on; $('btnInfo').setAttribute('aria-pressed', on); try { localStorage.setItem('ccpInfo', on ? '1' : '0'); } catch (e) {} }
@@ -1271,7 +1340,7 @@
     else leanHold = Math.min(PHYS.LEAN_MAX_DEG, leanHold + LEAN_GROW * dt);
     return keyEdge * leanHold;
   }
-  const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? 'Run' : 'Pause'; };
+  const setPlay = p => { paused = !p; $('btnPlay').textContent = paused ? '▶ Run' : '❚❚ Pause'; $('operatorState').textContent = paused ? 'Paused' : 'Live simulation'; $('operatorState').classList.toggle('paused', paused); };
   $('btnPlay').onclick = () => setPlay(paused);
   /* ---------- Forside: simuleringen står stille til START ---------- */
   const cover = $('cover'), cvStage = $('cvStage');
@@ -1287,6 +1356,120 @@
     setPlay(true); view.focus?.({ preventScroll: true });
   }
   $('btnStart').onclick = startSim;
+  /* ---------- Drone flyby: demo rider (autopilot in physics.js) + a director camera ---------- */
+  // The demo rider uses the same inputs as a player (createAutopilot); only the cable speed and the release limit are set
+  // to DEMO_SETTINGS while the demo runs and given back afterwards. Airtime runs in slow motion. After a fall the ride
+  // restarts by itself. Esc, a riding key or "Take control" hands the rider over to the player mid-ride.
+  let demo = null;
+  function startDemo() {
+    if (coverOpen()) { cover.classList.add('gone'); cover.setAttribute('aria-hidden', 'true'); }
+    if (demo) return;
+    demo = { saved: { cableSpeed: sim.cableSpeed, releaseN: sim.releaseN }, ap: createAutopilot(sim), slow: 1, fallT: 0,
+      trick: null, rail: null, capT: 0 };
+    sim.cableSpeed = DEMO_SETTINGS.cableKmh / 3.6; sim.releaseN = DEMO_SETTINGS.releaseN;
+    resetRide();
+    view.classList.add('demo'); $('demoBar').hidden = false; $('camDrone').hidden = false;
+    droneReset(); setCam('drone'); setPlay(true); view.focus?.({ preventScroll: true });
+  }
+  function stopDemo() {
+    if (!demo) return;
+    const sv = demo.saved; demo = null;
+    sim.cableSpeed = sv.cableSpeed; sim.releaseN = sv.releaseN; sim.spinIn = 0; sim.grabIn = 0;
+    view.classList.remove('demo'); $('demoBar').hidden = true; $('camDrone').hidden = true; $('demoCap').classList.remove('on');
+    if (camMode === 'drone') setCam('follow');
+    view.focus?.({ preventScroll: true });
+  }
+  $('btnFlyby').onclick = startDemo;
+  $('btnDemoExit').onclick = stopDemo;
+  function caption(title, sub) {
+    const el = $('demoCap'); el.textContent = title;
+    if (sub) { const s = document.createElement('small'); s.textContent = sub; el.appendChild(s); }
+    el.classList.add('on'); demo.capT = performance.now();
+  }
+  function demoTick(realDt) {
+    // slow motion while airborne, eased in and out
+    const want = sim.jump && sim.rider.z > 0.35 ? 0.4 : 1;
+    demo.slow += (want - demo.slow) * Math.min(1, realDt / 0.12);
+    // trick and rail call-outs
+    const lt = sim.out.lastTrick, lr = sim.out.lastRail;
+    if (lt && lt !== demo.trick) { demo.trick = lt; const air = sim.out.lastAir;
+      if (lt.name !== 'Straight air') caption(lt.name, `${lt.dur.toFixed(2)} s air`);
+      else if (air && air.hmax > 0.9) caption('Big air', `${air.hmax.toFixed(1)} m · ${lt.dur.toFixed(2)} s`); }
+    if (lr && lr !== demo.rail) { demo.rail = lr; const ob = sim.obs.find(o => o.name === lr.name);
+      if (lr.dur > 0.3 && ob && !LAUNCH_TYPES.includes(ob.type)) caption(lr.slide ? 'Boardslide' : '50-50', `${lr.name} · ${lr.dur.toFixed(2)} s`); }
+    if (demo.capT && performance.now() - demo.capT > 2400) { $('demoCap').classList.remove('on'); demo.capT = 0; }
+    const f = demo.ap.focus; $('demoNext').textContent = (f ? `→ ${f.p.name} · ` : '') + (camMode === 'drone' ? `drone ${(drone.speed * 3.6).toFixed(0)} km/h` : '');
+    // automatic restart a moment after a fall (so the fall itself is seen)
+    if (sim.out.fall) { if (!demo.fallT) demo.fallT = performance.now(); else if (performance.now() - demo.fallT > 2500) resetRide(); }
+  }
+
+  // Drone camera: ONE continuously flying camera, no cuts. It starts with a wide sweep round the park and then flies as
+  // a real drone would: a point mass chasing a framing goal with a top speed of 80 km/h (DRONE_VMAX) and limited
+  // acceleration, keeping to the inside of the cable loop (left of travel; the loop runs counter-clockwise) so its path is
+  // shorter than the rider's. Framings change smoothly every few seconds; ahead of a demo feature it flies to a vantage
+  // point beside the feature on the inside and films the trick from there.
+  const DRONE_VMAX = 80 / 3.6, DRONE_AMAX = 7, DRONE_K = 1.1;   // m/s, m/s², 1/s (approach gain)
+  const DRONE_MODES = ['chase', 'orbit', 'side', 'high', 'ahead', 'low'];
+  const DRONE_FEAT = ['side', 'front', 'high'];
+  const DRONE_OBST = [...sim.path.wheels, ...LAYOUT.masts.map(m => [m.x, m.y])];   // sheaves and mast bases
+  const drone = { mode: 'intro', t0: 0, n: 0, nFeat: 0, featP: null, fview: 'side', p: [0, 0, 0], v: [0, 0, 0], g: null, gv: [0, 0, 0],
+    look: new THREE.Vector3(), dir: { x: 1, y: 0 }, last: 0, speed: 0, a0: 0, ahead: null };
+  function droneReset() { Object.assign(drone, { mode: 'intro', t0: performance.now() / 1000, n: 0, featP: null, g: null, last: 0, v: [0, 0, 0] }); }
+  function droneMode(mode, now) { drone.mode = mode; drone.t0 = now; drone.a0 = Math.atan2(drone.p[1] - sim.rider.y, drone.p[0] - sim.rider.x); drone.ahead = null; }
+  function droneCam(R) {
+    const now = performance.now() / 1000, dt = Math.min(0.1, now - (drone.last || now)); drone.last = now;
+    const t = now - drone.t0, f = demo && demo.ap.focus;
+    const vv = Math.hypot(R.vx, R.vy); if (vv > 1) { const k = Math.min(1, dt * 2); drone.dir.x += (R.vx / vv - drone.dir.x) * k; drone.dir.y += (R.vy / vv - drone.dir.y) * k; }
+    const dl = Math.hypot(drone.dir.x, drone.dir.y) || 1, dx = drone.dir.x / dl, dy = drone.dir.y / dl, nx = -dy, ny = dx;   // n = left of travel = inside
+    const rz = Math.max(R.z, 0);
+    let g, lx = R.x + dx * 2, ly = R.y + dy * 2, lz = rz + 0.9;
+    if (drone.mode === 'intro') {   // scripted spiral: a wide sweep round the park closing in on the rider at the start (≤ 80 km/h)
+      const T = 8, q = Math.min(1, t / T), e = q * q * (3 - 2 * q), a = 3.6 + 0.128 * t;
+      const cx = 92 + (R.x - 92) * e, cy = 30 + (R.y - 30) * e, rad = 165 + (40 - 165) * e;
+      g = [cx + rad * Math.cos(a), cy + rad * Math.sin(a), 75 + (14 - 75) * e];
+      lx = 92 + (R.x - 92) * e; ly = 30 + (R.y - 30) * e; lz = 0;
+      if (dt > 0.005) { drone.v = g.map((x, i) => (x - drone.p[i]) / dt); const sp = Math.hypot(...drone.v); if (sp > DRONE_VMAX) drone.v = drone.v.map(x => x * DRONE_VMAX / sp); }
+      drone.p = g; if (t > T) droneMode('chase', now);
+    } else {
+      // a demo feature ahead: fly to a vantage point beside it, on the inside, and hold there until he has ridden on
+      if (f && f.p !== drone.featP && f.u > -f.p.ob.L / 2 - 50) { drone.featP = f.p; drone.fview = DRONE_FEAT[drone.nFeat++ % DRONE_FEAT.length]; droneMode('feature', now); }
+      if (drone.mode === 'feature' && (!f || f.p !== drone.featP)) droneMode(DRONE_MODES[drone.n++ % DRONE_MODES.length], now);
+      if (!f) drone.featP = null;
+      if (drone.mode !== 'feature' && t > 6.5) droneMode(DRONE_MODES[drone.n++ % DRONE_MODES.length], now);
+      switch (drone.mode) {
+        case 'chase': g = [R.x - dx * 8 + nx * 4, R.y - dy * 8 + ny * 4, rz + 3]; lx = R.x + dx * 4; ly = R.y + dy * 4; break;
+        case 'low': g = [R.x - dx * 5 + nx * 2.5, R.y - dy * 5 + ny * 2.5, rz + 1.2]; lx = R.x + dx * 6; ly = R.y + dy * 6; lz = rz + 1.1; break;
+        case 'side': g = [R.x + nx * 11 + dx * 2, R.y + ny * 11 + dy * 2, 2.6]; break;
+        case 'high': g = [R.x - dx * 14 + nx * 18, R.y - dy * 14 + ny * 18, 24]; lx = R.x + dx * 10; ly = R.y + dy * 10; lz = 0; break;
+        case 'orbit': { // half circle round the rider, swinging from the inside over the back to the inside again
+          const a = drone.a0 + 0.35 * t; g = [R.x + 16 * Math.cos(a), R.y + 16 * Math.sin(a), rz + 6]; break; }
+        case 'ahead': { // hover over the rider's line ahead and let him pass close by
+          if (!drone.ahead) drone.ahead = [R.x + dx * 55 + nx * 5, R.y + dy * 55 + ny * 5, 3.5];
+          g = drone.ahead; break; }
+        case 'feature': {
+          const ob = drone.featP.ob, at = (u, v, h) => [ob.x + ob.ax * u - ob.ay * v, ob.y + ob.ay * u + ob.ax * v, h];
+          g = drone.fview === 'side' ? at(ob.L / 2 + 2, ob.W / 2 + 8, 3.5) : drone.fview === 'front' ? at(ob.L / 2 + 20, 6, 4) : at(ob.L / 2, 9, 14);
+          lx = R.x; ly = R.y; lz = rz + 0.8; break; }
+      }
+      // goal velocity (for feed-forward), then a speed- and acceleration-limited approach
+      const gvNew = drone.g && dt > 0 ? g.map((x, i) => (x - drone.g[i]) / dt) : [0, 0, 0];
+      drone.gv = drone.gv.map((x, i) => x + (gvNew[i] - x) * Math.min(1, dt * 4)); drone.g = g;
+      let vd = g.map((x, i) => drone.gv[i] + DRONE_K * (x - drone.p[i]));
+      for (const [mx, my] of DRONE_OBST) {   // keep clear of the towers, booms and sheaves (they reach ≈11 m up)
+        const ex = drone.p[0] - mx, ey = drone.p[1] - my, d = Math.hypot(ex, ey);
+        if (d < 7 && d > 1e-3 && drone.p[2] < 12) { vd[0] += ex / d * (7 - d) * 3; vd[1] += ey / d * (7 - d) * 3; }
+      }
+      const sp = Math.hypot(...vd); if (sp > DRONE_VMAX) vd = vd.map(x => x * DRONE_VMAX / sp);
+      const dv = vd.map((x, i) => x - drone.v[i]), dm = Math.hypot(...dv), amax = DRONE_AMAX * dt;
+      drone.v = drone.v.map((x, i) => x + (dm > amax ? dv[i] * amax / dm : dv[i]));
+      drone.p = drone.p.map((x, i) => x + drone.v[i] * dt); drone.p[2] = Math.max(1.0, drone.p[2]);
+    }
+    drone.speed = Math.hypot(...drone.v);
+    const P = V3(drone.p[0] + 0.1 * Math.sin(now * 1.3), drone.p[1] + 0.1 * Math.sin(now * 1.7 + 1), drone.p[2] + 0.06 * Math.sin(now * 2.1 + 2));   // hover wobble
+    const L = V3(lx, ly, lz);
+    if (drone.look.lengthSq() === 0) drone.look.copy(L); else drone.look.lerp(L, 1 - Math.exp(-dt / 0.2));   // gimbal
+    persp.position.copy(P); persp.lookAt(drone.look);
+  }
   addEventListener('resize', fitCover); fitCover();
   setPlay(false);   // Enter/Space eller klik på START starter
   $('btnStep').onclick = () => { setPlay(false); stepN(1); };
@@ -1294,7 +1477,9 @@
   $('selSlow').onchange = e => { timeScale = +e.target.value; };
   function resetRide() {
     sim.reset();
+    speedGauge.reset(sim.out.V * 3.6); tensionGauge.reset(sim.line.F / 1000);
     keyEdge = keyLeg = 0; leanHold = 0; leanDir = 0; fallAt = 0; $('fallBox').hidden = true;
+    if (demo) { demo.ap.reset(); demo.fallT = 0; demo.trick = sim.out.lastTrick; demo.rail = sim.out.lastRail; }
     for (const id of ['edgeL', 'edgeR', 'legDn', 'legUp', 'trSpinL', 'trSpinR', 'trNose', 'trTail']) setHeld(id, false);
     clearHistory(); trailN = 0; trailT = -1; trailGeo.setDrawRange(0, 0);
     acc = 0; last = performance.now(); coachLast.arcT = -1; diagLast = -Infinity;
@@ -1307,6 +1492,7 @@
   $('btnRestart').onclick = () => { resetRide(); view.focus?.({ preventScroll: true }); };
   function updateFallBox() {
     const box = $('fallBox');
+    if (demo) { if (!box.hidden) box.hidden = true; return; }   // the demo restarts by itself
     if (!sim.out.fall) { fallAt = 0; if (!box.hidden) box.hidden = true; return; }
     if (!fallAt) fallAt = performance.now();
     if (box.hidden && performance.now() - fallAt > 700) {
@@ -1314,9 +1500,9 @@
     }
   }
   $('rngSpeed').oninput = e => { sim.cableSpeed = +e.target.value / 3.6; $('outSpeed').textContent = e.target.value + ' km/h'; };
-  // Panel tabs: Ride (time, charts, diagnostics) · Settings (all configuration) · Guide (how to ride, physics/validation)
-  const TABS = ['ride', 'settings', 'guide'];
-  function showTab(k) { for (const t of TABS) { $('tab-' + t).setAttribute('aria-selected', t === k); $('pane-' + t).hidden = t !== k; }
+  // Keep the stored "ride" key for compatibility; its visible tab is now Graphs.
+  const TABS = ['ride', 'log', 'settings', 'guide'];
+  function showTab(k) { for (const t of TABS) { $('tab-' + t).setAttribute('aria-selected', t === k); $('tab-' + t).tabIndex = t === k ? 0 : -1; $('pane-' + t).hidden = t !== k; }
     try { localStorage.setItem('ccpTab', k); } catch (e) {} }
   TABS.forEach((t, i) => { const b = $('tab-' + t); b.onclick = () => showTab(t);
     b.onkeydown = e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); const n = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]; showTab(n); $('tab-' + n).focus(); } }; });
@@ -1329,9 +1515,13 @@
   $('selWin').onchange = e => { WINDOW = +e.target.value; };
   $('rngFoot').oninput = e => { sim.footShift = +e.target.value / 100; $('outFoot').textContent = (+e.target.value > 0 ? '+' : '') + e.target.value + ' cm'; };
   addEventListener('keydown', e => {
-    if (coverOpen()) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSim(); } return; }
+    if (coverOpen()) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSim(); } else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); startDemo(); } return; }
+    if (demo && e.key === 'Escape') { e.preventDefault(); stopDemo(); return; }
+    // Any riding key in the demo hands the rider over to the player, mid-ride
+    if (demo && !(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'd', 'w', 's', 'q', 'r', 'W', 'S', 'Q', 'R'].includes(e.key)) stopDemo();
     if (!$('fallBox').hidden && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); resetRide(); return; }
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, select, textarea, [contenteditable="true"], [role="separator"]')) return;
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.closest('button')) return;
     if (e.key === 'ArrowLeft' || e.key === 'a') { keyEdge = -1; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { keyEdge = 1; e.preventDefault(); }
     else if (e.key === 'ArrowUp') { keyLeg = 1; e.preventDefault(); }
@@ -1469,16 +1659,20 @@
   /* ---------- Simloop: fast tidsskridt, adskilt fra rendering ---------- */
   function stepN(n) {
     for (let i = 0; i < n; i++) {
-      sim.leanCmdIn = leanRamp(PHYS.DT) * DEG;
-      sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;
-      sim.step(); sample();
+      if (demo) demo.ap.update();   // the demo rider sets lean, legs, spin and grab himself
+      else {
+        sim.leanCmdIn = leanRamp(PHYS.DT) * DEG;
+        sim.legCmdIn = keyLeg > 0 ? PHYS.LEG_MAX : keyLeg < 0 ? PHYS.LEG_MIN : sim.legBase;
+      }
+      sim.step(); sample(); observeGauges();
     }
   }
   let acc = 0, last = performance.now();
   function frame(now) {
     const dtRaw = (now - last) / 1000, realDt = Math.min(0.1, dtRaw); last = now; gfxWatch(dtRaw);
+    if (demo) demoTick(realDt);
     if (!paused) {
-      acc += realDt * timeScale;
+      acc += realDt * timeScale * (demo ? demo.slow : 1);
       let n = Math.floor(acc / PHYS.DT); acc -= n * PHYS.DT;
       stepN(Math.min(n, 96)); // maks 0,4 s sim pr. frame
     }
@@ -1517,6 +1711,8 @@
     document.querySelector('#tblDiag tbody').innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td><td class="n">${r[2]}</td></tr>`).join('');
   }
   function render() {
+    const gaugeNow = performance.now(), gaugeDt = Math.min(0.1, (gaugeNow - gaugeLast) / 1000); gaugeLast = gaugeNow;
+    observeGauges(); speedGauge.render(gaugeDt); tensionGauge.render(gaugeDt);
     const C = sim.carrier, R = sim.rider;
     carrierM.position.copy(V3(sim.towPt.x, sim.towPt.y, sim.towPt.z - 0.35));
     carrierM.rotation.y = Math.atan2(C.ty, C.tx); updateCable();
@@ -1534,7 +1730,7 @@
       const kpx = pxSize(V3(R.x, R.y, 0), ortho) * 55 / 9; headArrow.scale.setScalar(Math.max(0.25, kpx * 0.25)); cableArrow.scale.setScalar(Math.max(1, kpx * 0.9));   // ~55 px lang uanset zoom
       cableArrow.position.copy(V3(R.x, R.y, 0.25)); cableArrow.rotation.y = Math.atan2(C.ty, C.tx);  // kablets retning
     }
-    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow' && camMode !== 'start' && camMode !== 'oe'; for (const l of mastLabels.concat(obsTags)) l.visible = riderTag.visible;
+    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow' && camMode !== 'start' && camMode !== 'oe' && camMode !== 'drone'; for (const l of mastLabels.concat(obsTags)) l.visible = riderTag.visible;
     boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
     boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
     // line: lige i træk, hængende i slæk
@@ -1571,7 +1767,8 @@
       const cl = Math.hypot(camDir.x, camDir.y) || 1, cx = camDir.x / cl, cy = camDir.y / cl;
       camOff.copy(V3(R.x - cx * 6.5, R.y - cy * 6.5, Math.max(R.z, 0) + 2.1));
       persp.position.lerp(camOff, 0.2); persp.lookAt(V3(R.x + cx * 3, R.y + cy * 3, Math.max(R.z, 0) + 1.0));
-    } else cam = ortho;
+    } else if (camMode === 'drone') droneCam(R);
+    else cam = ortho;
     gfxFrame(cam, R, bz);
     renderer.render(scene, cam);
     // HUD
@@ -1618,14 +1815,15 @@
     } else hr.hidden = true;
     $('hudEdge').textContent = `lean ${(R.phi / DEG).toFixed(0)}° (target ${(sim.leanCmd / DEG).toFixed(0)}°)`;
     const hf = $('hudFall'); hf.hidden = !sim.out.fall; if (sim.out.fall) hf.textContent = sim.out.fall;
-    for (const s of series) drawChart(s);
+    if (operatorPanel.isOpen && !$('pane-ride').hidden) for (const s of series) drawChart(s);
     updateFallBox();
     const fill = (leanHold / PHYS.LEAN_MAX_DEG * 100).toFixed(0) + '%';
     $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
-  window.__ccpDebug = { sim, persp, controls, setCam, startArea, scene, renderer };   // for automated screenshots/tests
+  window.__ccpDebug = { sim, persp, controls, setCam, startArea, scene, renderer, operatorPanel, speedGauge, tensionGauge, hist, series };   // for automated screenshots/tests
   setCam(location.hash === '#oe' ? 'oe' : location.hash === '#start-area' ? 'start' : 'follow');
   if (location.hash === '#start-area' || location.hash === '#oe') { startSim(); setPlay(false); }
+  if (location.hash === '#flyby') startDemo();
   resize(); requestAnimationFrame(frame);
 })();
 </script>

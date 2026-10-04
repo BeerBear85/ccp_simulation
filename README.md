@@ -43,6 +43,7 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 | `src/face_texture.jpg` | The rider's face (photo of the user, cropped and feathered to skin colour); projected onto the front of the head, inlined by `build.py`. |
 | `build.py` | Builds `dist/copenhagen_cable_park_sim.html` (standalone) and `.frag.html` (artifact body). |
 | `dist/` | Built simulator. |
+| `tests/demo_autopilot.test.js` | The drone-flyby demo rider rides three laps without a fall in 0, 4 and 8 m/s wind, lands a tail grab and a 360, and goes wide before the corner at tower A with a lower peak rope force. |
 | `tests/copenhagen_cable_park_sim_validation.js` | Headless validation against the physics report (straight case, edge manoeuvre, time-step convergence, energy residual, pop, sensitivity, starts, release limit, corners, wind, tricks, rails). |
 | `analysis/` | CCP layout and obstacle analyses (source material). |
 | `docs/` | "Physics and Simulation of a Cable-Park Wakeboard Rider" report. |
@@ -52,7 +53,7 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 ```bash
 python3 build.py
 python3 tests/test_build.py
-node --test tests/simulation_lifecycle.test.js tests/build_smoke.test.js tests/oe_geometry.test.js
+node --test tests/simulation_lifecycle.test.js tests/build_smoke.test.js tests/oe_geometry.test.js tests/demo_autopilot.test.js
 node tests/copenhagen_cable_park_sim_validation.js
 ```
 
@@ -100,6 +101,26 @@ custom scenario; the following reset starts from the selected dock position.
 - ← / → (A/D): lean. ↑ / ↓: pop / crouch.
 - W / S: nose / tail grab in the air. Q / R: spin left / right.
 - Space: pause. `.`: single step.
+
+## Drone flyby (demo)
+
+**DRONE FLYBY** on the start screen (or `D` there, or the URL hash `#flyby`) starts a demo: a director camera
+flies over the park while a demo rider runs the course on his own. The rider is `createAutopilot(sim)` in
+`src/physics.js`; it sets only the player's inputs (lean, legs, spin, grab) and follows `DEMO_PLAN`: a popped
+tail grab off the OC left ramp, a 360 to the right with a nose grab off the OI kicker (crossed 25° to the right, so he
+jumps out towards the outside) and a boardslide on the OA rising rail, riding the line and edging out before the corners
+in between. Before the 96° corner at tower A he rides wide (≈8 m right of the cable at the sheave) and carves in from
+2.5 s before the carrier reaches the sheave, so the rope stays nearly taut: peak rope force there ≈1.3–1.4 kN against
+≈1.75 kN riding the line (headless). The rope only stays fully taut if its angle to the cable is at least half of
+(corner angle + how far the board is already turned in), i.e. ≈13.6–17 m out with a 20 m rope.
+While the demo runs the cable speed is 30 km/h and
+the release limit 2.5 kN (`DEMO_SETTINGS`); both are given back afterwards. Airtime plays in slow motion, tricks
+are called out on screen, and after a fall the ride restarts by itself. The camera is one continuously flying drone with no cuts: it opens with a spiral sweep round the park that closes in
+on the rider, then flies like a real drone (top speed 80 km/h, limited acceleration) between chase, orbit, side,
+high, hover-ahead and low framings, keeping to the inside of the cable loop so its path is shorter than the rider's.
+Ahead of each demo feature it flies to a vantage point beside the feature on the inside and films the trick from there.
+Its speed is shown in the demo bar. Esc, a riding key or
+**Take control** hands the rider to the player mid-ride.
 
 ## Limits
 
