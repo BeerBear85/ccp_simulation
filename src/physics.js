@@ -225,8 +225,9 @@ const LAYOUT = {
   // Hjulcentre = kabelbanens hjørner. MÅLT: brugerens Google Earth-polygon "ccp" (KML), omkreds 520 m, areal 15 413 m².
   // Omregnet fra lat/lon til lokale meter med origo 55.681713 N, 12.622169 Ø (mast A-området).
   // Sheave TE (old C) moved 5 m inwards along the corner bisector (bearing 210°, symmetric between B and D) from the measured [161.2, 130.4]
-  // (user, 25 Sep 2026); mast base TE unchanged, so its boom is longer (15.4 → 20.3 m).
-  wheels: [[5.4, 4.2], [77.0, -51.5], [106.6, -45.5], [173.4, 84.6], [158.7, 126.1], [116.9, 118.4]],
+  // (user, 25 Sep 2026) to [158.7, 126.1]; moved again 8 m south (bearing ≈188°) to [157.5, 118.2] per the user's
+  // marked-up plan view (red arrow at the TE sheave, 4 Oct 2026). Mast base TE unchanged, so its boom is now ≈28.1 m.
+  wheels: [[5.4, 4.2], [77.0, -51.5], [106.6, -45.5], [173.4, 84.6], [157.5, 118.2], [116.9, 118.4]],
   // Mastfødder (A-rammer på jetty/kyst/mole), som hælder ind over vandet med en bom ud til hjulet.
   // Tower IDs TA–TF and their recognisable features follow the layout report of 3 Oct 2026 (old IDs A, F, E, D, C, B).
   masts: [ // rækkefølge = omløbsretning (mod uret)
@@ -234,7 +235,7 @@ const LAYOUT = {
     { id: 'TB', x: 81.9,  y: -71.4, role: 'Jetty south, G-SHOCK banner',  status: 'målt' },     // jettypunkt nærmest hjul 2 (20,5 m udhæng)
     { id: 'TC', x: 114.8, y: -63.3, role: 'Jetty corner, light sail', status: 'målt' },     // brugerens måling: 20 m mast→hjul
     { id: 'TD', x: 188.3, y: 83.0,  role: 'East, tank side',         status: 'antaget' },  // 15 m ud fra hjulet
-    { id: 'TE', x: 166.0, y: 145.0, role: 'NE by mole, counterweight',   status: 'antaget' },  // base unchanged; boom 20.3 m to the moved sheave
+    { id: 'TE', x: 166.0, y: 145.0, role: 'NE by mole, counterweight',   status: 'antaget' },  // base unchanged; boom ≈28.1 m to the moved sheave (4 Oct 2026)
     { id: 'TF', x: 109.3, y: 131.3, role: 'North shore, orange padding',  status: 'målt' },     // satellit (pæl+skygge) = 15 m ud fra hjulet
   ],
   // Vandkontur: NV-kyst og mole fra Google Earth (brugerens skærmbillede, ±3 m); syd/øst fra satellit (±15 m).
