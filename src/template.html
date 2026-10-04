@@ -1,5 +1,6 @@
 <title>Copenhagen Cable Park Simulator</title>
 <script>
+/*__SURROUNDINGS__*/
 /*__PHYSICS__*/
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -244,6 +245,12 @@
       <button id="camOrbit" aria-pressed="false">Orbit</button>
       <button id="camFollow" aria-pressed="true">Follow rider</button>
       <button id="camTop" aria-pressed="false">Top-down</button>
+      <button id="camSurroundings" aria-pressed="false">Surroundings</button>
+      <select id="selSurroundings" aria-label="Surroundings viewpoint" hidden>
+        <option value="overview">Site overview</option>
+        <option value="dam">Dam passage</option>
+        <option value="tanks">Tank-side bank</option>
+      </select>
       <button id="camDrone" aria-pressed="false" title="The flying drone camera of the flyby" hidden>Drone</button>
       <button id="btnInfo" aria-pressed="true" title="Show/hide on-screen info text">Info</button>
     </div></div>
@@ -390,7 +397,7 @@
     <details>
       <summary>Park layout · measured vs. assumed</summary>
       <div class="tbl"><table id="tblMasts"><thead><tr><th>Tower</th><th>Role</th><th style="text-align:right">x (m)</th><th style="text-align:right">y (m)</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-      <p class="note">Surroundings (visual only, ±10–20 m): Kraftværksvej, CopenHill (roof 85 m, chimney 124 m), Amagerværket, the stone mole, the Prøvestenen tank farm and the allotment gardens, read from Google Maps satellite and Street View (Kraftværksvej 31). Other heights, the tank layout and the garden huts are schematic. Sources: cable loop from the user's Google Earth polygon (KML, perimeter 520 m); jetty, shore and obstacles from Google Earth screenshots (±2–3 m); satellite for the south and east (±15 m). x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an asymmetric AIRTOX rooftop with a rounded grey top, a joined bank with end and side approaches to one flat deck, and a smaller black round rail with a sloped entry mounted on that deck (photos 9807, 9777, 9778, 9829 and 9743; dimensions estimated); OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low white kicker (ramp, flat top, abrupt end) on its left and a black kicker in direct contact on its right, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
+      <p class="note">Surroundings follow the supplied Earth and Street View images (9912–9925), calibrated to the marked 256.97 m shoreline segment. The curved channel continues beyond the course, with water beneath the dam passage. Bank heights, passage dimensions, building heights and distant terrain are estimates; surroundings are visual and have no collision or flow model. Cable and obstacle geometry retain the earlier measured layout. x = east, y = north, origin at tower TA. Direction of travel confirmed (counter-clockwise). Towers are leaning A-frames on the jetty/shore with a boom carrying the sheave 15–20 m out over the water. Obstacles move over time. The simulator uses the obstacle layout from the CCP layout report (photos of 1 Oct 2026, updated 3 Oct 2026): nine groups, OA–OI, with the report's centres, axes and working sizes (length × width × maximum height above the water; photo estimates, not measured). South leg: OA, a narrow white rail with a sloped nose that rises along its length to a high closed end, south of the cable and parallel to it. Tank side: OB, a low white box with sloped sides, a narrow top and a dark entry ramp, with a low bump beside its south-west entry; OC (cocks &amp; balls), a black-topped rail on a white wall with two equal ramps, one on each side, at the entry; OD, a long low rooftop. Land side, back towards the start: OE, an asymmetric AIRTOX rooftop with a rounded grey top, a joined bank with end and side approaches to one flat deck, and a smaller black round rail with a sloped entry mounted on that deck (photos 9807, 9777, 9778, 9829 and 9743; dimensions estimated); OF, a high white rail in three sections (up, level top, down to an end ≈0.4 m above the water) with a low white kicker (ramp, flat top, abrupt end) on its left and a black kicker in direct contact on its right, both about mid-rail (from the kicker you can only reach the down section); OG, a symmetric wedge with a 0.4 m flat centre rail and equal faces down to the water; OH, a black AIRTOX kicker; and OI, a white AIRTOX kicker whose right top (seen from the run-up) is higher than the left. Part offsets inside a group are read from the report's illustrations and the user's corrections and are estimates. Tall entries are kept at ≤ ≈22°. Positions have ≈5–10 m absolute uncertainty. Towers are named TA–TF as in the report. Fore–aft balance: the pitch limits (35° forward, 60° back) apply while the board is supported; in the air the rider holds the board level by swinging the legs under the body (up to 35°, 200°/s, assumed), and the pitch is judged at touchdown. Calibrated so a ≈35° face can be ridden above 30 km/h (user, 28 Sep 2026); crouching before the face with neutral weight at 34 km/h still lands you on the nose. On features the board is a rigid 1.43 m plank: it rests on its two ends, so a steep toe is spread over the board length and the reaction acts ahead of the feet while the tail is still off the feature. Contact physics: normal force, friction, jumps, landing and side collisions. Collisions with the jetty are not modelled.</p>
     </details>
     <section class="field">
       <h2 style="grid-column:1/-1;margin:0">How to ride</h2>
@@ -600,26 +607,10 @@
   // Verdens-koordinater: sim (x øst, y nord, z op) -> three (X=x, Y=z, Z=-y)
   const V3 = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
 
-  // Land med hul til vandet
-  const W = LAYOUT.water;
-  const landShape = new THREE.Shape([[-1400,-1400],[1600,-1400],[1600,1600],[-1400,1600]].map(p => new THREE.Vector2(p[0], p[1])));
-  landShape.holes.push(new THREE.Path(W.map(p => new THREE.Vector2(p[0], p[1]))));
-  const landGeo = new THREE.ShapeGeometry(landShape); landGeo.rotateX(-Math.PI / 2);
-  const grassTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); let sd = 5; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    g.fillStyle = '#7d8a6e'; g.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 90; i++) { const x = rn() * 512, y = rn() * 512, r = 30 + rn() * 90, l = rn() < 0.5 ? 'rgba(98,112,80,.22)' : 'rgba(146,150,116,.18)';   // soft patches (wrapped)
-      for (const [dx, dy] of [[0, 0], [512, 0], [-512, 0], [0, 512], [0, -512], [512, 512], [-512, -512], [512, -512], [-512, 512]]) { const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r); gr.addColorStop(0, l); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x + dx - r, y + dy - r, 2 * r, 2 * r); } }
-    for (let i = 0; i < 16000; i++) { const v = rn(); g.fillStyle = v < 0.5 ? 'rgba(70,84,58,.3)' : 'rgba(170,176,140,.2)'; g.fillRect(rn() * 512, rn() * 512, 1 + rn() * 2, 1 + rn() * 2); }
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 110, 1 / 110); t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); return t; })();
-  const land = new THREE.Mesh(landGeo, new THREE.MeshLambertMaterial({ map: grassTex }));
-  land.position.y = 0.8; land.receiveShadow = true; scene.add(land);
-  // Bank: vertical edge from below the water line to the grass (fills the gap and shows in the reflection)
-  { const P = [], I = []; W.forEach((a, i) => { const b = W[(i + 1) % W.length], k = P.length / 3;
-      P.push(a[0], -0.8, -a[1], b[0], -0.8, -b[1], b[0], 0.8, -b[1], a[0], 0.8, -a[1]); I.push(k, k + 1, k + 2, k, k + 2, k + 3); });
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals();
-    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x6a6558, side: THREE.DoubleSide }))); }
-  const waterShape = new THREE.Shape(W.map(p => new THREE.Vector2(p[0], p[1])));
-  const waterGeo = new THREE.ShapeGeometry(waterShape); waterGeo.rotateX(-Math.PI / 2);
+  // The water continues through the channel and under the dam. Land masses,
+  // sloped banks and the open passage are built from the calibrated image traces.
+  const surroundings = createCCPSurroundings(THREE); scene.add(surroundings);
+  const waterGeo = new THREE.PlaneGeometry(5000, 5000); waterGeo.rotateX(-Math.PI / 2);
   const flatWater = new THREE.Mesh(waterGeo, waterMaterial(false)); flatWater.position.y = -0.05; scene.add(flatWater);
   // Live water patch around the camera target: wind chop (same JONSWAP components as the physics) + the rider's wake, with foam
   const WP = 48, WN = 120, wGeo = new THREE.PlaneGeometry(WP, WP, WN, WN); wGeo.rotateX(-Math.PI / 2);
@@ -657,49 +648,6 @@
   const grid = new THREE.GridHelper(600, 60, 0x44707f, 0x3a6474); grid.position.set(80, 0.02, 0);
   grid.material.transparent = true; grid.material.opacity = 0.12; scene.add(grid);
 
-  // Surroundings (visual only): roads, CopenHill, Amagerværket, the mole, Prøvestenen tanks, allotment gardens. See LAYOUT.surroundings.
-  { const S = LAYOUT.surroundings, G0 = 0.8, mats = {}, mat = c => mats[c] || (mats[c] = new THREE.MeshLambertMaterial({ color: c }));
-    const box = (x, y, L, Wd, H, ang, c, z0 = G0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(L, H, Wd), mat(c));
-      m.position.copy(V3(x, y, z0 + H / 2)); m.rotation.y = ang * DEG; scene.add(m); return m; };
-    const strip = (pts, w, h, c, z0 = G0) => { for (let i = 0; i < pts.length - 1; i++) { const [a, b] = [pts[i], pts[i + 1]], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      box((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, L + w * 0.6, w, h, Math.atan2(b[1] - a[1], b[0] - a[0]) / DEG, c, z0); } };
-    const cyl = (x, y, r, h, c, seg = 20) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), mat(c)); m.position.copy(V3(x, y, G0 + h / 2)); scene.add(m); };
-    const inPoly = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; return c; };
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (const r of S.roads) { strip(r.pts, r.w, 0.06, 0x55595c); strip(r.pts, 0.25, 0.07, 0xe8e8e0); }
-    // CopenHill: box with a sloped roof (low SW end, high NE end) + chimney
-    { const C = S.copenhill, g = new THREE.BoxGeometry(C.L, 1, C.W), p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) { const top = p.getY(i) > 0, u = p.getX(i) / C.L + 0.5; p.setY(i, top ? C.hLo + (C.hHi - C.hLo) * u : 0); }
-      g.computeVertexNormals(); const facade = mat(0x7f8a8c), roofM = mat(0x6d8a5c);   // top face = green ski/hiking roof
-      const m = new THREE.Mesh(g, [facade, facade, roofM, facade, facade, facade]); m.position.copy(V3(C.x, C.y, G0)); m.rotation.y = C.ang * DEG; scene.add(m);
-      const [cx, cy, ch, cr] = C.chimney; cyl(cx, cy, cr, ch, 0xb9bdbf); }
-    for (const b of S.buildings) box(...b);
-    for (const [a, b, h, c] of S.walls) strip([a, b], 0.4, h, c);
-    for (const [x, y, h, r] of S.chimneys) cyl(x, y, r, h, 0xc9cccd, 14);
-    strip(S.mole.pts, S.mole.w, S.mole.h, 0x8e8a80, G0 - 1.6);
-    // Tank farm on a jittered grid
-    { const A = S.tankArea, sp = S.tankSpacing, xs = A.map(p => p[0]), ys = A.map(p => p[1]);
-      for (let x = Math.min(...xs); x <= Math.max(...xs); x += sp) for (let y = Math.min(...ys); y <= Math.max(...ys); y += sp) {
-        const px = x + (rnd() - 0.5) * sp * 0.3, py = y + (rnd() - 0.5) * sp * 0.3;
-        if (!inPoly(px, py, A) || rnd() < 0.3) continue;
-        cyl(px, py, 9 + rnd() * 7, 10 + rnd() * 6, 0xeef0ee, 24); } }
-    for (const [x, y, r, h] of S.piles) { const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 16), mat(0xb4a58a)); m.position.copy(V3(x, y, G0 + h / 2)); scene.add(m); }
-    // Trees (instanced) and allotment huts
-    const tpos = [];
-    for (const [x, y] of S.trees) tpos.push([x, y, 7 + rnd() * 5]);
-    for (let i = 0; i < 20; i++) { const t = i / 19, r = S.roads[0].pts; const k = Math.min(r.length - 2, Math.floor(t * 3)), a = r[k], b = r[k + 1], f = t * 3 - k;   // row along the SW road
-      tpos.push([a[0] + (b[0] - a[0]) * f - 14, a[1] + (b[1] - a[1]) * f + 10, 6 + rnd() * 4]); }
-    const GA = S.gardens, gx = GA.map(p => p[0]), gy = GA.map(p => p[1]), huts = [];
-    for (let i = 0; i < 260; i++) { const x = Math.min(...gx) + rnd() * (Math.max(...gx) - Math.min(...gx)), y = Math.min(...gy) + rnd() * (Math.max(...gy) - Math.min(...gy));
-      if (!inPoly(x, y, GA)) continue; if (i % 2) huts.push([x, y, rnd() * 90]); else tpos.push([x, y, 5 + rnd() * 5]); }
-    const trunkG = new THREE.CylinderGeometry(0.25, 0.3, 1, 6), crownG = new THREE.ConeGeometry(1, 1, 8), dummy = new THREE.Object3D();
-    const trunks = new THREE.InstancedMesh(trunkG, mat(0x5a4632), tpos.length), crowns = new THREE.InstancedMesh(crownG, mat(0x3f6a3a), tpos.length);
-    tpos.forEach(([x, y, h], i) => { dummy.position.copy(V3(x, y, G0 + h * 0.15)); dummy.scale.set(1, h * 0.3, 1); dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix);
-      dummy.position.copy(V3(x, y, G0 + h * 0.6)); dummy.scale.set(h * 0.28, h * 0.8, h * 0.28); dummy.updateMatrix(); crowns.setMatrixAt(i, dummy.matrix); });
-    scene.add(trunks, crowns);
-    const hutM = new THREE.InstancedMesh(new THREE.BoxGeometry(4, 2.6, 3), mat(0xc9b79a), huts.length);
-    huts.forEach(([x, y, a], i) => { dummy.position.copy(V3(x, y, G0 + 1.3)); dummy.scale.set(1, 1, 1); dummy.rotation.set(0, a * DEG, 0); dummy.updateMatrix(); hutM.setMatrixAt(i, dummy.matrix); });
-    scene.add(hutM); }
 
   // Jetty
   const jettyMat = new THREE.MeshLambertMaterial({ color: 0xb59c78 });
@@ -1290,12 +1238,19 @@
   const TOP_SPAN = 400; // m synligt (højeste akse)
   function setCam(mode) {
     camMode = mode;
-    const inspect = mode === 'start' || mode === 'oe';
+    const inspect = mode === 'start' || mode === 'oe' || mode === 'surroundings';
+    $('camSurroundings').setAttribute('aria-pressed', mode === 'surroundings');
+    $('selSurroundings').hidden = mode !== 'surroundings';
+    controls.maxPolarAngle = Math.PI * (mode === 'surroundings' ? 0.4999 : 0.49);
     $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
     $('camFollow').setAttribute('aria-pressed', mode === 'follow');
     $('camTop').setAttribute('aria-pressed', mode === 'top');
     $('camDrone').setAttribute('aria-pressed', mode === 'drone');
     controls.enabled = mode === 'orbit' || inspect;
+    if (mode === 'surroundings') {
+      const c = CCP_SURROUNDINGS.cameras[$('selSurroundings').value];
+      persp.position.copy(V3(...c.position)); controls.target.copy(V3(...c.target)); controls.update();
+    }
     if (mode === 'start') {
       persp.position.copy(startArea.localToWorld(new THREE.Vector3(-27, 43, -49)));
       controls.target.copy(startArea.localToWorld(new THREE.Vector3(-17, 1.3, 3))); controls.update();
@@ -1311,6 +1266,8 @@
   $('camOrbit').onclick = () => setCam('orbit');
   $('camFollow').onclick = () => setCam('follow');
   $('camTop').onclick = () => setCam('top');
+  $('camSurroundings').onclick = () => { setCam('surroundings'); setPlay(false); };
+  $('selSurroundings').onchange = () => { setCam('surroundings'); setPlay(false); };
   $('camDrone').onclick = () => { droneReset(); setCam('drone'); };
   // Info-tekst i billedet til/fra (huskes lokalt i browseren, hvis muligt)
   let infoOn = true; try { infoOn = localStorage.getItem('ccpInfo') !== '0'; } catch (e) {}
@@ -1730,7 +1687,7 @@
       const kpx = pxSize(V3(R.x, R.y, 0), ortho) * 55 / 9; headArrow.scale.setScalar(Math.max(0.25, kpx * 0.25)); cableArrow.scale.setScalar(Math.max(1, kpx * 0.9));   // ~55 px lang uanset zoom
       cableArrow.position.copy(V3(R.x, R.y, 0.25)); cableArrow.rotation.y = Math.atan2(C.ty, C.tx);  // kablets retning
     }
-    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'follow' && camMode !== 'start' && camMode !== 'oe' && camMode !== 'drone'; for (const l of mastLabels.concat(obsTags)) l.visible = riderTag.visible;
+    riderTag.position.copy(V3(R.x, R.y, bz + 4.5)); riderTag.visible = camMode !== 'surroundings' && camMode !== 'follow' && camMode !== 'start' && camMode !== 'oe' && camMode !== 'drone'; for (const l of mastLabels.concat(obsTags)) l.visible = riderTag.visible;
     boardG.rotation.set(R.phi, 0, sim.out.inWater || sim.out.air ? (sim.out.pitch || 0) : 0);   // krop+board: læn (roll) + pitch
     boardOnly.rotation.x = R.ankle || 0;                                                          // ankel-kant af boardet alene
     // line: lige i træk, hængende i slæk
@@ -1820,9 +1777,9 @@
     const fill = (leanHold / PHYS.LEAN_MAX_DEG * 100).toFixed(0) + '%';
     $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
-  window.__ccpDebug = { sim, persp, controls, setCam, startArea, scene, renderer, operatorPanel, speedGauge, tensionGauge, hist, series };   // for automated screenshots/tests
-  setCam(location.hash === '#oe' ? 'oe' : location.hash === '#start-area' ? 'start' : 'follow');
-  if (location.hash === '#start-area' || location.hash === '#oe') { startSim(); setPlay(false); }
+  window.__ccpDebug = { sim, persp, controls, setCam, startArea, surroundings, scene, renderer, operatorPanel, speedGauge, tensionGauge, hist, series };   // for automated screenshots/tests
+  setCam(location.hash === '#surroundings' ? 'surroundings' : location.hash === '#oe' ? 'oe' : location.hash === '#start-area' ? 'start' : 'follow');
+  if (['#start-area', '#oe', '#surroundings'].includes(location.hash)) { startSim(); setPlay(false); }
   if (location.hash === '#flyby') startDemo();
   resize(); requestAnimationFrame(frame);
 })();

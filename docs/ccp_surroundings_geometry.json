@@ -1,0 +1,1393 @@
+{
+  "title": "CCP surroundings: evidence and provisional spatial model",
+  "version": 3,
+  "scope": "Implemented in src/surroundings.js. Original features/registration fields retain historical 9917 oblique evidence; implementation below supersedes them for runtime geometry.",
+  "source_images": [
+    {
+      "id": "9917",
+      "file": "1-9917.jpg",
+      "role": "overview and shoreline",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9916",
+      "file": "2-9916.jpg",
+      "role": "dam face and opening",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9913",
+      "file": "3-9913.jpg",
+      "role": "course, jetties, dam",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9912",
+      "file": "4-9912.jpg",
+      "role": "sloping-roof building and road bank",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9918",
+      "file": "5-9918.jpg",
+      "role": "opposite industrial bank and start structures",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9919",
+      "file": "2-9919.jpg",
+      "role": "tank-side skyline, opposite bank, course obstacles and near-bank start structures",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null,
+      "image_type": "Google Earth oblique 3D"
+    },
+    {
+      "id": "9920",
+      "file": "1-9920.jpg",
+      "role": "ground-level stone bank, apparent stairs, tanks, near-bank path and elevated cable structure",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null,
+      "image_type": "Google Street View screenshot"
+    },
+    {
+      "id": "9923",
+      "file": "3-9923.jpg",
+      "role": "plan view with 256.97 m measured bank line",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9924",
+      "file": "2-9924.jpg",
+      "role": "oblique view of same measurement",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    },
+    {
+      "id": "9925",
+      "file": "1-9925.jpg",
+      "role": "wider plan view of same measurement",
+      "width_px": 582,
+      "height_px": 1280,
+      "capture_date": null
+    }
+  ],
+  "coordinate_frames": {
+    "9917_image_pixels": {
+      "origin": "top-left",
+      "u": "right",
+      "v": "down",
+      "units": "pixels",
+      "projection": "Google Earth oblique perspective; NOT an orthophoto",
+      "north_alignment": "not established from this screenshot"
+    },
+    "provisional_local_xy_m": {
+      "origin": "inherited from src/physics.js: 55.681713 N, 12.622169 E",
+      "x": "east",
+      "y": "north",
+      "z": "up; water datum zero by convention",
+      "georeferencing_status": "prior repository coordinate convention only; no independently verified georeferencing",
+      "usable_for": "rough editable blockout only"
+    }
+  },
+  "registration": {
+    "method": "least-squares affine map from four manually matched low jetty vertices; no camera calibration",
+    "controls_image_px": [
+      [
+        151,
+        739
+      ],
+      [
+        224,
+        786
+      ],
+      [
+        281,
+        782
+      ],
+      [
+        313,
+        742
+      ]
+    ],
+    "controls_prior_local_m": [
+      [
+        1.1,
+        -10.6
+      ],
+      [
+        58.5,
+        -74.7
+      ],
+      [
+        112.8,
+        -65
+      ],
+      [
+        143.5,
+        -23
+      ]
+    ],
+    "prior_source": "src/physics.js LAYOUT.jetty",
+    "matrix_image_to_local_xy": [
+      [
+        0.8883983674469894,
+        -0.11608223313898404,
+        -47.75582230384264
+      ],
+      [
+        -0.038197316606077385,
+        -1.2110172406219462,
+        889.0261916119006
+      ]
+    ],
+    "fit_residual_m_approx": [
+      1.2,
+      3.6,
+      4.1,
+      1.6
+    ],
+    "warning": "Small control residuals do not establish map accuracy. Controls cluster near the jetty; perspective and extrapolation errors grow towards dam and lower channel. No statistical confidence bounds available."
+  },
+  "features": [
+    {
+      "id": "building_side_shore",
+      "type": "open_polyline",
+      "evidence": "observed shoreline, manually traced",
+      "sources": [
+        "9917",
+        "9913",
+        "9912"
+      ],
+      "pixels": [
+        [
+          313,
+          584
+        ],
+        [
+          276,
+          616
+        ],
+        [
+          235,
+          652
+        ],
+        [
+          194,
+          685
+        ],
+        [
+          148,
+          725
+        ],
+        [
+          103,
+          765
+        ],
+        [
+          54,
+          805
+        ],
+        [
+          62,
+          837
+        ],
+        [
+          89,
+          871
+        ],
+        [
+          130,
+          902
+        ],
+        [
+          143,
+          944
+        ],
+        [
+          162,
+          987
+        ],
+        [
+          181,
+          1014
+        ],
+        [
+          214,
+          1034
+        ],
+        [
+          231,
+          1047
+        ],
+        [
+          240,
+          1084
+        ]
+      ],
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          165,
+          170
+        ],
+        [
+          125,
+          130
+        ],
+        [
+          85,
+          90
+        ],
+        [
+          45,
+          50
+        ],
+        [
+          0,
+          5
+        ],
+        [
+          -45,
+          -40
+        ],
+        [
+          -95,
+          -90
+        ],
+        [
+          -90,
+          -125
+        ],
+        [
+          -70,
+          -170
+        ],
+        [
+          -35,
+          -210
+        ],
+        [
+          -30,
+          -260
+        ],
+        [
+          -20,
+          -310
+        ],
+        [
+          -5,
+          -345
+        ],
+        [
+          20,
+          -370
+        ],
+        [
+          35,
+          -390
+        ],
+        [
+          40,
+          -435
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    },
+    {
+      "id": "opposite_shore",
+      "type": "open_polyline",
+      "evidence": "observed shoreline, manually traced; slope toe approximate",
+      "sources": [
+        "9917",
+        "9918"
+      ],
+      "pixels": [
+        [
+          417,
+          702
+        ],
+        [
+          432,
+          726
+        ],
+        [
+          436,
+          750
+        ],
+        [
+          425,
+          771
+        ],
+        [
+          398,
+          795
+        ],
+        [
+          370,
+          822
+        ],
+        [
+          352,
+          847
+        ],
+        [
+          358,
+          879
+        ],
+        [
+          374,
+          921
+        ],
+        [
+          399,
+          966
+        ],
+        [
+          427,
+          1009
+        ],
+        [
+          460,
+          1052
+        ],
+        [
+          478,
+          1084
+        ]
+      ],
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          240,
+          25
+        ],
+        [
+          250,
+          -5
+        ],
+        [
+          255,
+          -35
+        ],
+        [
+          240,
+          -60
+        ],
+        [
+          215,
+          -90
+        ],
+        [
+          185,
+          -120
+        ],
+        [
+          165,
+          -150
+        ],
+        [
+          170,
+          -190
+        ],
+        [
+          180,
+          -240
+        ],
+        [
+          195,
+          -295
+        ],
+        [
+          215,
+          -350
+        ],
+        [
+          240,
+          -405
+        ],
+        [
+          250,
+          -440
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    },
+    {
+      "id": "dam_crest",
+      "type": "open_polyline",
+      "evidence": "observed crest; exact tie-in endpoints uncertain",
+      "sources": [
+        "9917",
+        "9916",
+        "9913"
+      ],
+      "pixels": [
+        [
+          313,
+          578
+        ],
+        [
+          350,
+          618
+        ],
+        [
+          386,
+          650
+        ],
+        [
+          417,
+          697
+        ]
+      ],
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          165,
+          175
+        ],
+        [
+          190,
+          125
+        ],
+        [
+          220,
+          85
+        ],
+        [
+          240,
+          30
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    },
+    {
+      "id": "opening",
+      "type": "point",
+      "evidence": "opening observed; centroid approximate",
+      "sources": [
+        "9917",
+        "9916",
+        "9913"
+      ],
+      "pixels": [
+        [
+          386,
+          650
+        ]
+      ],
+      "width_m": null,
+      "height_m": null,
+      "interior_geometry": null,
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          220,
+          85
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    },
+    {
+      "id": "jetty",
+      "type": "open_polyline",
+      "evidence": "observed pale segmented structure; not overhead cable",
+      "sources": [
+        "9917",
+        "9913",
+        "9918"
+      ],
+      "pixels": [
+        [
+          146,
+          725
+        ],
+        [
+          151,
+          739
+        ],
+        [
+          224,
+          786
+        ],
+        [
+          281,
+          782
+        ],
+        [
+          313,
+          742
+        ]
+      ],
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          0,
+          5
+        ],
+        [
+          0,
+          -10
+        ],
+        [
+          60,
+          -70
+        ],
+        [
+          110,
+          -70
+        ],
+        [
+          145,
+          -20
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    },
+    {
+      "id": "shore_access",
+      "type": "open_polyline",
+      "evidence": "observed thin access connection; exact junction approximate",
+      "sources": [
+        "9917",
+        "9913"
+      ],
+      "pixels": [
+        [
+          151,
+          739
+        ],
+        [
+          80,
+          819
+        ]
+      ],
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          0,
+          -10
+        ],
+        [
+          -70,
+          -105
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    },
+    {
+      "id": "industrial_basin_shore",
+      "type": "open_polyline",
+      "evidence": "visible northern context only; cropped at right image edge",
+      "sources": [
+        "9917",
+        "9916",
+        "9913"
+      ],
+      "pixels": [
+        [
+          330,
+          565
+        ],
+        [
+          369,
+          533
+        ],
+        [
+          424,
+          507
+        ],
+        [
+          485,
+          481
+        ],
+        [
+          548,
+          453
+        ],
+        [
+          581,
+          440
+        ]
+      ],
+      "source_coordinate_frame": "9917_image_pixels",
+      "provisional_local_xy_m": [
+        [
+          180,
+          190
+        ],
+        [
+          220,
+          230
+        ],
+        [
+          270,
+          260
+        ],
+        [
+          325,
+          290
+        ],
+        [
+          385,
+          320
+        ],
+        [
+          415,
+          335
+        ]
+      ],
+      "local_geometry_status": "affine approximation from prior jetty; rounded to 5 m; not surveyed",
+      "terrain_elevation_m": null
+    }
+  ],
+  "cable": {
+    "evidence": "Loop coordinates from prior repository, not measured from the seven screenshots; 9920 independently shows part of the elevated structure.",
+    "source": "src/physics.js LAYOUT.wheels",
+    "local_xy_m": [
+      [
+        5.4,
+        4.2
+      ],
+      [
+        77,
+        -51.5
+      ],
+      [
+        106.6,
+        -45.5
+      ],
+      [
+        173.4,
+        84.6
+      ],
+      [
+        158.7,
+        126.1
+      ],
+      [
+        116.9,
+        118.4
+      ]
+    ],
+    "approximate_image_pixels": [
+      [
+        155,
+        726
+      ],
+      [
+        241,
+        769
+      ],
+      [
+        273,
+        763
+      ],
+      [
+        334,
+        654
+      ],
+      [
+        313,
+        620
+      ],
+      [
+        267,
+        628
+      ]
+    ],
+    "route": "closed six-vertex loop",
+    "height_m": null,
+    "direction_from_images": null,
+    "warning": "README records original 520 m KML loop; current sheaves include later adjustments. Source KML not inspected.",
+    "visible_structure_sources": [
+      "9920"
+    ],
+    "structure_observed": "Leaning lattice mast, orange lower padding, elevated lattice arm and apparent sheave assembly; fine cable/brace lines.",
+    "mast_identity_from_9920": null
+  },
+  "obstacle_groups": {
+    "source": "9913",
+    "evidence": "visible white groups, no reliable OA–OI identity assignment",
+    "image_centres_px": [
+      [
+        185,
+        785
+      ],
+      [
+        149,
+        815
+      ],
+      [
+        176,
+        824
+      ],
+      [
+        132,
+        858
+      ],
+      [
+        396,
+        833
+      ],
+      [
+        444,
+        851
+      ],
+      [
+        464,
+        903
+      ]
+    ],
+    "count_status": "seven distinguishable image groups, not a complete obstacle inventory",
+    "world_positions": null,
+    "precise_headings": null
+  },
+  "water_topology": {
+    "regions": [
+      "course_basin",
+      "channel_beyond_jetties",
+      "industrial_basin_beyond_dam"
+    ],
+    "connections": [
+      {
+        "from": "course_basin",
+        "to": "channel_beyond_jetties",
+        "type": "open water; jetties are not a land dam"
+      },
+      {
+        "from": "course_basin",
+        "to": "industrial_basin_beyond_dam",
+        "type": "probable passage under dam crest",
+        "evidence": "visible opening; internal continuity not directly visible"
+      }
+    ],
+    "lower_channel_boundary": "open at documentation extent; never close with a shoreline",
+    "water_surface_z_m": 0,
+    "water_levels_equal": "provisional assumption, not measured",
+    "bathymetry": null
+  },
+  "terrain": {
+    "zones": [
+      {
+        "id": "building_side",
+        "form": "engineered relatively straight bank with road behind",
+        "height_m": null,
+        "additional_observation": "9920 shows a paved path with dashed white markings and grass/reeds towards water; exact station and relation to the road remain unregistered."
+      },
+      {
+        "id": "opposite_side",
+        "form": "Curving engineered embankment; 9920 resolves angular stone/riprap on tank-facing section, with white cylindrical tanks behind crest/yard.",
+        "height_m": null,
+        "sources": [
+          "9917",
+          "9918",
+          "9919",
+          "9920"
+        ],
+        "stair_world_location": null
+      },
+      {
+        "id": "dam",
+        "form": "raised narrow crest above stone-faced/sloping sides; interrupted by opening",
+        "height_m": null
+      },
+      {
+        "id": "green_channel_bank",
+        "form": "grassy land with curved shore, sparse trees and small waterfront structures",
+        "height_m": null
+      }
+    ],
+    "submerged_light_bands": "possible shallow sediment/vegetation; not confirmed land, depth contours or navigable channel"
+  },
+  "uncertainty_policy": "Observed existence does not mean measured dimensions. Null means unknown, never zero. Source pixels take precedence over extrapolated world coordinates. Do not treat provisional geometry as a navigation or engineering survey.",
+  "revision_notes": [
+    "Added 9919 and 9920. Underlying imagery dates are unknown and need not match.",
+    "Refined bank materials and tank skyline; retained previous shoreline traces and provisional metric ranges.",
+    "Bank stairs remain unregistered and are not identified as the dam passage.",
+    "9923–9925 supply a measured plan calibration; runtime surrounds implemented with actual dam opening and continuous water. Legacy oblique estimates retained as evidence only."
+  ],
+  "additional_observations": [
+    {
+      "id": "tank_skyline",
+      "sources": [
+        "9919",
+        "9920"
+      ],
+      "status": "observed form; broad opposite-bank relationship cross-referenced",
+      "image_regions": [
+        {
+          "source": "9919",
+          "bbox_px": [
+            0,
+            495,
+            582,
+            616
+          ]
+        },
+        {
+          "source": "9920",
+          "bbox_px": [
+            0,
+            578,
+            582,
+            629
+          ]
+        }
+      ],
+      "description": "Multiple large white cylindrical storage tanks behind the stone bank and industrial yard. Jagged tops in 9919 are not reproduced as physical roof geometry.",
+      "world_position": null,
+      "dimensions_m": null,
+      "exact_count": null,
+      "tank_contents": null
+    },
+    {
+      "id": "stone_bank",
+      "sources": [
+        "9920",
+        "9919"
+      ],
+      "status": "surface observed in 9920; corresponding opposite-bank sector inferred across views",
+      "image_regions": [
+        {
+          "source": "9920",
+          "bbox_px": [
+            0,
+            620,
+            582,
+            663
+          ]
+        }
+      ],
+      "description": "Exposed angular stone slope from near waterline towards a relatively level crest. Do not infer all other banks have identical construction.",
+      "world_position": null,
+      "height_m": null,
+      "slope_angle_deg": null
+    },
+    {
+      "id": "bank_stairs",
+      "sources": [
+        "9920"
+      ],
+      "status": "stepped form observed; access-stair function is plausible interpretation",
+      "image_regions": [
+        {
+          "source": "9920",
+          "bbox_px": [
+            302,
+            620,
+            359,
+            648
+          ]
+        }
+      ],
+      "description": "Brown stepped structure appears to descend the opposite stone slope. Not an identifiable tunnel mouth. Exact location along bank, materials and step count unknown.",
+      "world_position": null,
+      "dimensions_m": null,
+      "same_as_dam_opening": null,
+      "registration_rule": "Keep separate from dam opening unless matched by additional evidence."
+    },
+    {
+      "id": "near_path_and_fringe",
+      "sources": [
+        "9920"
+      ],
+      "status": "observed; exact station unregistered",
+      "image_regions": [
+        {
+          "source": "9920",
+          "bbox_px": [
+            0,
+            765,
+            582,
+            953
+          ]
+        }
+      ],
+      "description": "Paved path with dashed white markings, grass and reed fringe between pavement and water. No path width or legal route classification inferred.",
+      "world_position": null,
+      "width_m": null
+    },
+    {
+      "id": "elevated_mast_structure",
+      "sources": [
+        "9920"
+      ],
+      "status": "observed structure; mast identity and detailed connectivity uncertain",
+      "image_regions": [
+        {
+          "source": "9920",
+          "bbox_px": [
+            137,
+            474,
+            384,
+            730
+          ]
+        }
+      ],
+      "description": "Leaning lattice mast with orange padding at lower structure and a raised lattice arm ending near a wheel/sheave assembly. Cable and bracing lines visible; their full routing is not resolved.",
+      "world_position": null,
+      "mast_id": null,
+      "height_m": null,
+      "foundation_type": null
+    },
+    {
+      "id": "start_and_obstacle_context",
+      "sources": [
+        "9919"
+      ],
+      "status": "visible silhouettes; exact object identities unverified",
+      "image_regions": [
+        {
+          "source": "9919",
+          "bbox_px": [
+            140,
+            707,
+            582,
+            761
+          ]
+        },
+        {
+          "source": "9919",
+          "bbox_px": [
+            312,
+            769,
+            582,
+            906
+          ]
+        }
+      ],
+      "description": "White obstacle groups across course; start/platform and jetty by near-bank road. View corroborates spatial relationship without supporting complete obstacle inventory.",
+      "world_position": null,
+      "obstacle_ids": null
+    }
+  ],
+  "additional_observation_coordinates": {
+    "bbox_format": "[left, top, right, bottom], source screenshot pixels; approximate regions for finding evidence only",
+    "mapping": "No mapping to 9917 or world metres is established for 9919/9920; never apply the 9917 affine transform to these views."
+  },
+  "implementation": {
+    "source": "src/surroundings.js",
+    "calibration": {
+      "source": "9923",
+      "measuredLength": 256.97,
+      "pixels": [
+        [
+          167,
+          544
+        ],
+        [
+          318,
+          365
+        ]
+      ],
+      "metresPerPixel": 1.0973010184910204,
+      "angle": -0.030986477448252548,
+      "translation": [
+        -189.3084742552346,
+        616.2772959010238
+      ],
+      "registration": "Fixed measured scale; rotation/translation fitted to four existing jetty vertices.",
+      "controlPixels": [
+        [
+          185,
+          563
+        ],
+        [
+          249,
+          621
+        ],
+        [
+          298,
+          615
+        ],
+        [
+          320,
+          574
+        ]
+      ],
+      "controlWorld": [
+        [
+          1.1,
+          -10.6
+        ],
+        [
+          58.5,
+          -74.7
+        ],
+        [
+          112.8,
+          -65
+        ],
+        [
+          143.5,
+          -23
+        ]
+      ]
+    },
+    "shorelinePixels": {
+      "west": [
+        [
+          323,
+          376
+        ],
+        [
+          288,
+          416
+        ],
+        [
+          247,
+          463
+        ],
+        [
+          207,
+          509
+        ],
+        [
+          174,
+          550
+        ],
+        [
+          132,
+          595
+        ],
+        [
+          88,
+          640
+        ],
+        [
+          65,
+          661
+        ],
+        [
+          76,
+          685
+        ],
+        [
+          103,
+          704
+        ],
+        [
+          143,
+          724
+        ],
+        [
+          156,
+          756
+        ],
+        [
+          174,
+          790
+        ]
+      ],
+      "east": [
+        [
+          410,
+          530
+        ],
+        [
+          421,
+          550
+        ],
+        [
+          427,
+          573
+        ],
+        [
+          425,
+          591
+        ],
+        [
+          413,
+          608
+        ],
+        [
+          389,
+          630
+        ],
+        [
+          366,
+          650
+        ],
+        [
+          347,
+          675
+        ],
+        [
+          351,
+          705
+        ],
+        [
+          366,
+          749
+        ],
+        [
+          386,
+          790
+        ]
+      ],
+      "plant": [
+        [
+          323,
+          376
+        ],
+        [
+          333,
+          353
+        ],
+        [
+          344,
+          331
+        ],
+        [
+          375,
+          315
+        ],
+        [
+          404,
+          304
+        ],
+        [
+          444,
+          279
+        ],
+        [
+          506,
+          245
+        ],
+        [
+          582,
+          202
+        ]
+      ],
+      "tank": [
+        [
+          410,
+          530
+        ],
+        [
+          441,
+          539
+        ],
+        [
+          487,
+          516
+        ],
+        [
+          531,
+          491
+        ],
+        [
+          582,
+          465
+        ]
+      ]
+    },
+    "west": [
+      [
+        152.16709842042852,
+        192.90944644793723
+      ],
+      [
+        112.42015696708856,
+        150.22833758532323
+      ],
+      [
+        65.85459754283761,
+        100.07378516520566
+      ],
+      [
+        20.419808438343694,
+        50.98201096010746
+      ],
+      [
+        -17.167580532588914,
+        7.136135725367467
+      ],
+      [
+        -64.76192211949018,
+        -40.790872107604855
+      ],
+      [
+        -114.54981224116773,
+        -88.64988783583965
+      ],
+      [
+        -140.4895374908413,
+        -110.90023824650586
+      ],
+      [
+        -129.2409258064252,
+        -137.59677723987863
+      ],
+      [
+        -100.27394558195465,
+        -159.35338173421303
+      ],
+      [
+        -57.08289593380732,
+        -182.64870917673113
+      ],
+      [
+        -43.91270413356608,
+        -218.18743441394668
+      ],
+      [
+        -25.326633101121985,
+        -256.08968844778303
+      ]
+    ],
+    "east": [
+      [
+        242.35106761838685,
+        21.048552714072457
+      ],
+      [
+        253.73566351227842,
+        -1.260889209747802
+      ],
+      [
+        259.5343999121228,
+        -26.690673673888114
+      ],
+      [
+        256.72892243470653,
+        -46.36461838213654
+      ],
+      [
+        242.9896983357779,
+        -64.60182829930818
+      ],
+      [
+        215.91920276634735,
+        -87.91495692499359
+      ],
+      [
+        190.01347356904265,
+        -109.06853306827168
+      ],
+      [
+        168.32486117944606,
+        -135.8419647579659
+      ],
+      [
+        171.6920766779319,
+        -168.88117698908536
+      ],
+      [
+        186.6478643845227,
+        -217.6491855396962
+      ],
+      [
+        207.18951158516094,
+        -263.2968515499872
+      ]
+    ],
+    "plant": [
+      [
+        152.16709842042852,
+        192.90944644793723
+      ],
+      [
+        163.91675029879426,
+        217.79529407417527
+      ],
+      [
+        176.72918039217913,
+        241.55037138065632
+      ],
+      [
+        211.2731195191133,
+        258.0448820354308
+      ],
+      [
+        243.4535298494267,
+        269.12351345800244
+      ],
+      [
+        288.174401854174,
+        295.1830280479501
+      ],
+      [
+        357.3302722127801,
+        330.36559789227533
+      ],
+      [
+        442.1469467861398,
+        374.94319140992934
+      ]
+    ],
+    "tank": [
+      [
+        242.35106761838685,
+        21.048552714072457
+      ],
+      [
+        276.04510543609865,
+        10.123706684143826
+      ],
+      [
+        327.278630940437,
+        33.78569642510183
+      ],
+      [
+        376.3866000147368,
+        59.70922680557396
+      ],
+      [
+        433.20598501312236,
+        86.49155908685191
+      ]
+    ],
+    "dam": {
+      "a": [
+        147.0571836595457,
+        205.14394365105107
+      ],
+      "b": [
+        247.664958693483,
+        15.394701115287376
+      ],
+      "openingFraction": 0.64,
+      "openingWidth": 7,
+      "crestWidth": 6,
+      "toeWidth": 20,
+      "crestHeight": 3.6,
+      "clearance": 2.6,
+      "source": "9916, 9913, 9923",
+      "dimensionsStatus": "Opening exists; section and heights estimated.",
+      "length": 214.77127238105055,
+      "opening": [
+        211.44615968126556,
+        83.7044284281623
+      ]
+    },
+    "assumptions": [
+      "Vertical dimensions are visual estimates.",
+      "Geometry beyond image boundaries is contextual continuation.",
+      "No hydrology or bank/building collisions.",
+      "Unregistered stairs in 9920 are not placed at the tunnel."
+    ],
+    "reference_note": "Snapshot of implemented data, not runtime configuration. Vertical values are explicit modelling assumptions, not measured dimensions."
+  }
+}

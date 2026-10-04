@@ -40,7 +40,7 @@ html, body { width: 100%; min-width: 0; overflow: hidden; }
 .control-bar button[aria-pressed="true"], #btnPanel[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); background: var(--panel-2); }
 #btnPanel { margin-left: auto; }
 .camsw, .trickpad, .edgepad, .demobar { position: static; transform: none; max-width: none; }
-.camsw { border: 0; border-radius: 0; gap: 6px; overflow: visible; }
+.camsw { border: 0; border-radius: 0; gap: 6px; overflow: visible; flex-wrap: wrap; max-width: 100%; }
 .camsw button, .trickpad button, .edgepad button { border: 1px solid var(--rule); border-radius: 4px; background: var(--panel-2); min-width: 0; font-size: 13px; }
 .camsw button + button { border-left: 1px solid var(--rule); }
 .edgepad, .trickpad { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 6px; pointer-events: auto; }

@@ -221,6 +221,7 @@ const PHYS = {
 };
 
 /* Anlæggets geometri: hjul (kabelbane) målt i Google Earth; mastfødder på jetty/kyst/mole. */
+const ENVIRONMENT = typeof CCP_SURROUNDINGS !== 'undefined' ? CCP_SURROUNDINGS : require('./surroundings.js').environment;
 const LAYOUT = {
   // Hjulcentre = kabelbanens hjørner. MÅLT: brugerens Google Earth-polygon "ccp" (KML), omkreds 520 m, areal 15 413 m².
   // Omregnet fra lat/lon til lokale meter med origo 55.681713 N, 12.622169 Ø (mast A-området).
@@ -238,9 +239,9 @@ const LAYOUT = {
     { id: 'TE', x: 166.0, y: 145.0, role: 'NE by mole, counterweight',   status: 'antaget' },  // base unchanged; boom ≈28.1 m to the moved sheave (4 Oct 2026)
     { id: 'TF', x: 109.3, y: 131.3, role: 'North shore, orange padding',  status: 'målt' },     // satellit (pæl+skygge) = 15 m ud fra hjulet
   ],
-  // Vandkontur: NV-kyst og mole fra Google Earth (brugerens skærmbillede, ±3 m); syd/øst fra satellit (±15 m).
-  water: [[-76,-37],[-25,22.4],[42,84.5],[93.8,134.9],[138.1,179.4],[148,196],[162.2,151.2],[181.6,120.8],
-          [212.8,72.4],[246,19.4],[264.5,-67.6],[260.2,-171],[-37.2,-171],[-97.5,-102]],
+  // Water edge calibrated from 9923's 256.97 m line; includes the continuing channel
+  // and basin beyond the dam. Rendering builds the dam above this continuous water.
+  water: ENVIRONMENT.water,
   jetty: [[-6.7,6.2],[1.1,-10.6],[58.5,-74.7],[112.8,-65.0],[143.5,-23.0]],   // Google Earth 2D (brugerens skærmbillede, 0,22 m/px)
   jettyLand: [[1.1,-10.6],[-51.7,-60.3]],
   // Obstacles: layout as reconstructed in "Layout og obstacles ved CCP" (analysis/CCP_layout_rapport.html, photos 1 Oct 2026,
@@ -290,35 +291,8 @@ const LAYOUT = {
     { id: 'OI', tag: true, name: 'OI kicker', type: 'kicker', x: 45.0, y: 53.0, dir: [0.695, 0.719], L: 5, W: 3, H: 1.4, Hl: 0.95 },   // white AIRTOX kicker, one curved face, no plateau; right top higher than left seen from the run-up (difference estimated)
   ],
 
-  // Surroundings (visual only, no physics). Read from Google Maps satellite (z15–z17, calibrated on the jetty, ±10–20 m) and
-  // Street View from Kraftværksvej 31 (Oct 2024 imagery), 25 Sep 2026. Heights: CopenHill roof 85 m and chimney 124 m
-  // (public figures); all other heights are assumed from the Street View look. Boxes: [x, y, length, width, height, angle°]
-  // with the length along the angle (counter-clockwise from east).
-  surroundings: {
-    // Kraftværksvej with cycle path, on the NW shore behind a grass bank; continues NNE to Amagerværket
-    roads: [{ w: 12, pts: [[-190, -200], [-150, -110], [-90, -30], [-36, 32], [32, 96], [84, 146], [126, 188], [175, 245], [235, 310], [300, 380]] }],
-    // CopenHill / ARC waste-to-energy plant: sloped ski roof from ≈12 m (SW) to 85 m (NE), chimney 124 m at the NE end
-    copenhill: { x: -97, y: 340, L: 198, W: 73, hLo: 12, hHi: 85, ang: 34, chimney: [-22, 392, 124, 5] },
-    // Industrial halls and the ARC yard west/north of the road (heights assumed)
-    buildings: [
-      [-100, 175, 70, 35, 11, 34, 0xd9dcd8],   // white hall at the ARC yard
-      [-140, 120, 110, 40, 12, 40, 0x4a5563],  // hall with solar roof
-      [-60, 150, 45, 30, 8, 34, 0x6c7378],
-      [-185, 70, 60, 30, 9, 40, 0xb8bcb8],
-      // Amagerværket (HOFOR) power station, NNE end of Kraftværksvej
-      [225, 430, 150, 90, 40, 20, 0x8d949a], [330, 560, 120, 80, 55, 20, 0x7b8388], [190, 520, 80, 60, 25, 20, 0x9ea5aa],
-    ],
-    walls: [[[-55, 140], [35, 215], 5, 0xe4e6e2]],  // long white wall of the ARC yard (seen from the road)
-    chimneys: [[265, 470, 100, 3.5], [290, 490, 90, 3], [320, 470, 80, 3]],   // Amagerværket stacks; heights assumed (the old 150 m stack was demolished)
-    // Stone mole on the east side of the lake (Street View: low rubble mound in front of the oil tanks)
-    mole: { w: 14, h: 2.2, pts: [[152, 205], [166, 150], [186, 118], [218, 70], [252, 18], [270, -68], [266, -175]] },
-    // Prøvestenen tank farm (white oil tanks) and gravel/sand piles east of the mole; tanks placed schematically in the area
-    tankArea: [[374, 77], [460, 314], [913, 378], [913, -483], [633, -483]], tankSpacing: 48,
-    piles: [[330, -40, 25, 8], [385, -120, 20, 6], [320, -200, 18, 7], [420, 20, 15, 5]],
-    // Allotment gardens (kolonihaver) SW of the park: small huts and trees, placed schematically
-    gardens: [[-380, -420], [-190, -420], [-190, -70], [-380, -70]],
-    trees: [[-150, -120], [-120, -70], [-95, -45], [-70, -10], [-20, 70], [-14, 78], [-6, 84], [60, 132], [100, 175]],
-  },
+  // Shared road/shore geometry keeps the start-area access attached to the bank.
+  surroundings: { roads: [{w: 7.5, pts: ENVIRONMENT.road}] },
 
   // Orange bøjer ~4 m inde fra jettyen (set i videoen). Kun visuelle.
   buoys: [[24.2,-30.4],[44.3,-52.8],[74.1,-67.9],[95.8,-64.0],[120.3,-47.9],[131.1,-33.2]],

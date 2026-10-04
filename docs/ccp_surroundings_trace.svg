@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1000" viewBox="0 0 1200 1000">
+<title>CCP surroundings — oblique evidence trace</title><desc>Manual shoreline trace from 9917, with six supporting views including ground-level 9920. Not an orthographic map. Dashed amber cable uses prior repository geometry. Channel continues below drawing. New tank and bank evidence does not supply surveyed positions.</desc>
+<defs><style>text{font-family:Arial,sans-serif;fill:#213e48} .small{font-size:15px}.body{font-size:18px}.title{font-size:32px;font-weight:700}.sub{font-size:21px;font-weight:700}.lead{fill:none;stroke:#516971;stroke-width:1.5}</style><clipPath id="map"><rect x="30" y="160" width="660" height="750" rx="8"/></clipPath></defs>
+<rect width="1200" height="1000" fill="#f4f3ed"/><text x="40" y="56" class="title">CCP / water, banks and dam</text>
+<text x="40" y="91" class="body">Shoreline trace: 9917 · supporting views: 9912, 9913, 9916, 9918, 9919 and 9920</text>
+<text x="40" y="121" class="small">OBLIQUE IMAGE GEOMETRY · NOT A SURVEY · NO SCALE BAR · NOT NORTH-UP</text>
+<g clip-path="url(#map)"><rect x="30" y="160" width="660" height="750" fill="#d9ddce"/>
+<g transform="translate(30 -390) scale(1.13)">
+<path d="M313 584 L330 565 L369 533 L424 507 L485 481 L548 453 L620 420 L620 710 L417 702 Z" fill="#b5d6df"/>
+<path d="M313 584 L276 616 L235 652 L194 685 L148 725 L103 765 L54 805 L62 837 L89 871 L130 902 L143 944 L162 987 L181 1014 L214 1034 L231 1047 L240 1084 L478 1084 L460 1052 L427 1009 L399 966 L374 921 L358 879 L352 847 L370 822 L398 795 L425 771 L436 750 L432 726 L417 702 Z" fill="#659ba9"/>
+<polyline points="313,584 276,616 235,652 194,685 148,725 103,765 54,805 62,837 89,871 130,902 143,944 162,987 181,1014 214,1034 231,1047 240,1084" fill="none" stroke="#315b57" stroke-width="3"/>
+<polyline points="417,702 432,726 436,750 425,771 398,795 370,822 352,847 358,879 374,921 399,966 427,1009 460,1052 478,1084" fill="none" stroke="#315b57" stroke-width="3"/>
+<polyline points="430,710 447,744 437,778 405,809 379,838 379,873 395,914 420,958 449,1002 480,1048 496,1084" fill="none" stroke="#c6bea9" stroke-width="18"/>
+<polyline points="430,710 447,744 437,778 405,809 379,838 379,873 395,914 420,958 449,1002 480,1048 496,1084" fill="none" stroke="#f1ede1" stroke-width="4"/>
+<polyline points="304,570 267,602 226,638 184,674 135,716 92,754 40,801" fill="none" stroke="#aaa898" stroke-width="8"/>
+<polyline points="313,578 350,618 386,650 417,697" fill="none" stroke="#d1c7b6" stroke-width="15"/>
+<polyline points="313,578 350,618 386,650 417,697" fill="none" stroke="#f1ede1" stroke-width="4"/>
+<path d="M380 650 L390 642" stroke="#163c4c" stroke-width="13"/><circle cx="386" cy="650" r="12" fill="none" stroke="#eb8a54" stroke-width="3"/>
+<polyline points="146,725 151,739 224,786 281,782 313,742" fill="none" stroke="#f9f8ef" stroke-width="4"/>
+<polyline points="151,739 80,819" fill="none" stroke="#f9f8ef" stroke-width="3"/>
+<polygon points="155,726 241,769 273,763 334,654 313,620 267,628" fill="none" stroke="#f6c858" stroke-width="2.5" stroke-dasharray="7 5"/>
+<circle cx="155" cy="726" r="3" fill="#f6c858"/><circle cx="241" cy="769" r="3" fill="#f6c858"/><circle cx="273" cy="763" r="3" fill="#f6c858"/><circle cx="334" cy="654" r="3" fill="#f6c858"/><circle cx="313" cy="620" r="3" fill="#f6c858"/><circle cx="267" cy="628" r="3" fill="#f6c858"/>
+<g stroke="#f7fbfc" stroke-width="4"><path d="M280 636 L288 632 M250 651 L258 646 M248 663 L255 658 M222 677 L228 672 M304 704 L308 695 M306 724 L312 715 M273 760 L281 747"/></g>
+<path d="M73 875 Q207 836 330 789 M136 907 Q204 873 279 857" fill="none" stroke="#b8b78c" stroke-width="5" stroke-dasharray="5 5" opacity=".6"/>
+<path d="M90 850 L76 839 L35 869 L54 888 Z" fill="#566268"/>
+<path d="M55 660 L118 696 L242 588 L207 551 Z" fill="#a9afa8"/>
+<text x="28" y="514" class="small">Sloping-roof building</text>
+<text x="28" y="535" class="small">beside the straight bank</text>
+<text x="382" y="553" class="small">Industrial basin</text>
+<text x="246" y="692" class="small">Course basin</text>
+<text x="206" y="960" class="small">Continuing channel</text>
+<path d="M240 1084 L478 1084" stroke="#eff8fa" stroke-width="3" stroke-dasharray="9 7"/>
+</g></g>
+<text x="44" y="938" class="small">Lower edge = documentation cut, not a closing shore.</text>
+<text x="44" y="963" class="small">Building mass and bank strips are contextual symbols, not traced footprints.</text>
+<g transform="translate(730 170)">
+<text class="sub">1 / Dam and passage</text><text y="32" class="body">Raised crossing; water on both sides.</text><text y="58" class="body">Orange ring locates the opening.</text><text y="84" class="body">Opening interior and dimensions unknown.</text>
+<text y="145" class="sub">2 / Opposite bank and tanks</text><text y="177" class="body">Curved bank with an inward projection.</text><text y="203" class="body">9920 shows stone slope and bank stairs;</text><text y="229" class="body">white tanks rise behind the crest.</text><text y="255" class="small">Stairs are not located on this trace.</text>
+<text y="290" class="sub">3 / Jetties and cable</text><text y="322" class="body">White = visible jetties / obstacle marks.</text><text y="348" class="body">Dashed amber = prior cable geometry</text><text y="374" class="body">approximately registered to this view.</text><text y="400" class="body">The jetties do not close the water.</text>
+<text y="461" class="sub">4 / Water texture is not terrain</text><text y="493" class="body">Pale bands may be shallow sediment</text><text y="519" class="body">or vegetation. They are not confirmed</text><text y="545" class="body">islands or dry banks.</text>
+<text y="606" class="sub">Use for a 3D blockout</text><text y="638" class="body">Preserve the bends and connections.</text><text y="664" class="body">Use the JSON for editable source traces.</text><text y="690" class="body">World coordinates are provisional;</text><text y="716" class="body">heights and depths remain unset.</text>
+</g></svg>
