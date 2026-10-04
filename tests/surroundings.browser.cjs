@@ -15,10 +15,13 @@ const path=require('node:path');
     }
     const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser:',e.message);});
     page.on('requestfailed',r=>console.error('Request failed:',r.url(),r.failure()?.errorText));
-    await page.goto('file:///'+path.resolve(__dirname,'../dist/copenhagen_cable_park_sim.html').replaceAll('\\','/')+'#surroundings');
+    await page.goto('file:///'+path.resolve(__dirname,'../dist/copenhagen_cable_park_sim.html').replaceAll('\\','/')+'#start-area');
     await page.waitForFunction(()=>window.__ccpDebug,{},{timeout:45000});
-    await page.locator('#camSurroundings').click();
-    await page.waitForTimeout(600);
+    // No Surroundings camera in the UI (debug only, removed): position the orbit camera from the data instead.
+    const view=async name=>{await page.evaluate(n=>{const d=__ccpDebug,c=CCP_SURROUNDINGS.cameras[n];d.setCam('orbit');
+      d.persp.position.set(c.position[0],c.position[2],-c.position[1]);d.controls.target.set(c.target[0],c.target[2],-c.target[1]);d.controls.update();},name);
+      await page.waitForTimeout(250);};
+    await view('overview');
     const checks=await page.evaluate(()=>{
       const d=__ccpDebug,E=CCP_SURROUNDINGS,D=E.dam;d.scene.updateMatrixWorld(true);
       const dam=d.surroundings.getObjectByName('Dam with water passage'),ray=new THREE.Raycaster();
@@ -44,8 +47,7 @@ const path=require('node:path');
     const out=path.resolve(__dirname,'../docs/screenshots');fs.mkdirSync(out,{recursive:true});
     await page.locator('#view').screenshot({path:path.join(out,'surroundings-overview.png')});
     for(const name of ['dam','tanks']){
-      await page.locator('#selSurroundings').selectOption(name);
-      await page.waitForTimeout(250);
+      await view(name);
       await page.locator('#view').screenshot({path:path.join(out,'surroundings-'+name+'.png')});
     }
     const png=await page.evaluate(()=>{
@@ -58,7 +60,7 @@ const path=require('node:path');
     fs.writeFileSync(path.join(out,'surroundings-plan.png'),Buffer.from(png,'base64'));
     await page.setViewportSize({width:390,height:844});
     await page.waitForTimeout(150);
-    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Surroundings camera controls fit mobile width');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Camera controls fit mobile width');
     assert.deepEqual(errors,[]);console.log(JSON.stringify(checks,null,2));
   }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

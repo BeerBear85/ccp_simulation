@@ -1,6 +1,6 @@
 # Implemented CCP surroundings
 
-The simulator now uses the supplied plan views to shape the water and banks. Open the simulator and select **Surroundings**, then choose **Site overview**, **Dam passage** or **Tank-side bank**. The view pauses the simulation and can be orbited and zoomed. The URL hash `#surroundings` opens the overview directly.
+The simulator now uses the supplied plan views to shape the water and banks. The scenery is always shown; the former **Surroundings** camera menu (overview, dam, tank side) was a development aid and has been removed. The viewpoints remain in `CCP_SURROUNDINGS.cameras` and are used by `tests/surroundings.browser.cjs` for screenshots.
 
 [Overview](screenshots/surroundings-overview.png) · [Plan](screenshots/surroundings-plan.png) · [Dam at water level](screenshots/surroundings-dam.png) · [Tank-side view](screenshots/surroundings-tanks.png)
 
