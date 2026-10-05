@@ -1,4 +1,4 @@
-/* CCP surroundings reconstructed from user images 9912–9925.
+/* CCP surroundings reconstructed from user images 9912–9938.
  * 9923/9925 are plan views; 9924 confirms the same 256.97 m measurement.
  * Positions use existing simulation metres (east, north); elevations are visual estimates.
  * No network, Three.js or DOM dependency until createCCPSurroundings is called.
@@ -23,7 +23,51 @@ const CCP_SURROUNDINGS = (() => {
     [366,650],[347,675],[351,705],[366,749],[386,790]];
   const plantPixels = [[323,376],[333,353],[344,331],[375,315],[404,304],[444,279],[506,245],[582,202]];
   const tankPixels = [[410,530],[441,539],[487,516],[531,491],[582,465]];
-  const west = map(westPixels), east = map(eastPixels), plant = map(plantPixels), tank = map(tankPixels);
+  const coarseWest = map(westPixels);
+  // 9937 and 9938 show the SAME two-segment waterline measurement.
+  // Its 196.92 m total fixes scale; four jetty controls fix rotation/translation.
+  // Image coordinates are hand-picked: registration remains approximate.
+  const shorelineCalibration = {
+    sources: ['9937','9938'], measuredLength: 196.92,
+    pixels: [[222,474],[126,600],[190,724]],
+    controlPixels: [[253,506],[346,594],[427,580],[463,526]],
+    controlWorld: calibration.controlWorld,
+    angle: -0.01997516980260799, pixelCentre: [372.25,551.5], worldCentre: [78.975,-43.325]
+  };
+  const S=shorelineCalibration;
+  S.metresPerPixel=S.measuredLength/S.pixels.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-S.pixels[i][0],p[1]-S.pixels[i][1]),0);
+  const shorelineProject=([u,v])=>{
+    const x=u-S.pixelCentre[0],y=v-S.pixelCentre[1],c=Math.cos(S.angle),s=Math.sin(S.angle);
+    return [S.worldCentre[0]+S.metresPerPixel*(c*x+s*y),S.worldCentre[1]+S.metresPerPixel*(s*x-c*y)];
+  };
+  S.world=S.pixels.map(shorelineProject);
+  // 9932–9936 define the simple hang-around model and the measured bridge.
+  // The later marked waterline determines its corrected landfall below.
+  const hangAround = {
+    source: '9932–9936; length measurement in 9935', measuredLength: 103.48,
+    origin: [3.29,-7.17], yaw: -0.8404864029051407,
+    bridgeStart: [-3,9.8],
+    terrace: { width: 23, depth: 28, top: 1.05 }
+  };
+  hangAround.world = ([x,z]) => [hangAround.origin[0]+Math.cos(hangAround.yaw)*x+Math.sin(hangAround.yaw)*z,
+    hangAround.origin[1]+Math.sin(hangAround.yaw)*x-Math.cos(hangAround.yaw)*z];
+  const hangLocal=([x,y])=>{
+    const dx=x-hangAround.origin[0],dy=y-hangAround.origin[1],c=Math.cos(hangAround.yaw),s=Math.sin(hangAround.yaw);
+    return [c*dx+s*dy,s*dx-c*dy];
+  };
+  // Meet the measured second bank segment while preserving the 103.48 m bridge.
+  const [corner,tip]=S.world.slice(1).map(hangLocal),start=hangAround.bridgeStart;
+  const delta=tip.map((v,i)=>v-corner[i]),relative=corner.map((v,i)=>v-start[i]);
+  const qa=delta[0]**2+delta[1]**2,qb=2*(delta[0]*relative[0]+delta[1]*relative[1]);
+  const qc=relative[0]**2+relative[1]**2-hangAround.measuredLength**2;
+  const t=(-qb+Math.sqrt(qb*qb-4*qa*qc))/(2*qa);
+  // Set the endpoint 1.5 m landward, supporting the full bridge/terrace join.
+  const endX=corner[0]+t*delta[0]-1.5;
+  hangAround.bridgeEnd=[endX,start[1]+Math.sqrt(hangAround.measuredLength**2-(endX-start[0])**2)];
+  hangAround.terrace.x=hangAround.bridgeEnd[0]-10.4;
+  hangAround.terrace.z=hangAround.bridgeEnd[1]+14;
+  const west = coarseWest.slice(0,4).concat(S.world,coarseWest.slice(10));
+  const east = map(eastPixels), plant = map(plantPixels), tank = map(tankPixels);
   // Continue beyond screenshot cuts. These distant extensions are explicitly unsurveyed,
   // and meet the scene boundary: there is no invented bank closing the channel.
   const westExtended = west.concat([project([240,1030]),project([430,1420]),[500,-1800]]);
@@ -39,14 +83,15 @@ const CCP_SURROUNDINGS = (() => {
       return [p[0]-dy/l*distance,p[1]+dx/l*distance];
     });
   }
-  const road = offset(westExtended, -15);
+  // Keep the road's earlier alignment behind the peninsula, rather than bending it through the terrace.
+  const road = offset(coarseWest.concat(westExtended.slice(west.length)), -15);
   const damA = project([318,365]), damB = project([415,535]);
   const dam = {a:damA,b:damB,openingFraction:0.64,openingWidth:7,crestWidth:6,toeWidth:20,
     crestHeight:3.6,clearance:2.6,source:'9916, 9913, 9923',dimensionsStatus:'Opening exists; section and heights estimated.'};
   dam.length=Math.hypot(damB[0]-damA[0],damB[1]-damA[1]);
   dam.opening=damA.map((v,i)=>v+(damB[i]-v)*dam.openingFraction);
   return { calibration, project, offset, west, east, plant, tank, westExtended, eastExtended,
-    westLand,eastLand,water,dam,road, ground:0.8,
+    westLand,eastLand,water,dam,road,hangAround,shorelineCalibration,shorelineProject, ground:0.8,
     shorelinePixels:{west:westPixels,east:eastPixels,plant:plantPixels,tank:tankPixels},
     assumptions: ['Vertical dimensions are visual estimates.','Geometry beyond image boundaries is contextual continuation.',
       'No hydrology or bank/building collisions.','Unregistered stairs in 9920 are not placed at the tunnel.'],
@@ -121,7 +166,7 @@ function createCCPSurroundings(THREE, environment = CCP_SURROUNDINGS) {
   const ag=new THREE.BufferGeometry();ag.setAttribute('position',new THREE.Float32BufferAttribute(ap,3));ag.computeVertexNormals();add(terrain,ag,soil);
   poly(terrain,[[25,440],[291,206],[173,4],[-195,241]].map(project),.82,gravel,'Building-side service yard');
   ribbon(roads,E.road,7.5,.87,asphalt,'Bank road');
-  const path=E.offset(E.westExtended,-6.7);
+  const path=E.offset(E.road,8.3);
   ribbon(roads,path,3.2,.89,pathMat,'Shore path');
   const eastRoad=E.offset(E.eastExtended,13);
   ribbon(roads,eastRoad,7,2.84,asphalt,'Curved opposite-bank road');
@@ -220,6 +265,13 @@ function createCCPSurroundings(THREE, environment = CCP_SURROUNDINGS) {
     const f=t/Math.hypot(b[0]-a[0],b[1]-a[1]),p=[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];
     const q=E.offset([a,p,b],-22)[1];treePos.push([...q,4+random()*3]);}}
   for(let i=0;i<35;i++){const p=project([65+random()*50,735+random()*120]);treePos.push([...p,4+random()*4]);}
+  // Shoreline changes must not plant procedural trees through the terrace/buildings.
+  const H=E.hangAround,T=H.terrace;
+  for(let i=treePos.length-1;i>=0;i--){
+    const dx=treePos[i][0]-H.origin[0],dy=treePos[i][1]-H.origin[1];
+    const x=Math.cos(H.yaw)*dx+Math.sin(H.yaw)*dy,z=Math.sin(H.yaw)*dx-Math.cos(H.yaw)*dy;
+    if(x>T.x-13&&x<T.x+13&&z>T.z-16&&z<T.z+53)treePos.splice(i,1);
+  }
   const dummy=new THREE.Object3D(),trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.22,.35,1,5),material(0x67584a),treePos.length),
     crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),material(0x65784b),treePos.length);
   treePos.forEach(([x,y,h],i)=>{

@@ -45,6 +45,51 @@ const path=require('node:path');
     assert.match(await page.locator('#btnPlay').innerText(),/Run$/);
     if(await page.locator('#btnInfo').getAttribute('aria-pressed')==='true')await page.locator('#btnInfo').click();
     const out=path.resolve(__dirname,'../docs/screenshots');fs.mkdirSync(out,{recursive:true});
+    await page.evaluate(()=>__ccpDebug.setCam('hang-around'));
+    await page.waitForTimeout(250);
+    await page.locator('#view').screenshot({path:path.join(out,'hang-around-overview.png')});
+    const hangChecks=await page.evaluate(()=>{
+      const d=__ccpDebug,m=d.startArea,H=m.userData.hangAround;
+      const b=m.userData.bridges.find(b=>b.name==='Long transverse walkway');
+      const ray=new THREE.Raycaster();d.scene.updateMatrixWorld(true);
+      const terrain=d.surroundings.getObjectByName('Land and bank slopes');
+      const ground=[];
+      for(const x of [H.terrace.x-10,H.terrace.x+10]) for(const z of [H.terrace.z-13,H.terrace.z+13]) {
+        ray.set(m.localToWorld(new THREE.Vector3(x,6,z)),new THREE.Vector3(0,-1,0));
+        ground.push(ray.intersectObject(terrain,true)[0]?.point.y);
+      }
+      d.persp.position.copy(m.localToWorld(new THREE.Vector3(38,45,160)));
+      d.controls.target.copy(m.localToWorld(new THREE.Vector3(-4,1,132)));d.controls.update();
+      return {length:Math.hypot(b.b[0]-b.a[0],b.b[2]-b.a[2]),end:b.b,arrival:H.arrival,ground};
+    });
+    assert.ok(Math.abs(hangChecks.length-103.48)<1e-8);
+    assert.deepEqual(hangChecks.end,hangChecks.arrival);
+    assert.ok(hangChecks.ground.every(h=>Math.abs(h-.8)<.001),'Terrace requires rendered land underneath');
+    await page.waitForTimeout(250);
+    await page.locator('#view').screenshot({path:path.join(out,'hang-around-detail.png')});
+    const shorePlan=await page.evaluate(()=>{
+      const d=__ccpDebug,m=d.startArea,ray=new THREE.Raycaster();
+      const terrain=d.surroundings.getObjectByName('Land and bank slopes'),points=CCP_SURROUNDINGS.shorelineCalibration.world;
+      for(let i=1;i<points.length;i++) {
+        const a=points[i-1],b=points[i],len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+        const n=[-(b[1]-a[1])/len,(b[0]-a[0])/len];
+        for(const f of [.2,.5,.8]) for(const side of [-1,1]) {
+          const p=a.map((v,j)=>v+(b[j]-v)*f+side*n[j]*5);
+          ray.set(new THREE.Vector3(p[0],8,-p[1]),new THREE.Vector3(0,-1,0));
+          const hits=ray.intersectObject(terrain,true);
+          if((side<0)!==(hits.length>0))throw new Error('Rendered bank does not follow marked waterline');
+        }
+      }
+      const aspect=d.renderer.domElement.width/d.renderer.domElement.height;
+      const cam=new THREE.OrthographicCamera(-120*aspect,120*aspect,120,-120,.1,1500);
+      cam.position.copy(m.localToWorld(new THREE.Vector3(25,500,90)));
+      cam.up.copy(new THREE.Vector3(0,0,-1).transformDirection(m.matrixWorld));
+      cam.lookAt(m.localToWorld(new THREE.Vector3(25,0,90)));
+      d.renderer.render(d.scene,cam);
+      return d.renderer.domElement.toDataURL('image/png').split(',')[1];
+    });
+    fs.writeFileSync(path.join(out,'hang-around-plan.png'),Buffer.from(shorePlan,'base64'));
+    await view('overview');
     await page.locator('#view').screenshot({path:path.join(out,'surroundings-overview.png')});
     for(const name of ['dam','tanks']){
       await view(name);

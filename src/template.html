@@ -763,17 +763,132 @@
     g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.computeVertexNormals();
     const nrm = g.attributes.normal;
     NS.forEach((t, i) => { if (t) t.forEach((q, k) => nrm.setXYZ(3 * i + k, q.x, q.y, q.z)); });
+    g.userData.rings = R_.map((r, i) => ({ u: P_[i][0], top: r.slice(0, m - 4) }));   // top contour v = +w → −w, used to fit decals
     return g;
   }
+  // ---- Appearance only (layout report illustrations): algae at the water line and printed decals. Nothing here changes
+  // the obstacles' shape, size or position, and none of it takes part in contact; decals are flat planes laid 6 mm off a face.
+  // Algae: mixed into the obstacle's own shader from world height, so it follows every face (sides, ends, slopes) without
+  // extra geometry. Streak heights vary along the water line; upward-facing riding surfaces keep only a thin line at the water.
+  function addAlgae(mat, strength) {
+    mat.onBeforeCompile = sh => {
+      sh.uniforms.algaeK = { value: strength };
+      sh.vertexShader = 'varying vec3 vAlgP;\nvarying vec3 vAlgN;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n  vAlgP = (modelMatrix * vec4(transformed, 1.0)).xyz;\n  vAlgN = normalize(mat3(modelMatrix) * objectNormal);');
+      sh.fragmentShader = `uniform float algaeK;
+varying vec3 vAlgP;
+varying vec3 vAlgN;
+float aHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float aNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(aHash(i), aHash(i + vec2(1.0, 0.0)), f.x), mix(aHash(i + vec2(0.0, 1.0)), aHash(i + vec2(1.0, 1.0)), f.x), f.y); }
+` + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+  {
+    vec2 hp = vAlgP.xz; float y = vAlgP.y;
+    float n1 = aNoise(hp * 1.3) * 0.55 + aNoise(hp * 4.1 + 7.0) * 0.3 + aNoise(hp * 13.0 + 3.0) * 0.15;
+    float drip = aNoise(hp * 37.0);
+    float flatF = smoothstep(0.7, 0.97, abs(vAlgN.y));
+    float top = mix(0.05 + 0.40 * n1 * n1 + 0.16 * smoothstep(0.72, 0.95, drip), 0.03, flatF);
+    float a = 1.0 - smoothstep(top - 0.025, top + 0.01, y);
+    float sp = max(aNoise(vec2(dot(hp, vec2(0.8, 0.6)), y) * 28.0), aNoise(vec2(dot(hp, vec2(-0.6, 0.8)), y) * 28.0 + 5.0));
+    a = max(a, 0.75 * step(0.9, sp) * (1.0 - smoothstep(top, top + 0.25, y)) * (1.0 - flatF));
+    float mm = aNoise(vec2(dot(hp, vec2(0.8, 0.6)) + dot(hp, vec2(-0.6, 0.8)) * 0.5, y * 3.0) * 9.0);
+    vec3 algC = mix(vec3(0.16, 0.24, 0.08), vec3(0.38, 0.42, 0.14), mm);
+    algC = mix(algC, vec3(0.10, 0.15, 0.05), 1.0 - smoothstep(-0.05, 0.06, y));
+    diffuseColor.rgb = mix(diffuseColor.rgb, algC, clamp(a, 0.0, 1.0) * algaeK * (0.65 + 0.35 * mm));
+  }`);
+    };
+  }
+  // Decals: lettering in a plain bold typeface (not the brands' own logo artwork), as printed on the features in the
+  // report's illustrations. rows = [[{ t, c, i (italic), z (size), x (width squeeze) }, ...], ...]; bg = badge colour.
+  function decalTexture(rows, bg) {
+    const S = 128, pad = 0.08 * S, gap = 0.28 * S, c = document.createElement('canvas'), g = c.getContext('2d');
+    const font = q => `${q.i ? 'italic ' : ''}900 ${Math.round(S * (q.z ?? 1))}px Arial, Helvetica, sans-serif`;
+    const segW = q => { g.font = font(q); return g.measureText(q.t).width * (q.x ?? 1); };
+    const rw = rows.map(r => r.reduce((a, q, k) => a + segW(q) + (k ? gap : 0), 0)), rh = rows.map(r => Math.max(...r.map(q => S * (q.z ?? 1))) * 0.98);
+    c.width = Math.ceil(Math.max(...rw) + 2 * pad); c.height = Math.ceil(rh.reduce((a, b) => a + b, 0) + 2 * pad);
+    if (bg) { g.fillStyle = bg; const r = c.height * 0.32; g.beginPath(); g.moveTo(r, 0); g.arcTo(c.width, 0, c.width, c.height, r); g.arcTo(c.width, c.height, 0, c.height, r);
+      g.arcTo(0, c.height, 0, 0, r); g.arcTo(0, 0, c.width, 0, r); g.closePath(); g.fill(); }
+    g.textBaseline = 'middle'; let y = pad;
+    rows.forEach((r, i) => { let x = (c.width - rw[i]) / 2;
+      for (const q of r) { const w = segW(q); g.fillStyle = q.c; g.save(); g.translate(x, y + rh[i] * 0.54); g.scale(q.x ?? 1, 1); g.fillText(q.t, 0, 0); g.restore(); x += w + gap; }
+      y += rh[i]; });
+    g.globalCompositeOperation = 'destination-out';   // light wear
+    let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let k = 0; k < c.width * c.height / 900; k++) { g.fillStyle = `rgba(0,0,0,${0.1 + 0.3 * rnd()})`; g.fillRect(rnd() * c.width, rnd() * c.height, 1 + 3 * rnd(), 1 + 3 * rnd()); }
+    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+    return { tex, aspect: c.width / c.height };
+  }
+  const RED = '#c8161f', INK = '#1d2326', PAPER = '#f4f6f4';
+  const T_FEAR = { t: 'FEAR NOTHING', c: RED }, T_AIRTOX = c => ({ t: 'AIRTOX', c, i: 1 }), T_GSHOCK = { t: 'G-SHOCK', c: RED, x: 0.82 };
+  // side: +1 = face at local +z (v = −w), −1 = face at −z (v = +w); end: +1 / −1 = end face at u = ±L/2.
+  // u (side) or v (end) = centre; len = wanted width; y = wanted centre height (auto on sides); follow = tilt with the wall top.
+  const DECALS = {
+    'OC rail': [{ side: 1, u: 2.5, len: 8, follow: true, rows: [[T_FEAR], [{ ...T_AIRTOX(INK), z: 0.62 }]] },
+                { side: -1, u: 2.5, len: 8, follow: true, rows: [[T_FEAR], [{ ...T_AIRTOX(INK), z: 0.62 }]] }],
+    'OF rail': [1, -1].flatMap(side => [{ side, u: 0, len: 3.4, rows: [[T_GSHOCK]] }, { side, u: 5.2, len: 3.0, follow: true, rows: [[T_GSHOCK]] }]),
+    'OH kicker': [{ side: 1, u: 1.2, len: 2.6, ymin: 0.12, follow: true, rows: [[T_AIRTOX(PAPER)]] }, { side: -1, u: 1.2, len: 2.6, ymin: 0.12, follow: true, rows: [[T_AIRTOX(PAPER)]] },
+                  { end: 1, v: 0, len: 2.4, ymin: 0.15, rows: [[{ ...T_FEAR, t: 'FEAR' }], [{ ...T_FEAR, t: 'NOTHING' }], [{ ...T_AIRTOX(PAPER), z: 0.7 }]] }],
+    'OI kicker': [{ side: 1, u: 1.2, len: 2.5, ymin: 0.12, follow: true, rows: [[T_AIRTOX(INK)]] }],
+    'OG wedge': [{ end: 1, v: 0, len: 1.6, ymin: 0.2, bg: INK, rows: [[{ t: 'CCP', c: PAPER }]] }],
+  };
+  function addDecals(obj, o, rings) {
+    const specs = DECALS[o.name]; if (!specs || !rings) return;
+    const lerp1 = (xs, ys, x) => { if (x <= xs[0]) return ys[0]; for (let i = 1; i < xs.length; i++) if (x <= xs[i]) return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - xs[i - 1]) / ((xs[i] - xs[i - 1]) || 1); return ys[ys.length - 1]; };
+    const us = rings.map(r => r.u), Y_MIN = 0.3, GAP = 0.07, MIN_H = 0.18;
+    for (const d of specs) {
+      const { tex, aspect } = decalTexture(d.rows, d.bg);
+      let topAt, x0, aF = 0;
+      if (d.side) {   // wall top along u on that side
+        const tops = rings.map(r => d.side > 0 ? r.top[r.top.length - 1][1] : r.top[0][1]);
+        topAt = x => x < us[0] || x > us[us.length - 1] ? -1 : lerp1(us, tops, x); x0 = d.u;
+        if (d.follow) aF = Math.atan((topAt(d.u + d.len / 2) - topAt(d.u - d.len / 2)) / d.len);
+      } else {        // end face contour across v
+        const r = d.end > 0 ? rings[rings.length - 1] : rings[0], vs = r.top.map(p => p[0]).reverse(), hs = r.top.map(p => p[1]).reverse();
+        topAt = x => x < vs[0] || x > vs[vs.length - 1] ? -1 : lerp1(vs, hs, x); x0 = d.v;
+      }
+      // Fit: search centre, tilt (0 … wall-top slope) and the largest width ≤ len so that the decal lies on the face,
+      // above the algae (ymin) and GAP below the top edge.
+      const ymin = d.ymin ?? Y_MIN;
+      const fits = (xc, yc, W, a) => { const Hh = W / aspect, ca = Math.cos(a), sa = Math.sin(a);
+        for (const s_ of [-0.5, -0.25, 0, 0.25, 0.5]) for (const q of [0.5, -0.5]) { const x = xc + s_ * W * ca - q * Hh * sa, y = yc + s_ * W * sa + q * Hh * ca;
+          if (q > 0 ? y > topAt(x) - GAP : y < ymin) return false; }
+        return true; };
+      const maxTop = Math.max(...Array.from({ length: 41 }, (_, i) => topAt(x0 - d.len + i * d.len / 20)));
+      let best = null;
+      for (const fa of aF ? [0, 0.33, 0.66, 1] : [0]) for (let i = 0; i <= 12; i++) for (let j = 0; j <= 12; j++) {
+        const xc = x0 - d.len * 0.3 + i * d.len * 0.05, yc = ymin + (maxTop - ymin) * j / 12, a = aF * fa;
+        if (!fits(xc, yc, 0.05, a)) continue;
+        let lo = 0.05, hi = d.len;
+        if (fits(xc, yc, hi, a)) lo = hi; else for (let k = 0; k < 14; k++) { const mid = (lo + hi) / 2; if (fits(xc, yc, mid, a)) lo = mid; else hi = mid; }
+        if (!best || lo > best.W + 1e-3 || (Math.abs(lo - best.W) <= 1e-3 && Math.abs(xc - x0) < Math.abs(best.xc - x0))) best = { W: lo, xc, yc, a };
+      }
+      if (!best) continue;
+      const W = best.W, H = W / aspect, yc = best.yc, a = best.a; x0 = best.xc;
+      if (H < MIN_H) continue;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+      if (d.side) {
+        const w = halfWAt(o, x0) + 0.006;
+        mesh.position.set(x0, yc, d.side * w); mesh.rotation.set(0, d.side > 0 ? 0 : Math.PI, d.side > 0 ? a : -a);
+      } else {
+        const u = (d.end > 0 ? rings[rings.length - 1].u : rings[0].u) + d.end * 0.006;
+        mesh.position.set(u, yc, -x0); mesh.rotation.set(0, d.end * Math.PI / 2, 0);
+      }
+      mesh.name = `${o.name} decal`; mesh.receiveShadow = true; obj.add(mesh);
+    }
+  }
   for (const o of sim.obs) {
-    let obj;
+    let obj, rings = null;
     if (o.pipe) {   // round bar on posts (drawn only; the contact uses the profile like any rail)
       obj = new THREE.Group(); const r = Math.max(0.04, o.W / 2), m_ = new THREE.MeshLambertMaterial({ color: o.color ?? 0x24292d }), base = o.pipeBase ?? 0;
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(r, r, o.L, 12), m_); bar.rotation.z = Math.PI / 2; bar.position.set(0, o.H - r, 0); obj.add(bar);
       const np = Math.max(2, Math.round(o.L / 1.8) + 1);
       for (let k = 0; k < np; k++) { const post = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.7, o.H - r - base, 8), m_);
         post.position.set(-o.L / 2 + 0.2 + k * (o.L - 0.4) / (np - 1), base + (o.H - r - base) / 2, 0); obj.add(post); }
-    } else obj = new THREE.Mesh(obstacleGeometry(o), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    } else {
+      const geo = obstacleGeometry(o), mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+      const bc = new THREE.Color(o.color ?? WHITE); addAlgae(mat, bc.r + bc.g + bc.b > 1.5 ? 0.95 : 0.6);
+      obj = new THREE.Mesh(geo, mat); rings = geo.userData.rings;
+    }
     if (o.name === 'OE rooftop') {
       // Lettering and panel joins are visual details; all riding surfaces come from the shared profile.
       const group = new THREE.Group(); group.add(obj); obj = group;
@@ -792,6 +907,7 @@
         }
       }
     }
+    addDecals(obj, o, rings);
     obj.name = o.name;
     obj.position.copy(V3(o.x, o.y, 0)); obj.rotation.y = o.yaw; obj.traverse(q => { q.receiveShadow = true; }); scene.add(obj);
     if (o.tag !== false && (o.tag || !o.id)) { const tag = makeLabel(o.id || '•'); tag.scale.set(3, 3, 1); tag.position.copy(V3(o.x, o.y, 3.5)); scene.add(tag); obsTags.push(tag); }
@@ -1232,7 +1348,7 @@
   const TOP_SPAN = 400; // m synligt (højeste akse)
   function setCam(mode) {
     camMode = mode;
-    const inspect = mode === 'start' || mode === 'oe';
+    const inspect = mode === 'start' || mode === 'oe' || mode === 'hang-around';
     controls.maxPolarAngle = Math.PI * 0.49;
     $('camOrbit').setAttribute('aria-pressed', mode === 'orbit');
     $('camFollow').setAttribute('aria-pressed', mode === 'follow');
@@ -1242,6 +1358,10 @@
     if (mode === 'start') {
       persp.position.copy(startArea.localToWorld(new THREE.Vector3(-27, 43, -49)));
       controls.target.copy(startArea.localToWorld(new THREE.Vector3(-17, 1.3, 3))); controls.update();
+    }
+    if (mode === 'hang-around') {
+      persp.position.copy(startArea.localToWorld(new THREE.Vector3(95, 105, 185)));
+      controls.target.copy(startArea.localToWorld(new THREE.Vector3(-3, 1, 90))); controls.update();
     }
     if (mode === 'oe') {
       const o = sim.obs.find(o => o.name === 'OE rooftop');
@@ -1764,8 +1884,8 @@
     $('edgeL').style.setProperty('--fill', leanDir < 0 ? fill : '0%'); $('edgeR').style.setProperty('--fill', leanDir > 0 ? fill : '0%');
   }
   window.__ccpDebug = { sim, persp, controls, setCam, startArea, surroundings, scene, renderer, operatorPanel, speedGauge, tensionGauge, hist, series };   // for automated screenshots/tests
-  setCam(location.hash === '#oe' ? 'oe' : location.hash === '#start-area' ? 'start' : 'follow');
-  if (['#start-area', '#oe'].includes(location.hash)) { startSim(); setPlay(false); }
+  setCam(location.hash === '#oe' ? 'oe' : location.hash === '#start-area' ? 'start' : location.hash === '#hang-around' ? 'hang-around' : 'follow');
+  if (['#start-area', '#oe', '#hang-around'].includes(location.hash)) { startSim(); setPlay(false); }
   if (location.hash === '#flyby') startDemo();
   resize(); requestAnimationFrame(frame);
 })();

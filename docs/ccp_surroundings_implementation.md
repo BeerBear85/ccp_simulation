@@ -42,6 +42,29 @@ The passage is a short rectangular interpretation. Its actual internal profile, 
 
 The near-bank road and separate marked path follow the new shoreline. Grass/reeds occupy the edge; the opposite road follows the raised stone slope. The existing start-area walkway intersects the updated shore and road, retaining the sequence water → bank → road.
 
+Images 9932–9936 subsequently refine the green peninsula at the land-based hang-around area. The bridge spans 103.48 m in plan, using the 9935 measurement and the existing start-deck registration. A local shoreline bulge supports the terrace; the road and adjacent path retain their alignment behind the area. This is a local visual refinement, not a recalibration of the 256.97 m source or the riding layout. See [hang-around model and previews](start_area_model.md).
+
+### Corrected marked waterline: 9937–9938
+
+The user's later yellow line supersedes that inferred bulge. The two screenshots
+show the same measurement, not independent measurements. Its three vertices are
+read at approximately (222,474), (126,600), (190,724) pixels. The combined
+196.92 m length gives 0.660924 m/pixel; the individual segments are approximately
+104.69 m and 92.23 m. Both remain straight, with a sharp turn beside the terrace.
+
+A rotation/translation fit at that fixed scale uses four existing jetty vertices
+(image: (253,506), (346,594), (427,580), (463,526)). The control discrepancies
+are 1.1–6.3 m, so absolute placement remains approximate. The marked trace is
+stored separately in `CCP_SURROUNDINGS.shorelineCalibration`; it is not passed
+through the older image's transform. Only this local bank is replaced. The bridge
+retains its 103.48 m plan length and meets the new bank; its endpoint and terrace
+move about 2.4 m sideways. Terrain, stone slope and reeds use the corrected edge.
+Procedural trees are excluded from the terrace and buildings.
+
+[Corrected plan view](screenshots/hang-around-plan.png). Tests check the measured
+total, straight segments, land/water on either side, and rendered ground beneath
+the terrace. The unmarked coast beyond the endpoints retains the earlier approximation.
+
 ## Landmarks and limits
 
 The environment includes a separate large sloping-roof building on the building side, power-plant halls and stacks behind the dam, white cylindrical tanks beyond the opposite bank, stockpile masses, low waterfront buildings, and limited vegetation.
@@ -60,4 +83,3 @@ Surroundings affect rendering only. The cable, riding obstacles and rider dynami
 Static surroundings are batched by material to limit draw calls. The dam remains a named group for inspection.
 
 Validation covers the measured scale; all cable vertices and obstacle centres remaining over water; channel continuation; start-access ordering; six unobstructed rays through the rendered passage from both sides at three elevations; an upward ray hitting the passage roof; camera controls at desktop and mobile widths; and rebuilt artifact freshness. The ordinary simulation, obstacle, autopilot and operator tests also pass. Screenshots use the simulator's pinned Three.js 0.147.0.
-

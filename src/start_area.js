@@ -3,7 +3,7 @@
  * Dimensions/registration are estimates, not a survey. See docs/start_area_model.md.
  * The launch surface uses PHYS exactly; all other geometry is scenery only.
  */
-function createStartArea(THREE, P, layout) {
+function createStartArea(THREE, P, layout, environment = typeof CCP_SURROUNDINGS !== 'undefined' ? CCP_SURROUNDINGS : require('./surroundings.js').environment) {
   const root = new THREE.Group(); root.name = 'CCP_control_start_lounge';
   // Google Earth 9860 (plan) + 9861–9864 (oblique): deck/access spine is
   // parallel to the jetty towards TB, independently of the launch carpet.
@@ -250,9 +250,56 @@ function createStartArea(THREE, P, layout) {
   walkway('Shore approach to road', [shoreX, 0.91, spineZ], [roadX, 0.89, spineZ], 2.2, true);
   walkway('Inner finger pier', [-16.5, 0.75, spineZ - 1.1], [-16.5, 0.75, -9], 1.8);
   walkway('Shore-side finger pier', [shoreX + 5.5, 0.75, spineZ - 1.1], [shoreX + 5.5, 0.75, -9], 1.8);
-  const end = local(...j2), cross = local(...layout.jettyLand[1]), junction = local(...j1);
+  const end = local(...j2), junction = local(...j1);
   walkway('Through-jetty towards TB', [11.5, 0.75, junction[2]], end, 2.4);
-  walkway('Long transverse walkway', [-3, 0.75, 9.8], cross, 2.0);
+  // 9935 measures this connection to the separate hang-around area on land.
+  const hang = environment.hangAround;
+  const arrival = local(...hang.world(hang.bridgeEnd), hang.terrace.top);
+  walkway('Long transverse walkway', [-3, 0.75, 9.8], arrival, 2.0);
+  const plaza = group('CCP hang-around terrace'), buildings = group('CCP clubhouse and annexes');
+  const furniture = group('CCP picnic tables and bank seating'), planting = group('CCP hang-around planting');
+  const terrace = hang.terrace, tx = terrace.x, tz = terrace.z, th = terrace.top;
+  root.userData.hangAround = { source: hang.source, measuredLength: hang.measuredLength,
+    arrival, terrace: { ...terrace }, dimensionsStatus: 'Terrace, buildings, furniture and heights estimated from images' };
+  root.userData.source += '; Google Earth 9932–9936';
+  // Terrace starts exactly at the land end of the bridge; its water-side corner is open.
+  box(plaza, tx, (th + 0.8) / 2, tz, terrace.width, th - 0.8, terrace.depth, timber[3]);
+  plankSurface(plaza, tx, tz, terrace.width, terrace.depth, th);
+  // Low black hut at the road-side corner, and pale-roof clubhouse behind the terrace.
+  function building(x, z, w, d, h, roofMat) {
+    box(buildings, x, 0.8 + h / 2, z, w, h, d, dark);
+    box(buildings, x, 0.8 + h + 0.12, z, w + 0.5, 0.24, d + 0.5, roofMat);
+    for (const dx of [-w * 0.28, w * 0.28]) {
+      box(buildings, x + dx, 2.35, z - d / 2 - 0.035, w * 0.26, 1.1, 0.06, white);
+      box(buildings, x + dx, 2.35, z - d / 2 - 0.075, w * 0.26 - 0.12, 0.98, 0.025, glass);
+    }
+  }
+  building(tx - 7.5, tz - 11, 6, 5.5, 3.2, roof);
+  building(tx - 2, tz + 21.5, 19, 15, 3.7, white);
+  building(tx - 6, tz + 40, 9, 21, 2.8, white);
+  // Shallow awning faces the social terrace.
+  box(buildings, tx - 2, 3.6, tz + 12.4, 19.5, 0.15, 3.2, roof);
+  for (const x of [tx - 11, tx + 7]) beam(buildings, [x, th, tz + 11], [x, 3.55, tz + 11], 0.075, steel);
+  for (const [x,z] of [[tx-5,tz-3],[tx+3,tz-5],[tx-5,tz+4],[tx+3,tz+3],[tx+3,tz+9]]) {
+    box(furniture,x,th+0.76,z,2.4,0.1,0.85,timber[1]);
+    for (const dz of [-0.8,0.8]) box(furniture,x,th+0.43,z+dz,2.4,0.1,0.3,timber[2]);
+    for (const dx of [-0.8,0.8]) {
+      for (const dz of [-0.7,0.7]) beam(furniture,[x+dx,th,z+dz],[x+dx,th+0.71,z+dz*0.35],0.045,steel);
+      box(furniture,x+dx,th+0.32,z,0.1,0.1,1.85,steel);
+    }
+  }
+  // Broad seats alongside the bridge near shore, seen in 9934/9936.
+  box(furniture,arrival[0]+1.7,0.36,arrival[2]-8,3.4,0.24,7.4,timber[3]);
+  for (let step=0;step<3;step++) {
+    const x=arrival[0]+1.5+step*0.65,z=arrival[2]-8;
+    box(furniture,x,0.45+step*0.14,z,0.65,0.32,7,timber[2]);
+  }
+  const foliage=material('Hang-around foliage',0x526944),bark=material('Tree trunks',0x665546);
+  for (const [x,z,h] of [[tx-15,tz-8,6],[tx-15,tz+5,7],[tx-15,tz+23,6],[tx+12,tz+25,5],[tx+14,tz+36,6],[tx-13,tz+46,5]]) {
+    beam(planting,[x,0.8,z],[x,h*0.6,z],0.23,bark);
+    const crown=mesh(planting,new THREE.IcosahedronGeometry(1,1),foliage,x,h*0.75,z);
+    crown.scale.set(h*0.4,h*0.48,h*0.4);
+  }
   root.userData.access = { spineZ, shoreX, roadX };
   if (layout) {
     const mast = group('Start mast - lattice and drive'), column = group('Start mast - single anchored column');

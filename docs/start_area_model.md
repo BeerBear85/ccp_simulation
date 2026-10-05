@@ -88,7 +88,32 @@ på kabinen vil gøre en senere skalering mere pålidelig.
   `#start-area` åbner direkte i denne visning. **Run** starter simuleringen igen.
 - Statiske detaljer samles efter materiale og del for at begrænse draw calls.
 
-## Eksport
+## Hang-around-området på land (9932–9936)
+
+Gangbroen fra startdækket til området på land er nu 103,48 m i plan, som målt
+i billede 9935. Den erstatter den tidligere korte tværbro. Retningen er senere
+justeret lidt efter vandlinjen i 9937–9938; placeringen er ikke landmålt.
+Broen stiger svagt fra 0,75 til 1,05 m og er skønnet 2 m bred.
+
+Området er en enkel model med en ca. 23 × 28 m træterrasse, en lille sort hytte,
+en lav hovedbygning med lyst tag, en smal anneksbygning, fem borde/bænkesæt,
+siddeplateau ved broen og seks træer. Terrassekanten møder broen i samme højde.
+Kystlinjen følger nu de to rette stræk og knækket i brugerens gule markering
+i 9937–9938, med en samlet længde på 196,92 m. Det erstatter det første skøn
+af halvøens form. Broens landfæste og terrassen er flyttet ca. 2,4 m sidelæns
+for at møde den nye kyst. Vejen beholder sin tidligere linjeføring bag området. Bygninger, inventar,
+bredder, beplantning og højder er visuelle skøn. Delene er kun scenografi.
+
+Åbn simulatoren med `#hang-around` for en pauset oversigt med drej/zoom.
+[Oversigt](screenshots/hang-around-overview.png) · [Detalje](screenshots/hang-around-detail.png) · [Vandkant i plan](screenshots/hang-around-plan.png).
+Kontrol omfatter længden i plan, vand under broens spænd, land under terrassen,
+broens tilslutning og browserrendering uden JavaScript-fejl.
+
+## Eksport af startområdet
+
+De eksisterende GLB- og `dist/start-area-*.png`-filer er fra den tidligere
+startområdemodel og er ikke geneksporteret med hang-around-udvidelsen.
+Den opdaterede model findes i simulatorens HTML og i billederne ovenfor.
 
 `python tools/export_start_area.py` eksporterer den byggede scene via den samme
 Three.js-version som simulatoren og genindlæser GLB-filen som kontrol. Scriptet

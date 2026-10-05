@@ -23,10 +23,13 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 
 ## Graphics
 
+- **CCP hang-around area on land**: the connecting walkway follows the 103.48 m measurement in image 9935. A simple timber terrace, black hut, pale-roof clubhouse/annexes, picnic tables, bank seating and trees follow images 9932–9936. Open with `#hang-around` for a paused overview. The local shoreline is refined around the terrace; widths, buildings and heights remain visual estimates. See `docs/start_area_model.md`.
+
 - **OE**: rebuilt from photos 9807, 9777, 9778, 9829 and 9743 as three joined assemblies. Select **OE detail** or open with `#oe` for a paused orbit view. Geometry and contact share the bank and rounded rail surfaces. Dimensions remain estimates; see `docs/oe_model.md`.
 
 - **Control cabin, start and lounge**: reconstruction from the user's CCP photos and Google Earth views 9860–9864. The deck follows the through-jetty, with a road-side cabin, stepped seating, lattice mast, road access, two finger piers and a transverse walkway. Select **Start / lounge** for a paused orbit view, or open the simulator with `#start-area`. Dimensions are estimated; the launch retains its original world position, orientation and contact geometry independently of the deck. See `docs/start_area_model.md` for sources, assumptions and GLB export.
 
+- **Obstacle decals and algae** (appearance only, from the layout report's illustrations): printed lettering on OC, OE, OF, OG, OH and OI in a plain bold typeface (not the brands' logo artwork), fitted inside each face; green-brown algae at the water line on every obstacle, drawn in the obstacle shader from height. Shapes, sizes, positions and contact are unchanged.
 - **Sky and sun**: gradient sky with sun disc, halo and drifting clouds, drawn at the far plane in one pass. Sun from the south-west, 26° up (late afternoon); the directional light and fog match it.
 - **Water**: Fresnel mix (scaled to 55 %, lake water is not a mirror) of the body colour and a softened planar reflection of the scene, blended 60/40 with the sky (mirror camera with an oblique near plane, as three.js `Reflector`), tiled ripple normals scaled with the wind, sun glitter, wake foam and the rider's shadow as a soft ellipse along the sun. With the reflection pass off, the water reflects the analytic sky.
 - **Shadows**: one 1024² shadow map in a 24 m box that follows the rider; only the rider casts, the dock, jetty, obstacles and grass receive.
