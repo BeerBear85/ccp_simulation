@@ -763,7 +763,7 @@
     g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.computeVertexNormals();
     const nrm = g.attributes.normal;
     NS.forEach((t, i) => { if (t) t.forEach((q, k) => nrm.setXYZ(3 * i + k, q.x, q.y, q.z)); });
-    g.userData.rings = R_.map((r, i) => ({ u: P_[i][0], top: r.slice(0, m - 4) }));   // top contour v = +w → −w, used to fit decals
+    g.userData.rings = R_.map((r, i) => ({ u: P_[i][0], top: r.slice(0, r.length - 4) }));   // top contour v = +w → −w, used to fit decals
     return g;
   }
   // ---- Appearance only (layout report illustrations): algae at the water line and printed decals. Nothing here changes
@@ -786,7 +786,7 @@ float aNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 *
     vec2 hp = vAlgP.xz; float y = vAlgP.y;
     float n1 = aNoise(hp * 1.3) * 0.55 + aNoise(hp * 4.1 + 7.0) * 0.3 + aNoise(hp * 13.0 + 3.0) * 0.15;
     float drip = aNoise(hp * 37.0);
-    float flatF = smoothstep(0.7, 0.97, abs(vAlgN.y));
+    float flatF = smoothstep(0.45, 0.85, abs(vAlgN.y));
     float top = mix(0.05 + 0.40 * n1 * n1 + 0.16 * smoothstep(0.72, 0.95, drip), 0.03, flatF);
     float a = 1.0 - smoothstep(top - 0.025, top + 0.01, y);
     float sp = max(aNoise(vec2(dot(hp, vec2(0.8, 0.6)), y) * 28.0), aNoise(vec2(dot(hp, vec2(-0.6, 0.8)), y) * 28.0 + 5.0));
@@ -829,7 +829,7 @@ float aNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 *
     'OH kicker': [{ side: 1, u: 1.2, len: 2.6, ymin: 0.12, follow: true, rows: [[T_AIRTOX(PAPER)]] }, { side: -1, u: 1.2, len: 2.6, ymin: 0.12, follow: true, rows: [[T_AIRTOX(PAPER)]] },
                   { end: 1, v: 0, len: 2.4, ymin: 0.15, rows: [[{ ...T_FEAR, t: 'FEAR' }], [{ ...T_FEAR, t: 'NOTHING' }], [{ ...T_AIRTOX(PAPER), z: 0.7 }]] }],
     'OI kicker': [{ side: 1, u: 1.2, len: 2.5, ymin: 0.12, follow: true, rows: [[T_AIRTOX(INK)]] }],
-    'OG wedge': [{ end: 1, v: 0, len: 1.6, ymin: 0.2, bg: INK, rows: [[{ t: 'CCP', c: PAPER }]] }],
+    'OG wedge': [{ end: 1, v: 0, len: 1.85, ymin: 0.15, bg: INK, rows: [[{ t: 'CCP', c: PAPER, x: 1.55 }]] }],   // wide, flat badge ≈ 1/3 of the gable width (photos OG_IMG20261001170602, OG_OH_IMG20261001161901, OG_TF_IMG20261001162032)
   };
   function addDecals(obj, o, rings) {
     const specs = DECALS[o.name]; if (!specs || !rings) return;
