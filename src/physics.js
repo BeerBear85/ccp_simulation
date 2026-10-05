@@ -165,7 +165,7 @@ const PHYS = {
   YAW_C_AIR:    0.5,     // N·m·s  yaw damping in the air (aerodynamic, spinning body). Assumed
   YAW_C_W:      10,      // N·m·s per m/s  yaw-dæmpning fra vandet, ∝ fart. Antaget
   // Carving: et kantet board med rocker følger sin skrå rail. Kurveradius R = (L²/8h)·CARVE_SLIP / sin(kant).
-  CARVE_SLIP:   1.49,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 1,91 (bruger, 25/9-2026) → 1,70: 11 % mindre radius ved samme kant (bruger, 28/9-2026); 1,70 → 1,49 (bruger, 4/10-2026): fuldt kantet (45°) med stram line drejer boardet 15 °/s (før 13,2 °/s)
+  CARVE_SLIP:   1.24,    // –      faktor mellem geometrisk rail-radius (L²/8h ≈ 4,1 m) og faktisk carve-radius pga. slip. Antaget; 2,2/1,15 → 1,91 (bruger, 25/9-2026) → 1,70: 11 % mindre radius ved samme kant (bruger, 28/9-2026); 1,70 → 1,49 (bruger, 4/10-2026): fuldt kantet (45°) med stram line drejer boardet 15 °/s (før 13,2 °/s); 1,49 → 1,24 (bruger, 5/10-2026): 18 °/s fuldt kantet med stram line (målt headless: 15,4 → 18,0 °/s)
   CARVE_TAU:    0.25,    // s      hvor hurtigt vandet drejer boardet ind på railens kurve. Antaget
   PIVOT_K:      400,     // N·m/rad  riderens aktive drej af boardet med fødderne ved stor sideslip. Antaget
   PIVOT_TAU_MAX: 180,    // N·m    maks. drejemoment fra fødderne. Antaget
@@ -1173,27 +1173,27 @@ const DEMO_SETTINGS = { cableKmh: 30, releaseN: 2500 };   // a strong demo rider
 // the largest line force over a lap at 30 km/h, winds 0 and 8 m/s, rider ≥ 4 m from shore and jetty, clear of the
 // features, and at most 38 km/h before and after the corners (user, 5 Oct 2026; run-ups to features are exempt):
 // see docs/corner_minmax.md.
-const CORNER_DEFAULT = { edge: 20, edgeFor: 5, offset: 0, lead: 0, vmax: 4, cap: 35, turnIn: 0, carve: 0, carveFor: 0 };
+const CORNER_DEFAULT = { edge: 20, edgeFor: 5, offset: 0, lead: 0, vmax: 4, cap: 35, turnIn: 0, carve: 0, carveFor: 0, rampIn: 0, rampOut: 0 };
 // Free riding (no features), with { plan: [], corners: FREE_RIDE_CORNERS, gains: FREE_RIDE_GAINS }: largest line force
-// 0.67 kN (TE), ≤ 38 km/h, 8 m outside the cable at TD (user: be further right before TD; TD's peak drops from 0.65 to
-// 0.43 kN). At ≤ 35 km/h it was 0.95 kN at TA; riding the line gives 1.96 kN at 47 km/h.
+// 0.71–0.73 kN (TA), ≤ 38 km/h, 8 m outside the cable at TD (user: be further right before TD; TD's peak drops from 0.65
+// to 0.43 kN). Riding the line gives 1.96 kN at 47 km/h. Tuned with CARVE_SLIP 1.24 (18 °/s).
 const FREE_RIDE_CORNERS = {
   TC: { edge: 5.7, offset: 1.9, lead: 2.1, carve: 13.7 },
   TD: { edge: 45, offset: 6, lead: 1.3, vmax: 2.8, carve: 5.2 },
   TE: { edge: 6.8, offset: 5.4, lead: 2.3, vmax: 5, turnIn: 0.5, carve: 35.8, carveFor: 3.3 },
-  TA: { edge: 4, offset: 17.5, lead: 10, vmax: 3, turnIn: 2.9, carve: 45, carveFor: 0.5 },   // 4 m from the NW shore at the closest
+  TA: { edge: 0, offset: 18, lead: 10, vmax: 2.4, turnIn: 2.55, carve: 40.5, carveFor: 1.65, rampOut: 0.65 },   // 4.5 m from the NW shore at the closest
 };
-const FREE_RIDE_GAINS = { k1: 0.8, vmax: 2, vLim: 37.8 };
-// Demo rider (DEMO_PLAN): largest line force ≈1.35 kN at TA, ≤ 37 km/h round the corners and on the run-up to OA,
-// 8 m outside the cable at TD. The OA rail 69 m after TA leaves no room to swing wide at TA within the speed limit
-// (35 km/h gave 1.5 kN; going wider gives 1.0 kN at 42–44 km/h).
+const FREE_RIDE_GAINS = { k1: 0.8, vmax: 2, vLim: 37.55 };
+// Demo rider (DEMO_PLAN): largest line force 0.94–0.95 kN at TA, ≤ 38 km/h round the corners and on the run-up to OA,
+// 8.4 m outside the cable at TD. TA (user, 5 Oct 2026: a smoother last turn): out ≈10.5 m at the sheave, full carve
+// faded out over 0.5 s; the rope is slack ≈0.75 s per lap (was 2.9 s) and comes taut at ≈3.5 kN/s (was 11 kN/s).
 const DEMO_CORNERS = { ...FREE_RIDE_CORNERS,
-  TD: { edge: 45, edgeFor: 8, offset: 8, lead: 2, vmax: 2.8, carve: 5.2 },
-  TA: { edge: 33.4, offset: 7.2, lead: 7.8, vmax: 2.8, turnIn: 2, carve: 38.6, carveFor: 1 } };
+  TD: { edge: 45, edgeFor: 8, offset: 8.5, lead: 2, vmax: 2.8, carve: 5.2 },
+  TA: { edge: 45, offset: 13.5, lead: 4.6, vmax: 3.5, turnIn: 2.25, carve: 45, carveFor: 4.8, rampOut: 0.5 } };
 
 const DEMO_PLAN = [
   { name: 'OC left ramp', act: 'jump', pop: true, grab: -1 },    // pop off the ramp, tail grab
-  { name: 'OI kicker', act: 'jump', spin: -1, grab: 1, cross: 21.3, diag: 14.1 },   // crossed 21° to the right (out towards TA's set-up line), 360 to the right with a nose grab
+  { name: 'OI kicker', act: 'jump', spin: -1, grab: 1, cross: 26, diag: 14.4 },   // crossed 26° to the right (out towards TA's set-up line), 360 to the right with a nose grab
   { name: 'OA rising rail', act: 'slide', boardslide: 1 },       // boardslide, turned back before the end
 ];
 function createAutopilot(sim, opts = {}) {
@@ -1203,7 +1203,7 @@ function createAutopilot(sim, opts = {}) {
   // cap/capNear (°) lean limits far from / within 6 m of the entry. Tuned by a parameter sweep (headless).
   const ap = { focus: null, phase: 'line', tAir: null, flight: 0,
     // vLim (km/h): speed limit while getting out to a corner set-up line (user, 5 Oct 2026: max 38 km/h round the corners)
-    gains: { k1: 1.08, kh: 1.5, vmax: 2.48, cap: 35, capNear: 15, vLim: 37.8, ...opts.gains } };
+    gains: { k1: 1.27, kh: 1.5, vmax: 3, cap: 35, capNear: 15, vLim: 37.55, ...opts.gains } };
   const clamp = (x, a) => Math.max(-a, Math.min(a, x));
   // Corner technique per tower (TA–TF), see CORNER_DEFAULT / DEMO_CORNERS.
   const cornerCfg = { ...DEMO_CORNERS, ...opts.corners }, masts = (sim.layout || LAYOUT).masts, nW = sim.path.wheels.length;
@@ -1224,6 +1224,9 @@ function createAutopilot(sim, opts = {}) {
     const w = ap.corners.reduce((a, b) => toSheave(b) < toSheave(a) ? b : a);
     return clamp(1.5 * lat / D2R + (toSheave(w) < w.c.edgeFor ? w.c.edge : 0), 45);
   }
+  // Carve lean as a fraction of c.carve at time t (s, carrier time relative to the sheave, − before): it builds up over the
+  // first c.rampIn s after turn-in and fades over the last c.rampOut s before carveFor ends (0 = a step, as before)
+  const carveRamp = (c, t) => Math.min(1, c.rampIn > 0 ? (t + c.turnIn) / c.rampIn : 1, c.rampOut > 0 ? Math.max(0, (c.carveFor - t) / c.rampOut) : 1);
   const afterCorner = () => ap.corners.find(w => w.c.carveFor > 0 && pastSheave(w) < w.c.carveFor) || null;
   function cornerSetup() {   // the next corner set-up within its lead time: { w, tt = time to the sheave (s) }
     for (const w of ap.corners) { const tt = toSheave(w); if (tt < w.c.lead) return { w, tt }; }
@@ -1285,14 +1288,14 @@ function createAutopilot(sim, opts = {}) {
       if (p.act === 'slide' && p.boardslide && sim.out.rail && d < -3.5) spin = p.boardslide;   // turn back before the end
     } else {
       const k = cornerSetup();
-      if (k && !sim.jump && k.tt < k.w.c.turnIn) { lean = -k.w.c.carve; ap.phase = 'turn-in'; }   // carve in towards the inside of the corner
+      if (k && !sim.jump && k.tt < k.w.c.turnIn) { lean = -k.w.c.carve * carveRamp(k.w.c, -k.tt); ap.phase = 'turn-in'; }   // carve in towards the inside of the corner
       else if (k && !sim.jump) {   // get out to the set-up line; sideways speed limited so the total stays below gains.vLim
         const ob = k.w.ob, va = R.vx * ob.ax + R.vy * ob.ay, vLim = (ap.gains.vLim || 99) / 3.6;
         const vm = Math.max(0.3, Math.min(k.w.c.vmax, Math.sqrt(Math.max(0, vLim * vLim - va * va))));
         lean = ap.track(ob, local(ob).v, 20, k.w.c.cap, vm); ap.phase = 'wide'; }
       else ap.phase = 'line';
       const a = k ? null : afterCorner();
-      if (a && a.c.carve) { lean = -a.c.carve; ap.phase = 'turn-in'; }
+      if (a && a.c.carve) { lean = -a.c.carve * carveRamp(a.c, pastSheave(a)); ap.phase = 'turn-in'; }
     }
     sim.leanCmdIn = lean * D2R; sim.legCmdIn = leg; sim.spinIn = spin; sim.grabIn = grab;
   };

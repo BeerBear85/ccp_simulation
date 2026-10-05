@@ -8,7 +8,8 @@ const { createSim, createAutopilot, DEMO_SETTINGS, FREE_RIDE_CORNERS, FREE_RIDE_
 // (line / wide / turn-in, on the water), largest speed on the run-up to the OA rail, offset outside the cable at each sheave
 function ride(s, ap, laps) {
   const L = s.path.length, arcs = s.path.pieces.filter(g => g.kind === 'arc');
-  const o = { peak: 0, vCorner: 0, vOA: 0, out: {} }; let prev = 0;
+  const o = { peak: 0, vCorner: 0, vOA: 0, out: {}, jerkTA: 0 }; let prev = 0; const Fb = [];
+  const arcTA = arcs.find(g => g.len / g.R > 1.6);
   while (s.carrier.s < (laps + 1) * L && s.t < 400) {
     ap.update(); s.step();
     assert.equal(s.out.fall, '', `no fall (t ${s.t.toFixed(1)} s, phase ${ap.phase})`);
@@ -16,6 +17,9 @@ function ride(s, ap, laps) {
     if (s.carrier.s >= L) {
       const V = Math.hypot(s.rider.vx, s.rider.vy) * 3.6;
       o.peak = Math.max(o.peak, s.line.F);
+      Fb.push(s.line.F); if (Fb.length > 24) Fb.shift();   // rise of the line force over 0.1 s near the TA sheave (the 'jerk')
+      let d = cs - arcTA.s0; if (d > L / 2) d -= L; if (d < -L / 2) d += L;
+      if (Math.abs(d / s.cableSpeed) < 6) o.jerkTA = Math.max(o.jerkTA, (s.line.F - Fb[0]) / (23 / 240));
       if (['line', 'wide', 'turn-in'].includes(ap.phase) && !s.jump) o.vCorner = Math.max(o.vCorner, V);
       if (ap.focus && /OA/.test(ap.focus.p.name) && ap.phase === 'approach') o.vOA = Math.max(o.vOA, V);
       for (const g of arcs) if (prev < g.s0 && cs >= g.s0) {
@@ -49,12 +53,13 @@ for (const wind of [0, 4, 8]) {
 
 // Corner technique (docs/corner_minmax.md): max 38 km/h round the corners and on the run-up from TA to OA
 for (const wind of [0, 10]) {
-  test(`demo rider: ≤ 38 km/h round the corners and to OA, 8 m out at TD, line force below 1.45 kN (wind ${wind} m/s)`, () => {
+  test(`demo rider: ≤ 38 km/h round the corners and to OA, 8 m out at TD, line force ≤ 1 kN, smooth at TA (wind ${wind} m/s)`, () => {
     const s = createSim({ ...DEMO_SETTINGS, wind }), o = ride(s, createAutopilot(s), 2);
     assert.ok(o.vCorner < 38, `corner speed ${o.vCorner.toFixed(2)} km/h`);
     assert.ok(o.vOA < 38, `OA run-up ${o.vOA.toFixed(2)} km/h`);
     assert.ok(o.out[TD_ARC] >= 7.95, `TD offset ${o.out[TD_ARC].toFixed(1)} m`);
-    assert.ok(o.peak < 1450, `peak ${o.peak.toFixed(0)} N`);
+    assert.ok(o.peak < 1000, `peak ${o.peak.toFixed(0)} N`);
+    assert.ok(o.jerkTA < 5000, `line force rise at TA ${o.jerkTA.toFixed(0)} N/s`);
   });
   test(`free riding: ≤ 38 km/h, 8 m right of the cable at TD, line force below 0.75 kN (wind ${wind} m/s)`, () => {
     const s = createSim({ ...DEMO_SETTINGS, wind });

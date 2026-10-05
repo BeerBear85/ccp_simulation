@@ -22,9 +22,10 @@ if (process.argv[3] === 'worker') {
       const cp = Object.values(r.corner), pk = Math.max(r.legPeak, ...cp);
       let j = pk + 0.05 * cp.reduce((a, b) => a + b, 0) / cp.length + pen;
       if (spec.focus) { const oth = Math.max(r.legPeak, ...Object.entries(r.corner).filter(([k]) => !spec.focus.includes(k)).map(([, v]) => v));
-        j = Math.max(...spec.focus.map(k => r.corner[k])) + 0.5 * Math.max(0, oth - (spec.otherRef || 0)) + pen + (spec.impW || 0) * spec.focus.reduce((q, k) => q + (r.imp[k] || 0), 0); }
+        j = Math.max(...spec.focus.map(k => r.corner[k])) + 0.5 * Math.max(0, oth - (spec.otherRef || 0)) + pen + (spec.impW || 0) * spec.focus.reduce((q, k) => q + (r.imp[k] || 0), 0)
+          + spec.focus.reduce((q, k) => q + (spec.jerkW || 0) * (r.jerk[k] || 0) + (spec.slackW || 0) * (r.slack[k] || 0) / spec.laps, 0); }
       J = Math.max(J, j); worst = Math.max(worst, pk);
-      detail.push({ w, pk: Math.round(pk), vmax: +r.vmax.toFixed(1), vCorner: Math.max(0, ...Object.values(r.vCorner)).toFixed(1), vOA: r.vOA.toFixed(1), lat: r.lat, corner: Object.fromEntries(Object.entries(r.corner).map(([k, v]) => [k, Math.round(v)])), leg: Math.round(r.legPeak), shore: +r.minShore.toFixed(1), fall: r.fall, bad, tricks: r.tricks });
+      detail.push({ w, jerk: r.jerk, slack: r.slack, vminC: r.vminC, pk: Math.round(pk), vmax: +r.vmax.toFixed(1), vCorner: Math.max(0, ...Object.values(r.vCorner)).toFixed(1), vOA: r.vOA.toFixed(1), lat: r.lat, corner: Object.fromEntries(Object.entries(r.corner).map(([k, v]) => [k, Math.round(v)])), leg: Math.round(r.legPeak), shore: +r.minShore.toFixed(1), fall: r.fall, bad, tricks: r.tricks });
     }
     process.send({ id, J, worst, detail });
   });
