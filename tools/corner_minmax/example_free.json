@@ -1,0 +1,2 @@
+{ "name": "example_free_TE", "base": { "ap": { "plan": [] } }, "focus": ["TE"], "winds": [0, 8], "laps": 2, "lambda": 10, "gens": 14, "sigma": 0.2, "shoreMin": 4,
+  "params": [["TE", "offset", 0, 18, 0.7], ["TE", "lead", 0, 10, 2.1], ["TE", "turnIn", 0, 4, 0], ["TE", "carve", 0, 45, 4.1], ["TE", "carveFor", 0, 5, 0.4], ["TE", "edge", 0, 45, 11]] }

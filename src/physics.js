@@ -1158,12 +1158,42 @@ function createSim(opts = {}) {
 // Steers the rider round the course on its own: follows the line angle and edges out before each corner (as the lap
 // controller in the validation tests), and on chosen features leaves the line, lines up on the feature's axis, pops or
 // slides, and does a trick in the air. It only sets the same inputs a player has (lean, legs, spin, grab); the physics
-// is unchanged. `plan` lists the features in riding order with what to do on them. Tuned and checked headless
-// (tests/demo_autopilot.test.js): at DEMO_SETTINGS it rides lap after lap without a fall in 0, 4 and 8 m/s wind.
+// is unchanged. `plan` lists the features in riding order with what to do on them; `corners` (DEMO_CORNERS) how each
+// corner is ridden. Tuned and checked headless (tests/demo_autopilot.test.js): at DEMO_SETTINGS it rides lap after lap
+// without a fall in 0–10 m/s wind.
 const DEMO_SETTINGS = { cableKmh: 30, releaseN: 2500 };   // a strong demo rider: 2.5 kN grip (the UI allows up to 3 kN)
+// Corner technique per tower (TA–TF). In the 'line' phase the rider follows the line angle and edges out (lean `edge`°)
+// the last `edgeFor` s before the sheave. With lead > 0 he instead rides a set-up line `offset` m outside the cable on the
+// leg before the sheave from `lead` s before it (≤ vmax m/s sideways and never faster than gains.vLim in total, lean ≤ cap°),
+// carves in at `carve`° lean from `turnIn` s before the sheave and holds it `carveFor` s after it (carrier time).
+// Why: the rope (horizontal length H = √(L² − Δz²) ≈ 18.3 m) stays taut through a sheave of angle α without a jerk only
+// if the rider sits at θ ≥ α/2 to the cable, i.e. H·sin(α/2) outside it (TB 7.6, TC 7.9, TD 8.1, TE 9.7, TF 7.2, TA 13.6 m),
+// and afterwards he would have to turn at 4·v·sin(α/2)/H (≈ 60–80 °/s) where the board manages ≈15 °/s on a taut line.
+// The set-ups trade the two. Found headless (tools/corner_minmax/, 5 Oct 2026, TE sheave at [157.5, 118.2]) by minimising
+// the largest line force over a lap at 30 km/h, winds 0 and 8 m/s, rider ≥ 4 m from shore and jetty, clear of the
+// features, and at most 38 km/h before and after the corners (user, 5 Oct 2026; run-ups to features are exempt):
+// see docs/corner_minmax.md.
+const CORNER_DEFAULT = { edge: 20, edgeFor: 5, offset: 0, lead: 0, vmax: 4, cap: 35, turnIn: 0, carve: 0, carveFor: 0 };
+// Free riding (no features), with { plan: [], corners: FREE_RIDE_CORNERS, gains: FREE_RIDE_GAINS }: largest line force
+// 0.67 kN (TE), ≤ 38 km/h, 8 m outside the cable at TD (user: be further right before TD; TD's peak drops from 0.65 to
+// 0.43 kN). At ≤ 35 km/h it was 0.95 kN at TA; riding the line gives 1.96 kN at 47 km/h.
+const FREE_RIDE_CORNERS = {
+  TC: { edge: 5.7, offset: 1.9, lead: 2.1, carve: 13.7 },
+  TD: { edge: 45, offset: 6, lead: 1.3, vmax: 2.8, carve: 5.2 },
+  TE: { edge: 6.8, offset: 5.4, lead: 2.3, vmax: 5, turnIn: 0.5, carve: 35.8, carveFor: 3.3 },
+  TA: { edge: 4, offset: 17.5, lead: 10, vmax: 3, turnIn: 2.9, carve: 45, carveFor: 0.5 },   // 4 m from the NW shore at the closest
+};
+const FREE_RIDE_GAINS = { k1: 0.8, vmax: 2, vLim: 37.8 };
+// Demo rider (DEMO_PLAN): largest line force ≈1.35 kN at TA, ≤ 37 km/h round the corners and on the run-up to OA,
+// 8 m outside the cable at TD. The OA rail 69 m after TA leaves no room to swing wide at TA within the speed limit
+// (35 km/h gave 1.5 kN; going wider gives 1.0 kN at 42–44 km/h).
+const DEMO_CORNERS = { ...FREE_RIDE_CORNERS,
+  TD: { edge: 45, edgeFor: 8, offset: 8, lead: 2, vmax: 2.8, carve: 5.2 },
+  TA: { edge: 33.4, offset: 7.2, lead: 7.8, vmax: 2.8, turnIn: 2, carve: 38.6, carveFor: 1 } };
+
 const DEMO_PLAN = [
   { name: 'OC left ramp', act: 'jump', pop: true, grab: -1 },    // pop off the ramp, tail grab
-  { name: 'OI kicker', act: 'jump', spin: -1, grab: 1, cross: 25, diag: 12 },   // crossed 25° to the right (jumps out towards the wide line), 360 to the right with a nose grab
+  { name: 'OI kicker', act: 'jump', spin: -1, grab: 1, cross: 21.3, diag: 14.1 },   // crossed 21° to the right (out towards TA's set-up line), 360 to the right with a nose grab
   { name: 'OA rising rail', act: 'slide', boardslide: 1 },       // boardslide, turned back before the end
 ];
 function createAutopilot(sim, opts = {}) {
@@ -1172,39 +1202,31 @@ function createAutopilot(sim, opts = {}) {
   // gains: k1 (1/s) lateral offset → sideways speed, kh (1/s) heading error → turn rate, vmax (m/s) sideways speed,
   // cap/capNear (°) lean limits far from / within 6 m of the entry. Tuned by a parameter sweep (headless).
   const ap = { focus: null, phase: 'line', tAir: null, flight: 0,
-    gains: { k1: 0.8, kh: 1.5, vmax: 2, cap: 35, capNear: 15, ...opts.gains },
-    wide: { minTurn: 90, lead: 9, offset: 18, vmax: 4, cap: 35, turnIn: 2.5, carve: 45, carveFor: 3, ...opts.wide } };
+    // vLim (km/h): speed limit while getting out to a corner set-up line (user, 5 Oct 2026: max 38 km/h round the corners)
+    gains: { k1: 1.08, kh: 1.5, vmax: 2.48, cap: 35, capNear: 15, vLim: 37.8, ...opts.gains } };
   const clamp = (x, a) => Math.max(-a, Math.min(a, x));
-  function lineLean() {   // follow the line angle; edge out ≈5 s before a corner
-    const R = sim.rider, hx = Math.cos(R.psi), hy = Math.sin(R.psi), hp = sim.line.hp, Pa = sim.path;
-    const cs = ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length; let dA = 1e9;
-    for (const g of Pa.pieces) if (g.kind === 'arc') { let d = g.s0 - cs; if (d < 0) d += Pa.length; dA = Math.min(dA, d); }
+  // Corner technique per tower (TA–TF), see CORNER_DEFAULT / DEMO_CORNERS.
+  const cornerCfg = { ...DEMO_CORNERS, ...opts.corners }, masts = (sim.layout || LAYOUT).masts, nW = sim.path.wheels.length;
+  ap.corners = [];
+  sim.path.pieces.forEach((g, i) => {
+    const prev = sim.path.pieces[(i - 1 + sim.path.pieces.length) % sim.path.pieces.length], id = (masts[((i + 1) / 2) % nW] || {}).id;
+    if (g.kind !== 'arc' || prev.kind !== 'line') return;
+    const c = { ...CORNER_DEFAULT, ...cornerCfg[id] };
+    ap.corners.push({ id, c, s0: g.s0, turn: g.len / g.R / D2R, ob: { x: prev.a[0] + prev.t[1] * c.offset, y: prev.a[1] - prev.t[0] * c.offset,
+      ax: prev.t[0], ay: prev.t[1], yaw: Math.atan2(prev.t[1], prev.t[0]), L: 0 } });
+  });
+  const carrierS = () => { const Pa = sim.path; return ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length; };
+  const toSheave = w => { let d = w.s0 - carrierS(); if (d < 0) d += sim.path.length; return d / sim.cableSpeed; };   // s
+  const pastSheave = w => { let d = carrierS() - w.s0; if (d < 0) d += sim.path.length; return d / sim.cableSpeed; };   // s
+  function lineLean() {   // follow the line angle; edge out (c.edge°) c.edgeFor s before each corner
+    const R = sim.rider, hx = Math.cos(R.psi), hy = Math.sin(R.psi), hp = sim.line.hp;
     const dx = sim.tow.x - hp[0], dy = sim.tow.y - hp[1], lat = Math.atan2(dx * hy - dy * hx, dx * hx + dy * hy);
-    return clamp(1.5 * lat / D2R + (dA / sim.cableSpeed < 5 ? 20 : 0), 45);
+    const w = ap.corners.reduce((a, b) => toSheave(b) < toSheave(a) ? b : a);
+    return clamp(1.5 * lat / D2R + (toSheave(w) < w.c.edgeFor ? w.c.edge : 0), 45);
   }
-  // Wide set-up for the sharp corners (turn ≥ wide.minTurn°, i.e. the 96° corner at tower A; user, 4 Oct 2026: ride far
-  // out to the right before the last corner for less force in the rope, and turn the board in before the pull comes).
-  // Geometry: with the rope's horizontal length H = √(L² − Δz²) ≈ 18.3 m, the rope stays taut as the carrier turns the
-  // corner angle α only if its angle θ to the cable satisfies θ ≥ (α + φ)/2, φ = how far the board is already turned in;
-  // the lateral distance is H·sin θ (13.6 m for φ = 0, 15.5 m for φ = 20°, 17 m for φ = 40°; > 18.3 m is impossible).
-  // From wide.lead s before the sheave the rider rides a line wide.offset m outside the cable (up to wide.vmax m/s
-  // sideways, lean ≤ wide.cap°); wide.turnIn s before the sheave he carves in (lean wide.carve°) until wide.carveFor s
-  // after it. With the OI kicker crossed 25° to the right he gets ≈8 m out with the board ≈14° in: peak rope force in
-  // the corner 1.31–1.41 kN (0–8 m/s wind, CARVE_SLIP 1.49) against 1.75 kN riding the line. Turning in 2 s before
-  // the sheave instead gives 1.8–2.3 kN (rope slack, then a jerk); 2.25 s is lower but loses the OA entry after it. Without the kicker (more time) 13–14 m
-  // and 20–25° in gave ≈0.8 kN; 15 m out with the board still straight gave 2.2 kN. Values from parameter sweeps.
-  const sharp = sim.path.pieces.map((g, i) => ({ g, prev: sim.path.pieces[(i - 1 + sim.path.pieces.length) % sim.path.pieces.length] }))
-    .filter(({ g, prev }) => g.kind === 'arc' && prev.kind === 'line' && g.len / g.R / D2R >= ap.wide.minTurn)
-    .map(({ g, prev }) => ({ s0: g.s0, ob: { x: prev.a[0] + prev.t[1] * ap.wide.offset, y: prev.a[1] - prev.t[0] * ap.wide.offset,
-      ax: prev.t[0], ay: prev.t[1], yaw: Math.atan2(prev.t[1], prev.t[0]), L: 0 } }));
-  function afterSharp() {   // time past a sharp corner's sheave (s), or false
-    const Pa = sim.path, cs = ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length;
-    for (const c of sharp) { let d = cs - c.s0; if (d < 0) d += Pa.length; if (d / sim.cableSpeed < ap.wide.carveFor) return d / sim.cableSpeed; }
-    return false;
-  }
-  function wideSetup() {
-    const Pa = sim.path, cs = ((sim.carrier.s % Pa.length) + Pa.length) % Pa.length;
-    for (const c of sharp) { let d = c.s0 - cs; if (d < 0) d += Pa.length; const tt = d / sim.cableSpeed; if (tt < ap.wide.lead) return { ob: c.ob, tt }; }
+  const afterCorner = () => ap.corners.find(w => w.c.carveFor > 0 && pastSheave(w) < w.c.carveFor) || null;
+  function cornerSetup() {   // the next corner set-up within its lead time: { w, tt = time to the sheave (s) }
+    for (const w of ap.corners) { const tt = toSheave(w); if (tt < w.c.lead) return { w, tt }; }
     return null;
   }
   function local(ob) { const R = sim.rider, rx = R.x - ob.x, ry = R.y - ob.y; return { u: rx * ob.ax + ry * ob.ay, v: -rx * ob.ay + ry * ob.ax }; }
@@ -1262,11 +1284,15 @@ function createAutopilot(sim, opts = {}) {
       if (sim.jump && ap.flight < 0.42 && ap.flight > 0.12 && !grab) leg = P.LEG_MAX;   // reach for the water: straight legs give the full stroke to absorb the landing
       if (p.act === 'slide' && p.boardslide && sim.out.rail && d < -3.5) spin = p.boardslide;   // turn back before the end
     } else {
-      const w = wideSetup();
-      if (w && !sim.jump && w.tt < ap.wide.turnIn) { lean = -ap.wide.carve; ap.phase = 'turn-in'; }   // carve in towards the inside of the corner
-      else if (w && !sim.jump) { lean = ap.track(w.ob, local(w.ob).v, 20, ap.wide.cap, ap.wide.vmax); ap.phase = 'wide'; }
+      const k = cornerSetup();
+      if (k && !sim.jump && k.tt < k.w.c.turnIn) { lean = -k.w.c.carve; ap.phase = 'turn-in'; }   // carve in towards the inside of the corner
+      else if (k && !sim.jump) {   // get out to the set-up line; sideways speed limited so the total stays below gains.vLim
+        const ob = k.w.ob, va = R.vx * ob.ax + R.vy * ob.ay, vLim = (ap.gains.vLim || 99) / 3.6;
+        const vm = Math.max(0.3, Math.min(k.w.c.vmax, Math.sqrt(Math.max(0, vLim * vLim - va * va))));
+        lean = ap.track(ob, local(ob).v, 20, k.w.c.cap, vm); ap.phase = 'wide'; }
       else ap.phase = 'line';
-      if (!w && afterSharp() !== false && ap.wide.carve) { lean = -ap.wide.carve; ap.phase = 'turn-in'; }
+      const a = k ? null : afterCorner();
+      if (a && a.c.carve) { lean = -a.c.carve; ap.phase = 'turn-in'; }
     }
     sim.leanCmdIn = lean * D2R; sim.legCmdIn = leg; sim.spinIn = spin; sim.grabIn = grab;
   };
@@ -1274,4 +1300,4 @@ function createAutopilot(sim, opts = {}) {
   return ap;
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, createAutopilot, DEMO_PLAN, DEMO_SETTINGS, buildPath, pathAt, profileAt, halfWAt, surfaceAt, LAUNCH_TYPES, bodyInertia, legForceMax, kneeGeom };
+if (typeof module !== 'undefined' && module.exports) module.exports = { PHYS, LAYOUT, createSim, createAutopilot, DEMO_PLAN, DEMO_CORNERS, FREE_RIDE_CORNERS, FREE_RIDE_GAINS, CORNER_DEFAULT, DEMO_SETTINGS, buildPath, pathAt, profileAt, halfWAt, surfaceAt, LAUNCH_TYPES, bodyInertia, legForceMax, kneeGeom };
