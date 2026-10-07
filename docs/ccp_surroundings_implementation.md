@@ -69,7 +69,7 @@ the terrace. The unmarked coast beyond the endpoints retains the earlier approxi
 
 The environment includes a separate large sloping-roof building on the building side, power-plant halls and stacks behind the dam, white cylindrical tanks beyond the opposite bank, stockpile masses, low waterfront buildings, and limited vegetation.
 
-Building footprints are approximate interpretations of the plan imagery. Heights, facade treatment, tank dimensions, details beyond the screenshot boundaries and repeated vegetation are schematic. The sloping-roof building retains the earlier model's 12–85 m roof range and 124 m chimney; these were not measured in the new screenshots. Tanks use explicit approximate placements instead of the old randomly populated field.
+Building footprints are approximate interpretations of the plan imagery. Heights, facade treatment, tank dimensions, details beyond the screenshot boundaries and repeated vegetation are schematic. CopenHill now uses the [report-based detailed model](copenhill_model.md), retaining the earlier 12–85 m roof range and 124 m chimney as estimates. Its high end faces left from CCP, matching the supplied report. Tanks use explicit approximate placements instead of the old randomly populated field.
 
 Surroundings affect rendering only. The cable, riding obstacles and rider dynamics are unchanged; terrain/building collisions and hydrology are not implemented.
 

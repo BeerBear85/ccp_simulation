@@ -224,23 +224,6 @@ function createCCPSurroundings(THREE, environment = CCP_SURROUNDINGS) {
     const pos=project(p);cylinder(industrial,pos,r,h,white,E.ground,'Power plant stack');
     cylinder(industrial,pos,r*1.02,7,dark,E.ground+h-7);
   }
-  // The large sloping-roof building remains a distinct mass on the building side.
-  const cp=project([92,239]),L=190,W=73,hLo=12,hHi=85,theta=33*Math.PI/180;
-  const cg=new THREE.BoxGeometry(L,1,W),ps=cg.attributes.position;
-  for(let i=0;i<ps.count;i++)ps.setY(i,ps.getY(i)>0?hLo+(hHi-hLo)*(ps.getX(i)/L+.5):0);
-  cg.computeVertexNormals();const fac=material(0xa4aeac);
-  const hill=add(industrial,cg,[fac,fac,roof,fac,fac,fac],'Sloping-roof landmark');
-  hill.position.copy(V(cp,.8));hill.rotation.y=theta;
-  const hc=[cp[0]+Math.cos(theta)*85,cp[1]+Math.sin(theta)*85];
-  cylinder(industrial,hc,4,124,white,.8,'Sloping-roof building stack');
-  // Facade ribs follow the rising envelope.
-  for(let u=-L/2+5;u<L/2;u+=8){
-    const h=hLo+(hHi-hLo)*(u/L+.5);
-    for(const sign of [-1,1]){
-      const v=sign*(W/2+.15),p=[cp[0]+Math.cos(theta)*u-Math.sin(theta)*v,cp[1]+Math.sin(theta)*u+Math.cos(theta)*v];
-      box(industrial,p,.6,.4,h,theta,trim,.8);
-    }
-  }
   // Individual tank silhouettes, not the previous random field. Centres/diameters beyond
   // visible imagery are contextual estimates; no claim that every tank is surveyed.
   const tanks=[[570,500,22,19],[593,537,21,18],[617,574,19,17],[624,479,25,21],
@@ -301,6 +284,10 @@ function createCCPSurroundings(THREE, environment = CCP_SURROUNDINGS) {
       g.setAttribute('normal',new THREE.Float32BufferAttribute(b.n,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));g.computeBoundingSphere();add(parent,g,mat,'Batched '+parent.name);}
   }
   for(const g of [terrain,roads,industrial])batch(g);
+  // Add the instanced landmark after environment batching to preserve its local transform.
+  const copenhill=createCopenHill(THREE),cp=project([92,239]);
+  copenhill.position.copy(V(cp,E.ground));copenhill.rotation.y=(33+180)*Math.PI/180; // High end at the left when seen from CCP, as in the report.
+  root.add(copenhill);
   return root;
 }
 if(typeof module!=='undefined'&&module.exports)module.exports={environment:CCP_SURROUNDINGS,createCCPSurroundings};
