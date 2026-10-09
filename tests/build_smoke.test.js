@@ -18,6 +18,8 @@ test('both built artifacts contain current source and replay its behavior', () =
     const surroundings = fs.readFileSync(path.join(__dirname, '../src/surroundings.js'), 'utf8').replace(/\r\n/g, '\n');
     assert.ok(html.includes(surroundings), `${name} has stale surroundings: run python build.py`);
     assert.ok(!html.includes('/*__SURROUNDINGS__*/'), `${name} has an unresolved surroundings placeholder`);
+    const drone = fs.readFileSync(path.join(__dirname, '../src/drone.js'), 'utf8').replace(/\r\n/g, '\n');
+    assert.ok(html.includes(drone) && !html.includes('/*__DRONE__*/'), `${name} has a stale drone camera: run python build.py`);
     assert.ok(!html.includes('/*__START_AREA__*/'), `${name} has an unresolved model placeholder`);
     for (const file of ['operator.js', 'operator.css']) {
       const operator = fs.readFileSync(path.join(__dirname, '../src', file), 'utf8').replace(/\r\n/g, '\n');

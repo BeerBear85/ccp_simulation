@@ -2,6 +2,7 @@
 <script>
 /*__COPENHILL__*/
 /*__SURROUNDINGS__*/
+/*__DRONE__*/
 /*__PHYSICS__*/
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1467,72 +1468,15 @@ float aNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 *
     if (sim.out.fall) { if (!demo.fallT) demo.fallT = performance.now(); else if (performance.now() - demo.fallT > 2500) resetRide(); }
   }
 
-  // Drone camera: ONE continuously flying camera, no cuts. It starts with a wide sweep round the park and then flies as
-  // a real drone would: a point mass chasing a framing goal with a top speed of 80 km/h (DRONE_VMAX) and limited
-  // acceleration, keeping to the inside of the cable loop (left of travel; the loop runs counter-clockwise) so its path is
-  // shorter than the rider's. Framings change smoothly every few seconds; ahead of a demo feature it flies to a vantage
-  // point beside the feature on the inside and films the trick from there.
-  const DRONE_VMAX = 80 / 3.6, DRONE_AMAX = 7, DRONE_K = 1.1;   // m/s, m/s², 1/s (approach gain)
-  const DRONE_MODES = ['chase', 'orbit', 'side', 'high', 'ahead', 'low'];
-  const DRONE_FEAT = ['side', 'front', 'high'];
-  const DRONE_OBST = [...sim.path.wheels, ...LAYOUT.masts.map(m => [m.x, m.y])];   // sheaves and mast bases
-  const drone = { mode: 'intro', t0: 0, n: 0, nFeat: 0, featP: null, fview: 'side', p: [0, 0, 0], v: [0, 0, 0], g: null, gv: [0, 0, 0],
-    look: new THREE.Vector3(), dir: { x: 1, y: 0 }, last: 0, speed: 0, a0: 0, ahead: null };
-  function droneReset() { Object.assign(drone, { mode: 'intro', t0: performance.now() / 1000, n: 0, featP: null, g: null, last: 0, v: [0, 0, 0] }); }
-  function droneMode(mode, now) { drone.mode = mode; drone.t0 = now; drone.a0 = Math.atan2(drone.p[1] - sim.rider.y, drone.p[0] - sim.rider.x); drone.ahead = null; }
+  // Drone camera (src/drone.js): one continuously flying camera with a terrain guard, so it never flies into the
+  // grass/trees beside the course and keeps the sight line to the rider clear of the land.
+  const drone = createDrone(sim, CCP_SURROUNDINGS, [...sim.path.wheels, ...LAYOUT.masts.map(m => [m.x, m.y])]);   // sheaves and mast bases
+  const droneLook = new THREE.Vector3();
+  function droneReset() { drone.reset(performance.now() / 1000); }
   function droneCam(R) {
-    const now = performance.now() / 1000, dt = Math.min(0.1, now - (drone.last || now)); drone.last = now;
-    const t = now - drone.t0, f = demo && demo.ap.focus;
-    const vv = Math.hypot(R.vx, R.vy); if (vv > 1) { const k = Math.min(1, dt * 2); drone.dir.x += (R.vx / vv - drone.dir.x) * k; drone.dir.y += (R.vy / vv - drone.dir.y) * k; }
-    const dl = Math.hypot(drone.dir.x, drone.dir.y) || 1, dx = drone.dir.x / dl, dy = drone.dir.y / dl, nx = -dy, ny = dx;   // n = left of travel = inside
-    const rz = Math.max(R.z, 0);
-    let g, lx = R.x + dx * 2, ly = R.y + dy * 2, lz = rz + 0.9;
-    if (drone.mode === 'intro') {   // scripted spiral: a wide sweep round the park closing in on the rider at the start (≤ 80 km/h)
-      const T = 8, q = Math.min(1, t / T), e = q * q * (3 - 2 * q), a = 3.6 + 0.128 * t;
-      const cx = 92 + (R.x - 92) * e, cy = 30 + (R.y - 30) * e, rad = 165 + (40 - 165) * e;
-      g = [cx + rad * Math.cos(a), cy + rad * Math.sin(a), 75 + (14 - 75) * e];
-      lx = 92 + (R.x - 92) * e; ly = 30 + (R.y - 30) * e; lz = 0;
-      if (dt > 0.005) { drone.v = g.map((x, i) => (x - drone.p[i]) / dt); const sp = Math.hypot(...drone.v); if (sp > DRONE_VMAX) drone.v = drone.v.map(x => x * DRONE_VMAX / sp); }
-      drone.p = g; if (t > T) droneMode('chase', now);
-    } else {
-      // a demo feature ahead: fly to a vantage point beside it, on the inside, and hold there until he has ridden on
-      if (f && f.p !== drone.featP && f.u > -f.p.ob.L / 2 - 50) { drone.featP = f.p; drone.fview = DRONE_FEAT[drone.nFeat++ % DRONE_FEAT.length]; droneMode('feature', now); }
-      if (drone.mode === 'feature' && (!f || f.p !== drone.featP)) droneMode(DRONE_MODES[drone.n++ % DRONE_MODES.length], now);
-      if (!f) drone.featP = null;
-      if (drone.mode !== 'feature' && t > 6.5) droneMode(DRONE_MODES[drone.n++ % DRONE_MODES.length], now);
-      switch (drone.mode) {
-        case 'chase': g = [R.x - dx * 8 + nx * 4, R.y - dy * 8 + ny * 4, rz + 3]; lx = R.x + dx * 4; ly = R.y + dy * 4; break;
-        case 'low': g = [R.x - dx * 5 + nx * 2.5, R.y - dy * 5 + ny * 2.5, rz + 1.2]; lx = R.x + dx * 6; ly = R.y + dy * 6; lz = rz + 1.1; break;
-        case 'side': g = [R.x + nx * 11 + dx * 2, R.y + ny * 11 + dy * 2, 2.6]; break;
-        case 'high': g = [R.x - dx * 14 + nx * 18, R.y - dy * 14 + ny * 18, 24]; lx = R.x + dx * 10; ly = R.y + dy * 10; lz = 0; break;
-        case 'orbit': { // half circle round the rider, swinging from the inside over the back to the inside again
-          const a = drone.a0 + 0.35 * t; g = [R.x + 16 * Math.cos(a), R.y + 16 * Math.sin(a), rz + 6]; break; }
-        case 'ahead': { // hover over the rider's line ahead and let him pass close by
-          if (!drone.ahead) drone.ahead = [R.x + dx * 55 + nx * 5, R.y + dy * 55 + ny * 5, 3.5];
-          g = drone.ahead; break; }
-        case 'feature': {
-          const ob = drone.featP.ob, at = (u, v, h) => [ob.x + ob.ax * u - ob.ay * v, ob.y + ob.ay * u + ob.ax * v, h];
-          g = drone.fview === 'side' ? at(ob.L / 2 + 2, ob.W / 2 + 8, 3.5) : drone.fview === 'front' ? at(ob.L / 2 + 20, 6, 4) : at(ob.L / 2, 9, 14);
-          lx = R.x; ly = R.y; lz = rz + 0.8; break; }
-      }
-      // goal velocity (for feed-forward), then a speed- and acceleration-limited approach
-      const gvNew = drone.g && dt > 0 ? g.map((x, i) => (x - drone.g[i]) / dt) : [0, 0, 0];
-      drone.gv = drone.gv.map((x, i) => x + (gvNew[i] - x) * Math.min(1, dt * 4)); drone.g = g;
-      let vd = g.map((x, i) => drone.gv[i] + DRONE_K * (x - drone.p[i]));
-      for (const [mx, my] of DRONE_OBST) {   // keep clear of the towers, booms and sheaves (they reach ≈11 m up)
-        const ex = drone.p[0] - mx, ey = drone.p[1] - my, d = Math.hypot(ex, ey);
-        if (d < 7 && d > 1e-3 && drone.p[2] < 12) { vd[0] += ex / d * (7 - d) * 3; vd[1] += ey / d * (7 - d) * 3; }
-      }
-      const sp = Math.hypot(...vd); if (sp > DRONE_VMAX) vd = vd.map(x => x * DRONE_VMAX / sp);
-      const dv = vd.map((x, i) => x - drone.v[i]), dm = Math.hypot(...dv), amax = DRONE_AMAX * dt;
-      drone.v = drone.v.map((x, i) => x + (dm > amax ? dv[i] * amax / dm : dv[i]));
-      drone.p = drone.p.map((x, i) => x + drone.v[i] * dt); drone.p[2] = Math.max(1.0, drone.p[2]);
-    }
-    drone.speed = Math.hypot(...drone.v);
-    const P = V3(drone.p[0] + 0.1 * Math.sin(now * 1.3), drone.p[1] + 0.1 * Math.sin(now * 1.7 + 1), drone.p[2] + 0.06 * Math.sin(now * 2.1 + 2));   // hover wobble
-    const L = V3(lx, ly, lz);
-    if (drone.look.lengthSq() === 0) drone.look.copy(L); else drone.look.lerp(L, 1 - Math.exp(-dt / 0.2));   // gimbal
-    persp.position.copy(P); persp.lookAt(drone.look);
+    const now = performance.now() / 1000, { p, look } = drone.update(now, R, demo && demo.ap.focus);
+    const P = V3(p[0] + 0.1 * Math.sin(now * 1.3), p[1] + 0.1 * Math.sin(now * 1.7 + 1), p[2] + 0.06 * Math.sin(now * 2.1 + 2));   // hover wobble
+    persp.position.copy(P); persp.lookAt(droneLook.copy(V3(look[0], look[1], look[2])));
   }
   addEventListener('resize', fitCover); fitCover();
   setPlay(false);   // Enter/Space eller klik på START starter
