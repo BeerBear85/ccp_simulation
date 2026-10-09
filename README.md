@@ -23,7 +23,7 @@ All constants are in the `PHYS` block at the top of `src/physics.js`, with unit 
 
 ## Graphics
 
-- **CopenHill**: reconstructed from the supplied model report, with staggered aluminium facade trays, rounded corners, green ski roof, paths, planting and twin chimney flues. See [model details and previews](docs/copenhill_model.md).
+- **CopenHill**: uses the supplied `copenhill_visual_proxy.glb`, embedded in the standalone HTML with its geometry and vertex colours. See [model details and previews](docs/copenhill_model.md).
 
 - **CCP hang-around area on land**: the connecting walkway follows the 103.48 m measurement in image 9935. A simple timber terrace, black hut, pale-roof clubhouse/annexes, picnic tables, bank seating and trees follow images 9932–9936. Open with `#hang-around` for a paused overview. The local shoreline is refined around the terrace; widths, buildings and heights remain visual estimates. See `docs/start_area_model.md`.
 

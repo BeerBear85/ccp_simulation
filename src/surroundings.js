@@ -286,7 +286,7 @@ function createCCPSurroundings(THREE, environment = CCP_SURROUNDINGS) {
   for(const g of [terrain,roads,industrial])batch(g);
   // Add the instanced landmark after environment batching to preserve its local transform.
   const copenhill=createCopenHill(THREE),cp=project([92,239]);
-  copenhill.position.copy(V(cp,E.ground));copenhill.rotation.y=(33+180)*Math.PI/180; // High end at the left when seen from CCP, as in the report.
+  copenhill.position.copy(V(cp,E.ground));copenhill.rotation.y=(33+180)*Math.PI/180; // Supplied proxy uses the same high-end orientation, facing CCP.
   root.add(copenhill);
   return root;
 }
