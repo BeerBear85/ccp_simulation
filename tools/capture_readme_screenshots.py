@@ -18,13 +18,33 @@ def main():
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             url = (ROOT / "dist" / "copenhagen_cable_park_sim.html").as_uri()
-            for name, fragment in [("start-screen", ""), ("start-area", "#start-area")]:
+            for name, fragment in [("start-screen", ""), ("demo-jump-follow", "#flyby")]:
                 page.goto("about:blank")
                 page.goto(url + fragment)
                 page.wait_for_function("window.__ccpDebug", timeout=60000)
                 if fragment:
                     page.wait_for_function("getComputedStyle(document.getElementById('cover')).opacity === '0'")
                 page.evaluate("document.fonts.ready")
+                if fragment == "#flyby":
+                    page.locator("#camFollow").click()
+                    page.locator("#btnPlay").click()
+                    state = page.evaluate("""() => {
+                        const sim = __ccpDebug.sim;
+                        const step = document.getElementById('btnStep');
+                        while (sim.t < 90) {
+                            step.click();
+                            if (sim.out.fall) throw Error(sim.out.fall);
+                            if (sim.t > 5 && sim.out.air && sim.rider.z > 1.5 &&
+                                sim.rider.vz <= 0 && sim.rider.vz > -0.15) {
+                                if (document.getElementById('demoBar').hidden ||
+                                    document.getElementById('camFollow').getAttribute('aria-pressed') !== 'true')
+                                    throw Error('Expected demo mode with Follow camera');
+                                return {time: sim.t, height: sim.rider.z, verticalSpeed: sim.rider.vz};
+                            }
+                        }
+                        throw Error('No demo jump apex found');
+                    }""")
+                    print(f"Demo jump apex: {state}")
                 page.wait_for_timeout(2000)
                 page.screenshot(path=str(OUTPUT / f"{name}.png"))
                 print(f"Captured {name}")

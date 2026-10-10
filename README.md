@@ -10,9 +10,9 @@ Start screen with shortcuts to ride the cable or watch the drone flyby demo.
 
 ![CCP Simulator start screen with Start and Drone Flyby buttons](docs/screenshots/start-screen.png)
 
-Start / lounge view: the launch area, cable and surrounding park, with live speed and line-force gauges. Open with `#start-area` for this paused overview.
+Demo rider mid-jump, seen from the Follow rider camera. Start **Drone flyby**, then select **Follow rider** to watch the demo from this perspective.
 
-![Simulator showing the start and lounge area with operator controls](docs/screenshots/start-area.png)
+![Demo rider mid-jump with the Follow rider camera and live speed and line-force gauges](docs/screenshots/demo-jump-follow.png)
 
 ## What it models
 
