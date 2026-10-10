@@ -4,6 +4,16 @@ Interactive 3D physics simulator of the full-size cable at Copenhagen Cable Park
 
 Open `dist/copenhagen_cable_park_sim.html` in a browser.
 
+## Screenshots
+
+Start screen with shortcuts to ride the cable or watch the drone flyby demo.
+
+![CCP Simulator start screen with Start and Drone Flyby buttons](docs/screenshots/start-screen.png)
+
+Start / lounge view: the launch area, cable and surrounding park, with live speed and line-force gauges. Open with `#start-area` for this paused overview.
+
+![Simulator showing the start and lounge area with operator controls](docs/screenshots/start-area.png)
+
 ## What it models
 
 - **Cable and carrier**: constant speed (20–35 km/h) on the 520 m loop from the user's KML polygon (T1–T6), counter-clockwise, with a compliant carrier hanger.
